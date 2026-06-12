@@ -49,11 +49,13 @@ class BrowserSession:
         base_url: str | None = None,
         profile_path: str | Path | None = None,
         maps_dir: Path | None = None,
+        grant_clipboard: bool = True,
     ) -> None:
         self.channel = channel
         self.selectors: SelectorMap = load_selector_map(channel, maps_dir=maps_dir)
         self._base_url = self._resolve_base_url(channel=channel, base_url=base_url)
         self._profile_path = Path(profile_path) if profile_path is not None else None
+        self._grant_clipboard = bool(grant_clipboard)
         self._playwright: Playwright | None = None
         self._browser: Browser | None = None
         self._context: BrowserContext | None = None
@@ -250,7 +252,8 @@ class BrowserSession:
         self._browser = self._playwright.chromium.launch(headless=True)
         self._context = self._browser.new_context()
         self._install_mock_route_guard()
-        self._context.grant_permissions(["clipboard-read", "clipboard-write"], origin=self._base_url)
+        if self._grant_clipboard:
+            self._context.grant_permissions(["clipboard-read", "clipboard-write"], origin=self._base_url)
 
     def _install_mock_route_guard(self) -> None:
         if self._context is None:

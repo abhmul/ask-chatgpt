@@ -2,6 +2,7 @@ import json
 from urllib.request import Request, urlopen
 
 import pytest
+from playwright.sync_api import Error as PlaywrightError
 
 from ask_chatgpt.driver import BrowserSession
 from ask_chatgpt.errors import ResponseTruncatedError, SelectorUnavailableError
@@ -111,6 +112,62 @@ def test_copy_button_reader_happy_path_returns_clipboard_text(mock_chatgpt):
         turn = session.wait_for_completion(timeout_s=3)
 
         assert CopyButtonReader().read(turn, session.page, session.selectors) == latest_text
+
+
+def test_copy_button_reader_with_explicit_clipboard_grant_returns_clipboard_text(mock_chatgpt):
+    ref = "reader-copy-explicit-grant"
+    latest_text = "Copy reader explicit clipboard grant answer 0f68c2"
+    _seed_turns(mock_chatgpt, ref=ref, latest_text=latest_text, copy_mode="ok")
+
+    with BrowserSession(channel="mock", base_url=mock_chatgpt.base_url, grant_clipboard=True) as session:
+        session.open_or_create_conversation(ref)
+        turn = session.wait_for_completion(timeout_s=3)
+
+        assert CopyButtonReader().read(turn, session.page, session.selectors) == latest_text
+
+
+def test_copy_button_reader_permission_denied_raises_selector_unavailable(mock_chatgpt):
+    ref = "reader-copy-denied"
+    latest_text = "Copy reader denied clipboard answer 8394c0"
+    _seed_turns(mock_chatgpt, ref=ref, latest_text=latest_text, copy_mode="ok")
+
+    with BrowserSession(channel="mock", base_url=mock_chatgpt.base_url, grant_clipboard=False) as session:
+        session.open_or_create_conversation(ref)
+        turn = session.wait_for_completion(timeout_s=3)
+
+        with pytest.raises(SelectorUnavailableError) as excinfo:
+            CopyButtonReader().read(turn, session.page, session.selectors)
+
+    assert "clipboard" in (excinfo.value.detail or str(excinfo.value)).lower()
+    assert isinstance(excinfo.value.__cause__, PlaywrightError)
+
+
+def test_default_read_response_dom_primary_ignores_denied_clipboard(mock_chatgpt):
+    ref = "reader-dom-primary-copy-denied"
+    latest_text = "DOM primary survives denied clipboard answer 491cd8"
+    _seed_turns(mock_chatgpt, ref=ref, latest_text=latest_text, copy_mode="ok")
+
+    with BrowserSession(channel="mock", base_url=mock_chatgpt.base_url, grant_clipboard=False) as session:
+        session.open_or_create_conversation(ref)
+        turn = session.wait_for_completion(timeout_s=3)
+
+        assert read_response(turn, session.page, session.selectors) == latest_text
+
+
+def test_read_response_copy_first_denial_falls_back_and_copy_only_fails_closed(mock_chatgpt):
+    ref = "reader-copy-first-denied"
+    latest_text = "Copy-first falls back under denied clipboard answer d49eb6"
+    _seed_turns(mock_chatgpt, ref=ref, latest_text=latest_text, copy_mode="ok")
+
+    with BrowserSession(channel="mock", base_url=mock_chatgpt.base_url, grant_clipboard=False) as session:
+        session.open_or_create_conversation(ref)
+        turn = session.wait_for_completion(timeout_s=3)
+
+        assert read_response(turn, session.page, session.selectors, order=(CopyButtonReader(), DomReader())) == latest_text
+        with pytest.raises(SelectorUnavailableError) as excinfo:
+            read_response(turn, session.page, session.selectors, order=(CopyButtonReader(),))
+
+    assert "copy_button" in (excinfo.value.detail or str(excinfo.value))
 
 
 @pytest.mark.parametrize("layout_variant", ["stable", "virtualized"])
