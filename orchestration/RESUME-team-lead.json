@@ -1,18 +1,18 @@
 {
   "handoff_type": "team-lead-resume",
-  "as_of": "2026-06-11 (spawn; no missions run)",
+  "as_of": "2026-06-11 ~23:30 (M-001 done; D-001 recorded; M-002 dispatched)",
   "team": "ask-chatgpt",
   "branch": "main",
-  "note": "Resume protocol: read THIS, then orchestration/team.json (identity), then state/lead.state.json (current ledger), then orchestration/handoffs/SEED-from-control-plane.md (pre-loaded predecessor context), then README.md (the product spec). Re-verify every live claim from ground truth (git log, tmux ls, run dirs) before building on it.",
-  "OBJECTIVE": "NOT STARTED: build + fully verify the ask_chatgpt tool (README.md spec: function -> text, zip-bundle file read-write with patch-bundle returns, CLI). Every directive ends with independent non-producer verification per agent-rigor.md.",
-  "first_actions": [
-    "Read SEED handoff + spec; internalize charter (orchestration/roles/manager-role.md) and safety rules.",
-    "Make/record DESIGN DECISION #1 (response extraction posture vs archive Level B rationale) via a design mission before any implementation slice.",
-    "Author MISSION-001 contract in orchestration/tasks/; dispatch via pi workers + Sonnet ops-runner pattern (see SEED §apparatus)."
+  "note": "Resume protocol: read THIS, then orchestration/team.json, then orchestration/state/lead.state.json (current queue + apparatus lessons), then docs/DECISIONS.md (D-001 binding). Re-verify live claims from ground truth: git log --oneline -5; tmux ls | grep -E 'pi-worker|claude-orch'; ls orchestration/handoffs/ orchestration/reports/; mesh inbox /home/abhmul/dev/wsc-mesh/inbox/ask-chatgpt/.",
+  "OBJECTIVE": "Directive in lead.state.json. Progress: M-001 DONE (decision memo verified PASS); D-001 recorded in docs/DECISIONS.md; M-002 (core build) dispatched with ops-runner ops-m002 watching; M-003 (bundles+CLI+runbooks) and M-004 (independent verify) pending.",
+  "if_resuming_mid_M-002": [
+    "Check tmux for claude-orch-* / pi-worker-* sessions and orchestration/handoffs/MISSION-002-handoff.json; deliverables list is in orchestration/tasks/MISSION-002.md.",
+    "If the manager died mid-mission: orchestration/state/M-002-state.json is the resume anchor; relaunch pattern = MISSION-001-RESUME.md precedent (author MISSION-002-RESUME.md pointing at recorded state; charter already carries detached-session discipline).",
+    "If M-002 handoff exists DONE: ingest, then author MISSION-003 contract (bundles consume fixture affordances built in M-002; CLI wraps the function; real-site runbooks for UC1-3 reference docs/runbooks/observe-chatgpt-unknowns.md results)."
   ],
   "launchers": {
-    "pi_worker": ".claude/skills/orchestration/references/pi-worker-watch.sh (max 3 concurrent; long-blocking --wait-seconds watches only)",
-    "claude_manager_optional": "orchestration/bin/claude-orchestrator-watch.sh"
+    "manager": "bash orchestration/bin/claude-orchestrator-watch.sh --wait-seconds 480 --append-system-prompt-file orchestration/roles/manager-role.md \"<mission pointer>\" (ops-runner loops --wait-seconds 480 --watch <run-dir>)",
+    "pi_worker": ".claude/skills/orchestration/references/pi-worker-watch.sh (managers use; max 3 concurrent; foreground watches)"
   },
-  "archive_read_only": "/home/abhmul/Documents/weak-simplex-conjecture (control-plane/ + orchestration/) — prior art only; never write; never read its archive/ or human/"
+  "archive_read_only": "/home/abhmul/Documents/weak-simplex-conjecture — never write; never read its archive/ or human/"
 }

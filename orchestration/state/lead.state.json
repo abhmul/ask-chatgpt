@@ -1,38 +1,46 @@
 {
   "team_lead": "claude (interactive)",
-  "updated": "2026-06-11 — M-001 contract authored and dispatched via Sonnet ops-runner.",
-  "incoming_directive": "Build and fully verify the ask-chatgpt tool per README.md: (1) ask_chatgpt(prompt, session_identifier, model_settings...) -> text against chatgpt.com; (2) local-filesystem read-write via zip bundles out (files/dirs + catalogue README) and patch bundles back (changed files only); (3) CLI entry point. Design decision #1 (response extraction vs predecessor's Level B no-DOM rule) must be made deliberately and recorded before implementation. Mock-ChatGPT acceptance automated; real-site proof operator-gated. Operator constraints: token-efficient (pi workers for token-heavy slices, Sonnet ops-runners for watch, lead context lean); ESTIMATE/ACTUAL telemetry from day one; tests never contact chatgpt.com; never git push.",
+  "updated": "2026-06-11 ~23:30 — M-001 DONE+ingested; D-001 recorded; M-002 dispatched.",
+  "incoming_directive": "Build and fully verify the ask-chatgpt tool per README.md: (1) ask_chatgpt(prompt, session_identifier, model_settings...) -> text against chatgpt.com; (2) local-filesystem read-write via zip bundles out (files/dirs + catalogue README) and patch bundles back (changed files only); (3) CLI entry point. Mock-ChatGPT acceptance automated; real-site proof operator-gated. Operator constraints: token-efficient (pi workers for token-heavy slices, Sonnet ops-runners for watch, lead context lean); ESTIMATE/ACTUAL telemetry; tests never contact chatgpt.com; never git push.",
+  "design_decisions": {
+    "D-001": "RECORDED in docs/DECISIONS.md (2026-06-11): text = bounded DOM extraction primary + copy-button fallback (one ResponseReader interface; lead deviated from memo's copy-primary for clipboard-clobbering + Occam reasons); bundles = download-capture primary (real-site claim gated on operator runbook) + checksummed fenced-base64url fallback; connector not default; Level B safety disciplines survive (loopback tests, selector-maps-as-data, fail-closed, adversarial fixtures, no credential reads)."
+  },
   "mission_queue": [
     {
       "id": "M-001",
-      "title": "Design decision #1 research: response/file return channel vs Level B rationale (best-of-N=3 + synthesis + verify; NON-EDITING)",
-      "status": "RELAUNCHED (manager v2 via MISSION-001-RESUME.md). REWORK-CAUSE: spec-gap — first manager ended its turn awaiting 'automatic notification' after dispatching T1a/b/c; headless claude -p exits on turn end. Workers survived (T1c done at relaunch). Durable fix: 'Detached-session discipline' section added to manager-role.md charter.",
-      "contract": "orchestration/tasks/MISSION-001.md + orchestration/tasks/MISSION-001-RESUME.md",
-      "estimate_minutes": "90-120 from 22:43 (flag at 240)",
-      "next_on_ingest": "team lead decides + records docs/DECISIONS.md #1, then authors M-002"
+      "title": "Design decision #1 research (best-of-N memo)",
+      "status": "DONE 2026-06-11T23:09 (handoff STATUS DONE; verify VERDICT PASS; ACTUAL 26m vs EST 105m incl. manager-death recovery; commit 1a449e8)",
+      "artifacts": "orchestration/reports/M-001/* (memo verified-independently), orchestration/handoffs/MISSION-001-handoff.json"
     },
     {
       "id": "M-002",
-      "title": "Core build: uv scaffold + mock-ChatGPT fixture + browser layer (per recorded decision) + session registry + ask_chatgpt() -> text + use-case-1 automated acceptance green",
-      "status": "PENDING (blocked on M-001 + recorded decision)",
-      "contract": "to be authored on M-001 ingest"
+      "title": "Core build: scaffold + mock fixture (memo §6, incl. bundle affordances) + browser layer + ResponseReader (D-001 order) + session registry + ask_chatgpt() + UC1 acceptance + network guard + observation runbook draft",
+      "status": "DISPATCHED (ops-m002 watching)",
+      "contract": "orchestration/tasks/MISSION-002.md",
+      "estimate_minutes": "120 (flag at 240)"
     },
     {
       "id": "M-003",
-      "title": "Bundles + CLI: zip bundle out (catalogue README) + patch bundle back + apply locally + round-trip acceptance; CLI entry point + acceptance; operator runbooks for real-site halves",
-      "status": "PENDING (blocked on M-002)",
-      "contract": "to be authored"
+      "title": "Bundles + CLI: zip out (catalogue README) + patch bundle back + apply + round-trip acceptance; ask-chatgpt CLI + acceptance; real-site runbooks for UC1-3",
+      "status": "PENDING (blocked on M-002; contract to author at M-002 ingest)"
     },
     {
       "id": "M-004",
-      "title": "Independent directive verification (non-producer panel, distinct dimensions over one authoritative run): spec coverage, no-chatgpt.com-contact proof in tests, honest failure modes, telemetry adoption; VERIFICATION.md",
-      "status": "PENDING (blocked on M-003; last mission of directive)",
-      "contract": "to be authored"
+      "title": "Independent directive verification (non-producer panel over one authoritative run) -> VERIFICATION.md",
+      "status": "PENDING (blocked on M-003; last mission)"
     }
   ],
   "operator_action_items": [
-    "After M-004: run the operator-gated real-site runbooks (login/profile, real ask_chatgpt, real bundle round-trip) — automated halves never touch chatgpt.com"
+    "After M-002 lands: docs/runbooks/observe-chatgpt-unknowns.md can be run anytime (manual observation, no tool) to resolve memo §7 unknowns — unblocks real-site claims for downloads/model-selection/session-pinning.",
+    "Shared pi-account contention observed during M-001 (programs/pastore-repair ran 3 concurrent pi workers). This team caps at 3 (charter) and editing legs serialize anyway; operator owns the global allocation across programs — flag if a tighter per-team cap is wanted.",
+    "After M-004: run real-site runbooks; then operator pushes (team never pushes)."
   ],
   "findings_from_operator_use": [],
-  "notes": "Apparatus verified on disk 2026-06-11: pi+tmux+claude+uv present; pi-worker-watch.sh at .claude/skills/orchestration/references/; archive readable at /home/abhmul/Documents/weak-simplex-conjecture. Managers: claude-orchestrator-watch.sh (opus/max, charter appended, no Agent tool). Ops-runner pattern: background Sonnet agent loops the watch with --wait-seconds 480 (each Bash call under its 600s cap), verifies shipment (handoff STATUS token + deliverable files), returns digest. Design decision #1 is the TEAM LEAD's to record in docs/DECISIONS.md after the M-001 memo — not the manager's."
+  "apparatus_lessons": [
+    "Headless claude -p managers DIE at turn end — charter now carries detached-session discipline (foreground watches only). REWORK-CAUSE: spec-gap, cost ~3 min.",
+    "pi worker self-reported ACTUAL minutes are hallucinated (~15x off); telemetry v2: workers stamp date -Iseconds START/END_TIMESTAMP lines; manager derives ACTUAL from run-dir metadata + mtimes (in M-002 contract onward).",
+    "Run-dir/status-file persistence made the manager-death recovery zero-loss; keep requiring resume-ready state files in every mission.",
+    "Detached tmux missions survive team-lead session crashes; on resume, re-anchor from git log + handoffs + tmux ls before acting."
+  ],
+  "notes": "Ops-runner pattern: background Sonnet agent, watch calls --wait-seconds 480 (Bash 600s cap), shipment verification = files+STATUS+VERDICT, digest back. M-001 ran 2 managers (death+relaunch) — see orchestration/handoffs/MISSION-001-handoff.json telemetry."
 }
