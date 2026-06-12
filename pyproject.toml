@@ -1,0 +1,21 @@
+[project]
+name = "ask-chatgpt"
+version = "0.0.1"
+description = "Programmatic interaction with ChatGPT.com."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "playwright==1.60.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest==9.0.3",
+]
+
+[build-system]
+requires = ["hatchling==1.30.1"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ask_chatgpt"]

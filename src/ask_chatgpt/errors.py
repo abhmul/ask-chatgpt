@@ -1,0 +1,81 @@
+"""Named, actionable exceptions raised by ask-chatgpt."""
+
+
+class AskChatGPTError(Exception):
+    default_message = (
+        "ask-chatgpt failed. Operator action: inspect the specific error "
+        "detail, resolve the reported condition, then retry."
+    )
+
+    def __init__(self, detail: str | None = None):
+        self.detail = detail
+        message = self.default_message
+        if detail:
+            message = f"{message} Detail: {detail}"
+        super().__init__(message)
+
+
+class LoginRequiredError(AskChatGPTError):
+    default_message = (
+        "ChatGPT is not logged in. Operator action: sign in through the "
+        "browser UI and retry; this tool never reads or stores credentials."
+    )
+
+
+class SessionNotFoundError(AskChatGPTError):
+    default_message = (
+        "Stored conversation reference no longer opens a reachable ChatGPT "
+        "conversation. Operator action: delete or recreate that session "
+        "identifier, then retry."
+    )
+
+
+class ModelUnavailableError(AskChatGPTError):
+    default_message = (
+        "Requested model or option is not offered by the current ChatGPT UI. "
+        "Operator action: choose an available model setting and retry."
+    )
+
+
+class ResponseTruncatedError(AskChatGPTError):
+    default_message = (
+        "Assistant response appears incomplete: end marker missing, turn still "
+        "in progress, or payload truncated. Operator action: retry, reduce "
+        "payload size, or inspect the UI."
+    )
+
+
+class SelectorUnavailableError(AskChatGPTError):
+    default_message = (
+        "Required selector-map key is missing or stale. Operator action: "
+        "update the selector map and retry; fail closed and never guess or "
+        "broaden selectors."
+    )
+
+
+class UploadUnsupportedError(AskChatGPTError):
+    default_message = (
+        "Upload affordance is absent or rejected by the current ChatGPT UI. "
+        "Operator action: disable upload-dependent workflow, inspect current "
+        "UI support, or retry later."
+    )
+
+
+class DownloadUnsupportedError(AskChatGPTError):
+    default_message = (
+        "Download affordance is absent in the current ChatGPT UI. Operator "
+        "action: use the text-channel fallback, inspect current UI support, "
+        "or retry later."
+    )
+
+
+__all__ = [
+    "AskChatGPTError",
+    "LoginRequiredError",
+    "SessionNotFoundError",
+    "ModelUnavailableError",
+    "ResponseTruncatedError",
+    "SelectorUnavailableError",
+    "UploadUnsupportedError",
+    "DownloadUnsupportedError",
+]
