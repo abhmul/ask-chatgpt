@@ -1,0 +1,58 @@
+{
+  "mission": "MISSION-004",
+  "title": "Independent directive verification (final gate; non-producer; N=5 panel)",
+  "status": "PARTIAL",
+  "status_explanation": "M-004 verification was executed in full (all 7 tasks DONE, authoritative evidence produced, N=5 panel + synthesis rendered a verdict). The DIRECTIVE verdict is FAIL, so per the mission contract the mission STATUS is PARTIAL: the README directive is NOT yet fully achieved and a fix mission (M-005) is required. This mission fixed NOTHING (independence boundary).",
+  "final_verdict": "FAIL",
+  "verdict_tokens": {"VERIFICATION.md": "VERDICT: FAIL", "orchestration/reports/M-004/verify.md": "M-004-VERDICT: FAIL"},
+  "date": "2026-06-12",
+  "rigor_protocol": "Independent non-producer verification. Producer handoffs (M-002/M-003) + reports treated as CLAIMS re-derived from ground truth (committed HEAD 7755193 + what running it does). Best-of-N: N=5 distinct-dimension panel over ONE authoritative T1 evidence run (panel did not each re-run the heavy suite). Manager independently re-derived the load-bearing safety FAIL from driver.py and spot-verified T1 shipment (overall=pass x3, 119 passed) before trusting it.",
+
+  "panel_verdicts": {
+    "T2a_spec_conformance": "FAIL — UC1/UC2 + most UC3 obligations map to real code+test+artifact evidence, but (a) UC3 --session is implemented yet exercised by no test/acceptance, and (b) the real-site runbook is stale vs the actual CLI. Report: orchestration/reports/M-004/lens-spec.md",
+    "T2b_correctness_reproduction": "PASS — clean clone (HEAD==main 7755193) reproduced green: 119 passed; UC1 continuity concrete (conv-1 reused); UC2 round-trip diff matches for BOTH download-primary and fenced-fallback; UC3 stdout/--out/dry-run-no-mutation consistent; 8 sampled tests all non-vacuous. Report: lens-correctness.md",
+    "T2c_safety_security": "FAIL — Checks 1-6 PASS (zip-slip 4-vector closed; validate-before-mutate; no credential/cookie/token/profile reads; loopback-only network guard trips; every chatgpt.com hit inert in tests; CLI no-mutate default + flag exclusivity). CHECK 7 FAIL: real channel not fail-closed before navigation — driver.py start() does page.goto(REAL_BASE_URL=chatgpt.com) before any selector check; empty real.json selectors only raise on later use. channel=real + profile_path navigates first. Report: lens-safety.md",
+    "T2d_honest_failure_modes": "PASS — all 11 named failure modes (LoginRequired, SessionNotFound, ModelUnavailable, ResponseTruncated, SelectorUnavailable, UploadUnsupported, DownloadUnsupported, PatchMalformed, BundleIntegrity, Oversized, PathEscape) exist, are raised by real code paths, are exercised by T1-backed tests/acceptance, and carry actionable, credential-free messages. Report: lens-failures.md",
+    "T2e_docs_runbooks_decisions_telemetry": "FAIL — CHECK1/2/5 PASS (D-001 matches code; 5/5 sampled bundle-protocol claims match; mock-vs-real honesty everywhere user-facing). CHECK3 FAIL: real-site-acceptance.md uses non-existent CLI flags/subcommands + wrong error class names. CHECK4 FAIL(minor): telemetry data present as JSON but not as literal ESTIMATE:/ACTUAL:/REWORK-CAUSE: lines. Report: lens-docs.md",
+    "synthesis_T3": "FAIL — reconciliation: the apparent conflict is SCOPE not fact (functional core green; spec/safety/docs found uncovered/stale obligations). VERIFICATION.md + verify.md. Report: verify.md"
+  },
+
+  "what_was_verified": {
+    "automated_functional_core": "PASSES (mock/loopback only). Clean-clone full suite 119 passed in 43.60s; UC1/UC2/UC3 acceptance overall=pass; network guard 2 passed; CLI tests 28 passed; zip-slip 4-vector (absolute, .., symlink-final, symlink-parent) all PathEscapeError with canary absent + root unchanged; validate-before-mutate proven; tests never contact chatgpt.com/openai (autouse socket guard + loopback route guard).",
+    "clean_clone_reproducibility": "PROVEN. git clone of local HEAD -> tmp/verify-m004/clone (clone HEAD == main HEAD 7755193c68bb57a2e3f85c21e62e2bb00446c01a, porcelain empty). Fresh venv built; project installed EDITABLE from the clone's own src/. Committed state alone reproduces green.",
+    "real_site": "NOT verified (by design). All real chatgpt.com behavior remains operator-gated/unproven until the operator runs the runbooks with consent. M-005 must first repair the stale runbook before it is an executable proof path."
+  },
+
+  "artifacts": [
+    {"path": "VERIFICATION.md", "desc": "repo-root durable verdict: per-obligation table (7 PASS/4 FAIL), 5 lens verdicts, mock-vs-real scope, runbook pointers, 3 spot-checks, defects+REWORK-CAUSE+M-005, VERDICT: FAIL", "trust": "verified-independently (manager read in full; verdict token confirmed)"},
+    {"path": "orchestration/reports/M-004/verify.md", "desc": "synthesis panel-mechanics summary; ends M-004-VERDICT: FAIL", "trust": "verified-independently"},
+    {"path": "orchestration/reports/M-004/verify-run.md", "desc": "T1/T1b authoritative evidence INDEX (capture-only; corrected after offline blocker)", "trust": "verified-independently (manager spot-checked overall=pass x3, 119 passed)"},
+    {"path": "orchestration/reports/M-004/lens-spec.md|lens-correctness.md|lens-safety.md|lens-failures.md|lens-docs.md", "desc": "five panel lens reports", "trust": "verified-independently (manager read all five; safety FAIL re-derived from driver.py)"},
+    {"path": "tmp/verify-m004/", "desc": "raw authoritative evidence set (clone, pytest, accept_uc{1,2,3}_results.json, zipslip.txt, netguard.txt, greps, clone_sync_RECOVERY.txt). NOT committed (tmp/ is git-ignored).", "trust": "verified-independently"}
+  ],
+
+  "blockers_and_defects_for_M005": [
+    {"id": "D1", "severity": "material", "rework_cause": "env-drift", "title": "Real-site acceptance runbook stale vs committed CLI + error names", "repro": "Read docs/runbooks/real-site-acceptance.md UC2/UC3 sections: they call --profile, --patch-out, `ask-chatgpt apply-patch`, --bundle and name errors PatchBundleMalformedError/PatchBundleIntegrityError/PatchBundleTooLargeError/PatchPathEscapeError. grep cli.py (lines 100-114) -> none of those flags/subcommands exist (real flags: prompt, --prompt, --session, --model-settings, --files, --dirs, --out, --apply, --dry-run, --root, --channel, --base-url, --profile-path, --timeout). grep errors.py -> real names PatchMalformedError/BundleIntegrityError/OversizedPayloadError/PathEscapeError.", "fix": "Rewrite the runbook to the committed one-shot CLI + correct error names (OR implement the documented surface). This is the operator-gated real-site proof path, so it blocks the acceptance-shape obligation."},
+    {"id": "D2", "severity": "material (safety-robustness)", "rework_cause": "spec-gap", "title": "Real channel not fail-closed before chatgpt.com navigation", "repro": "Read src/ask_chatgpt/driver.py start() lines 75-91: launches persistent context (line 83) then page.goto(self._base_url) line 90, where _base_url == REAL_BASE_URL == https://chatgpt.com for channel=real (line 290). Selector emptiness only raised on later selector access (selector_map.py:31-38); load_selector_map does not reject empty maps. So channel=real + a profile_path navigates to chatgpt.com BEFORE fail-closed enforcement. Mitigation already in place: automated tests never set channel=real (socket-guarded); default CLI without --profile-path raises AskChatGPTError before navigation.", "fix": "Add a pre-navigation real selector-map readiness check raising SelectorUnavailableError before launch_persistent_context/page.goto; add a non-networking unit test asserting no chatgpt.com navigation attempt for the empty real.json template."},
+    {"id": "D3", "severity": "minor", "rework_cause": "spec-gap", "title": "UC3 --session not exercised by test/acceptance", "repro": "cli.py:102 defines --session, cli.py:63 passes session_identifier=args.session; grep tests/ scripts/ tmp/verify-m004/accept_uc3_results.json -> no --session invocation. (Underlying ask_chatgpt continuity IS tested in test_ask_chatgpt_uc1.)", "fix": "Add a CLI test + accept_uc3 step invoking ask-chatgpt --session <id> twice against the mock, proving conversation reuse through the CLI."},
+    {"id": "D4", "severity": "minor/borderline", "rework_cause": "frozen-file", "title": "Telemetry literal-line convention absent in handoffs", "repro": "grep -E 'ESTIMATE:|ACTUAL:|REWORK-CAUSE:' orchestration/handoffs/MISSION-002-handoff.json MISSION-003-handoff.json -> no matches; data present only as JSON fields (ESTIMATE_minutes/ACTUAL_minutes) + prose.", "fix": "Backfill/supersede handoff telemetry so grep-visible literal lines exist; add a lightweight handoff-format check. NOTE: M-004's own handoff carries bare telemetry lines (see telemetry block) to set the example."}
+  ],
+
+  "recommended_next_missions": [
+    {"id": "M-005", "type": "fix-then-reverify", "scope": "Single-editor producer mission to fix D1-D4 (serialize edits), then a fresh INDEPENDENT non-producer panel re-verifies ONLY the changed surface + a regression pass. Do NOT reuse M-004 workers as verifiers. D1 (runbook) and D3 (--session test) are independent and can be designed in parallel; D2 (driver) is a single-editor change touching driver.py/selector_map.py.", "depends_on": "M-004 (this verdict)", "parallelism": "D1/D3/D4 disjoint; D2 isolated to driver/selector layer."}
+  ],
+
+  "complexity_paradigm_signals": [
+    "T1 offline blocker (env-drift): the worker read the safety block ('no external network service') as UV_OFFLINE=1, which broke the fresh-clone venv build on a greenlet cache miss. Root cause: contract wording conflated 'no chatgpt.com/openai (product) contact' with 'no network at all'. Future clean-clone verification contracts must explicitly permit PyPI/dependency fetching while forbidding only the product's real-site contact. Recovered by manager rebuilding the clone venv with a normal network-allowed uv sync (greenlet from PyPI; project editable) + a focused T1b re-run.",
+    "Worker-launch concurrency: the five panel pi-worker-watch.sh calls issued in ONE manager message executed SEQUENTIALLY (start times ~5-8 min apart), not in parallel. Panel wall-clock was ~sum, not max. Future managers should not assume one-message multi-Bash launches parallelize on this harness; budget accordingly or launch via a different mechanism if true parallelism is needed.",
+    "Verdict character: this is a HIGH-VALUE FAIL — the functional core is solid and a producer self-cert would likely have passed it; the independent panel caught real operator-facing gaps (stale real-site runbook, real-channel pre-nav hole). Demonstrates the value of the non-producer N=5 discipline on the final gate."
+  ],
+
+  "telemetry": {
+    "ESTIMATE": "M-004 90m",
+    "ACTUAL": "M-004 ~95m",
+    "REWORK_CAUSE": "env-drift (T1 clean-clone offline-blocked on greenlet; recovered via network-allowed clone venv rebuild + focused T1b re-run; one rework leg)",
+    "wall_clock_note": "T1 dispatched 04:31:42; T3 synthesis ended 05:58:50; manager closeout ~06:0x. Within 90m estimate, far under the 180m flag.",
+    "pi_minute_self_reports": "ignored (hallucinated per charter); ACTUAL derived from run_id/timestamp metadata."
+  }
+}

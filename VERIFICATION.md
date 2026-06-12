@@ -1,0 +1,52 @@
+# M-004 verification — 2026-06-12 independent non-producer verification of the full README.md directive
+
+I read the directive, M-004 mission shape, the T1 authoritative evidence index, and all five T2 lens reports. All five lens files were present, non-empty, and emitted their verdict tokens; no dead candidates were discarded. Final adjudication is from ground truth, not lens majority.
+
+## Per-obligation evidence table
+
+| obligation | evidence (file:line / test id / artifact line) | verdict |
+|---|---|---|
+| UC1 exposes `ask_chatgpt(prompt, session_identifier, model_settings...) -> text`, returns latest assistant text, supports continuity and model selection where UI allows | `README.md:9`; `src/ask_chatgpt/api.py:30-47,55-74`; `tests/test_ask_chatgpt_uc1.py:19,74,105`; `tmp/verify-m004/accept_uc1_results.json:2,6,16-20,32-35`; `tmp/verify-m004/clone_accept_uc1.txt:15` | PASS |
+| UC2 accepts files/dirs and builds a zip bundle with GPT catalogue README/instructions | `README.md:10-13`; `src/ask_chatgpt/api.py:41-43,107`; `src/ask_chatgpt/bundle.py:28,192-212,216-223,387-404,608-610`; `tests/test_bundle_out.py:55,77,119-122`; `tmp/verify-m004/clone_pytest.txt:4-5` | PASS |
+| UC2 retrieves changed-files-only patch bundles via download-primary and fenced fallback, validates before mutation, applies locally, and round-trip diff matches | `src/ask_chatgpt/patch.py:186-255,258-276,618-626`; `tests/test_uc2_roundtrip.py:131,143`; `tmp/verify-m004/accept_uc2_results.json:2,54-62,114-120,184-192,244-250`; `tmp/verify-m004/clone_accept_uc2.txt:11` | PASS |
+| UC3 provides installed `ask-chatgpt` CLI wrapping the function for prompt, stdout, `--out`, file args, dry-run/no-mutate, and apply guardrails | `README.md:14`; `pyproject.toml:11-12`; `src/ask_chatgpt/cli.py:54-87,100-114`; `tests/test_cli.py:161,191,226,254`; `tmp/verify-m004/accept_uc3_results.json:2,9-26,37-53,73-92,105,144`; `tmp/verify-m004/clone_accept_uc3.txt:13` | PASS |
+| UC3 CLI session argument is exercised as part of the CLI acceptance shape | Code exists at `src/ask_chatgpt/cli.py:63,102`, but ground-truth search found no `--session` in `tests/`, `scripts/`, or `tmp/verify-m004/accept_uc3_results.json`; the three UC3 acceptance command arrays at `accept_uc3_results.json:9-20,40-53,73-92` omit it | FAIL |
+| Each UC has automated E2E acceptance against local mock ChatGPT; automated tests never contact chatgpt.com/openai | `README.md:18`; `tmp/verify-m004/clone_pytest.txt:4-5`; `tmp/verify-m004/clone_accept_uc1.txt:5,15`; `tmp/verify-m004/clone_accept_uc2.txt:5,11`; `tmp/verify-m004/clone_accept_uc3.txt:5,13`; `tests/conftest.py:26-35,43-45`; `tmp/verify-m004/netguard.txt:3-4`; `tmp/verify-m004/grep_chatgptcom.txt:2,6-8` | PASS |
+| Operator-gated real-site runbook half exists with explicit consent and mock-vs-real honesty | `README.md:18,25`; `docs/runbooks/real-site-acceptance.md:1,19-21,27`; `docs/runbooks/observe-chatgpt-unknowns.md:5,11` | PASS |
+| Operator-gated real-site runbook is runnable as written against the actual CLI/error surface | Stale commands use `--profile`, `--patch-out`, `ask-chatgpt apply-patch`, and `--bundle` at `docs/runbooks/real-site-acceptance.md:150,166,171,180-188,224,241,263`; actual CLI exposes `--profile-path` at `src/ask_chatgpt/cli.py:113` and grep found no `apply-patch`, `--patch-out`, `--bundle`, or `--profile` flag in `src/ask_chatgpt/cli.py`; stale error names at `real-site-acceptance.md:132,213,290` diverge from `src/ask_chatgpt/errors.py:87,94,101,108` | FAIL |
+| Honest failure modes are named actionably and credential-free | `README.md:20`; named errors in `src/ask_chatgpt/errors.py:16,24,32,40,48,55,63,71,87,94,101,108`; representative tests `tests/test_driver.py:80,89,98,107,119,130`, `tests/test_bundle_out.py:158`, `tests/test_patch.py:196,206,216,222`; `tmp/verify-m004/clone_pytest.txt:4-5` | PASS |
+| D-001 channel layering and library-first posture are implemented | `README.md:24-27`; `docs/DECISIONS.md:13-16,35-37`; `src/ask_chatgpt/readers.py:87-98`; `src/ask_chatgpt/patch.py:208-231`; `src/ask_chatgpt/cli.py:54-87` | PASS |
+| Real channel fail-closed posture prevents chatgpt.com navigation before selector enforcement when `real.json` is empty | `src/ask_chatgpt/selector_maps/real.json:6,28` is empty and `src/ask_chatgpt/selector_map.py:31-38` fails on use, but `load_selector_map` returns the empty map at `selector_map.py:69`; `src/ask_chatgpt/driver.py:75-90,270-276,289-291` launches a real persistent context and executes `page.goto(REAL_BASE_URL)` before any selector lookup when a `profile_path` is supplied; T1 grep shows no automated `channel="real"` coverage at `tmp/verify-m004/grep_realchannel.txt:1-7` | FAIL |
+| Mission telemetry convention uses literal `ESTIMATE:`, `ACTUAL:`, and `REWORK-CAUSE:` lines in prior handoffs | `orchestration/handoffs/MISSION-002-handoff.json:8-9,71` and `MISSION-003-handoff.json:9-10,73-74` contain structured/prose fields, but exact-token grep for `ESTIMATE:`, `ACTUAL:`, and `REWORK-CAUSE:` over both handoffs had no matches | FAIL |
+
+## Five lens verdicts
+
+- spec-conformance → FAIL → UC3 `--session` acceptance coverage gap and real-site runbook CLI drift block full obligation mapping → `orchestration/reports/M-004/lens-spec.md:40`.
+- correctness/reproduction → PASS → clean clone, full pytest, UC1/UC2/UC3 acceptance artifacts, and sampled non-vacuous tests are internally green → `orchestration/reports/M-004/lens-correctness.md:40`.
+- safety/security → FAIL → real channel with `profile_path` can navigate to `https://chatgpt.com` before empty real selector map fails closed → `orchestration/reports/M-004/lens-safety.md:35`.
+- honest-failure-modes → PASS → all 11 named failure modes exist, are exercised by T1-backed tests/artifacts, and have actionable credential-free messages → `orchestration/reports/M-004/lens-failures.md:25`.
+- docs/runbooks/decisions/telemetry → FAIL → real-site acceptance runbook is stale against actual CLI/error names and prior handoffs lack literal telemetry lines → `orchestration/reports/M-004/lens-docs.md:32`.
+
+## Mock-proven vs real-site-unproven scope
+
+Automated proof is mock-only: the clean-clone `uv run pytest -q` plus `scripts/accept_uc1.sh`, `scripts/accept_uc2.sh`, and `scripts/accept_uc3.sh` passed against loopback `127.0.0.1` mock fixtures, proving the library, CLI, bundle/retrieval/apply, network guard, no-mutate default, and zip-slip defenses only for the local mock harness. The real `chatgpt.com` behavior is NOT automatically verified: real selectors, completion signals, DOM text extraction, copy fallback behavior, upload/download affordances, file size limits, session pinning, model selection, artifact-to-turn identity, and failure-message detectability remain unproven until the operator runs the operator-gated runbooks with explicit consent. Because `docs/runbooks/real-site-acceptance.md` is stale as written, M-005 must fix it before treating it as an executable proof path.
+
+## Operator runbook pointers
+
+- `docs/runbooks/observe-chatgpt-unknowns.md` — manual operator observation of real ChatGPT UI unknowns; it explicitly says no `ask-chatgpt`, Playwright, pytest, or automation is used for that observation run.
+- `docs/runbooks/real-site-acceptance.md` — intended UC1/UC2/UC3 real-site acceptance after `real.json` is populated and typed consent is given; currently blocked by stale CLI/error-name commands and must be repaired before use as written.
+
+## Three spot-check quotes from raw T1 artifacts
+
+1. Clean-clone functional core: `tmp/verify-m004/clone_pytest.txt:4-5` quotes `119 passed in 43.60s` and `EXIT_CODE: 0`; this confirms T2b's green full-suite claim.
+2. UC2 round-trip diff and retrieval channels: `tmp/verify-m004/accept_uc2_results.json:54-62,114-120,184-192,244-250` quotes `"source": "download"`, `"source": "fenced"`, `"modified_matches": true`, `"added_matches": true`, `"deleted_absent": true`, and `"overall_diff_matches": true`; this confirms the download-primary and fenced-fallback mock round trips.
+3. Zip-slip rejection matrix: `tmp/verify-m004/zipslip.txt:24-28` quotes `VECTOR absolute_path | EXCEPTION=PathEscapeError ... CANARY_EXISTS=False | ROOT_UNCHANGED=True`, `VECTOR dotdot_traversal | EXCEPTION=PathEscapeError ... CANARY_EXISTS=False | ROOT_UNCHANGED=True`, `VECTOR symlink_final | EXCEPTION=PathEscapeError ... CANARY_EXISTS=False | ROOT_UNCHANGED=True`, `VECTOR symlink_parent | EXCEPTION=PathEscapeError ... CANARY_EXISTS=False | ROOT_UNCHANGED=True`, and `EXIT_CODE: 0`; this confirms the four-vector no-escape claim.
+
+## Defects requiring rework
+
+1. Real-site acceptance runbook is stale relative to the committed CLI and error classes. REWORK-CAUSE: env-drift. Recommended M-005 fix mission: either update `docs/runbooks/real-site-acceptance.md` to the current one-shot CLI (`--profile-path`, `--files`/`--dirs`, `--out`, `--dry-run`/`--apply`, `--root`) and current error names (`PatchMalformedError`, `BundleIntegrityError`, `OversizedPayloadError`, `PathEscapeError`), or implement the documented `--profile`, `--patch-out`, `apply-patch --bundle` surface; then rerun the docs/spec lenses.
+2. Real channel is not fail-closed before navigation when `channel="real"` and a `profile_path` are provided with empty `real.json`. REWORK-CAUSE: spec-gap. Recommended M-005 fix mission: add a pre-navigation real selector-map readiness validation that raises `SelectorUnavailableError` before `launch_persistent_context`/`page.goto`, and add a non-networking unit test proving no `chatgpt.com` navigation attempt occurs for the empty template.
+3. UC3 `--session` is implemented but unproven by CLI tests or acceptance artifacts. REWORK-CAUSE: spec-gap. Recommended M-005 fix mission: add a CLI test and `scripts/accept_uc3.sh` step invoking `ask-chatgpt --session <id>` twice against the mock and proving the same conversation/ref and prompt history are reused through the public CLI.
+4. Telemetry literal-line convention is absent from M-002/M-003 handoffs. REWORK-CAUSE: frozen-file. Recommended M-005 fix mission: backfill or formally supersede the handoff telemetry format so exact `ESTIMATE:`, `ACTUAL:`, and `REWORK-CAUSE:` lines are grep-visible, then add a lightweight check over handoffs.
+
+VERDICT: FAIL
