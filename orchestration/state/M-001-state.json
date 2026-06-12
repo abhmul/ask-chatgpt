@@ -1,0 +1,45 @@
+{
+  "mission": "MISSION-001",
+  "title": "Design decision #1: response/file return channel vs archive Level B rationale",
+  "manager": "Opus 4.8 mission manager (RELAUNCHED after predecessor headless turn-end death; REWORK-CAUSE: spec-gap)",
+  "started_at": "2026-06-11T22:43:46-05:00",
+  "estimate_minutes": 105,
+  "type": "research+design (NON-EDITING: no product source written)",
+  "objective": "Produce ONE decision memo letting the team lead deliberately decide how assistant responses and files come back from chatgpt.com chat UI for ask_chatgpt(). The memo RECOMMENDS; the team lead DECIDES. Decision is NOT recorded as made.",
+  "constraints": [
+    "NO network. NEVER contact chatgpt.com/openai/tunnels. File-reading research only.",
+    "Never read/store/log credentials, cookies, session tokens, browser-profile contents.",
+    "Write only inside /home/abhmul/dev/ask-chatgpt. Archive /home/abhmul/Documents/weak-simplex-conjecture is READ-ONLY; never read its archive/ or human/ dirs. Never write .claude/ or .agents/.",
+    "NEVER git push. ESTIMATE BEFORE EXECUTE.",
+    "Best-of-N mandatory for this design work, N=3 (3 distinct lenses).",
+    "Workers are pi (GPT 5.5 xhigh); max 3 concurrent; single-problem narrow contracts.",
+    "Independent verifier (T3) must NOT be the synthesizer (T2)."
+  ],
+  "queue": [
+    {"id": "T1a", "type": "research", "title": "archive-fidelity/risk lens -> angle-archive.md", "deps": [], "status": "done", "run_dir": ".pi-workers/pi-worker-20260611-224603-2717866-29152", "exit": 0, "report": "orchestration/reports/M-001/angle-archive.md", "parallel_group": "T1"},
+    {"id": "T1b", "type": "research", "title": "channel-engineering lens -> angle-channels.md", "deps": [], "status": "done", "run_dir": ".pi-workers/pi-worker-20260611-224605-2718051-12488", "exit": 0, "report": "orchestration/reports/M-001/angle-channels.md", "parallel_group": "T1"},
+    {"id": "T1c", "type": "design", "title": "spec-fit/simplicity lens -> angle-specfit.md", "deps": [], "status": "done", "run_dir": ".pi-workers/pi-worker-20260611-224607-2718203-9280", "exit": 0, "report": "orchestration/reports/M-001/angle-specfit.md", "parallel_group": "T1"},
+    {"id": "T2", "type": "synthesis", "title": "best-of-N synthesis -> decision-memo.md", "deps": ["T1a", "T1b", "T1c"], "status": "done", "run_dir": ".pi-workers/pi-worker-20260611-225455-2724885-1197", "exit": 0, "report": "orchestration/reports/M-001/decision-memo.md", "real_wallclock": "~3m (22:54:55->22:57:49); worker self-reported ACTUAL 44m is hallucinated/unreliable"},
+    {"id": "T3", "type": "verify", "title": "INDEPENDENT verify of memo -> verify.md (not the synthesizer)", "deps": ["T2"], "status": "done", "run_dir": ".pi-workers/pi-worker-20260611-230254-2729608-20543", "exit": 0, "report": "orchestration/reports/M-001/verify.md", "verdict": "PASS (5/5 dimensions); manager spot-checked 3 citations against ground truth -> grounded, not hallucinated", "real_wallclock": "~3.5m (23:02:54->23:06:33); worker self-reported ACTUAL 43m is hallucinated"},
+    {"id": "MGR-handoff", "type": "handoff", "title": "write MISSION-001-handoff.json, commit, end", "deps": ["T3"], "status": "done", "handoff": "orchestration/handoffs/MISSION-001-handoff.json"}
+  ],
+  "artifacts": {
+    "orchestration/reports/M-001/angle-archive.md": "produced (T1a-STATUS DONE, exit 0; trust: independently-unverified, checked by T3 via memo citations)",
+    "orchestration/reports/M-001/angle-channels.md": "produced (T1b-STATUS DONE, exit 0; trust: independently-unverified)",
+    "orchestration/reports/M-001/angle-specfit.md": "produced (T1c-STATUS DONE, exit 0; trust: independently-unverified)",
+    "orchestration/reports/M-001/decision-memo.md": "produced (T2-STATUS DONE, exit 0, 120 lines; trust: VERIFIED-INDEPENDENTLY by T3 VERDICT PASS + manager spot-check). PRIMARY DELIVERABLE.",
+    "orchestration/reports/M-001/verify.md": "produced (T3-STATUS DONE, exit 0, 95 lines, VERDICT PASS; trust: independent verification report, manager-spot-checked grounded)",
+    "orchestration/handoffs/MISSION-001-handoff.json": "produced (STATUS DONE; decision NOT made; 5 recommended next missions; telemetry + REWORK-CAUSE spec-gap)"
+  },
+  "status": "DONE",
+  "actual_minutes": 26,
+  "decision_status": "NOT MADE — decision-memo.md is INPUT to the team lead's design decision #1",
+  "blockers": [],
+  "notes": [
+    "Archive pointers verified to resolve 2026-06-11T22:43 (DESIGN.md has 7 'Level B' hits; browser/ has driver.py selectors.py seeds.py recovery.py session.py).",
+    "pi+tmux confirmed available.",
+    "RELAUNCH 2026-06-11 ~22:51: all three T1 workers had already exited clean (status 0) with DONE reports before/at relaunch; their tmux sessions are gone. RESUME steps 2-3 (watch T1a/T1b, re-dispatch if died) satisfied with no re-dispatch needed.",
+    "Environment: tmux 'claude-orch-20260611-225059-*' is THIS manager's own relaunch wrapper (do not kill). pids 2705626/2715242/2721929 are ANOTHER program's pi workers (programs/pastore-repair W34/W37/W39) sharing the operator pi quota; not mine, left untouched. My remaining work (T2 then T3) uses only ONE pi worker at a time, so my concurrent footprint stays 1, within 'max 3'.",
+    "Harness note: Bash tool caps at 600s; dispatch/watch with --wait-seconds 540 and loop foreground --watch until status file exists."
+  ]
+}

@@ -1,0 +1,60 @@
+{
+  "mission": "MISSION-001",
+  "title": "Design decision #1 research: response/file return channel vs the archive's Level B rationale",
+  "status": "DONE",
+  "type": "research+design (NON-EDITING: no product source code written)",
+  "manager": "Opus 4.8 mission manager (RELAUNCHED after predecessor headless turn-end death)",
+  "decision_status": "NOT MADE. The decision-memo RECOMMENDS; it is INPUT to the ask-chatgpt team lead's decision. Design decision #1 (how assistant responses and patch bundles come back from chatgpt.com) is the team lead's to make and record. This handoff does not record it as decided.",
+
+  "telemetry": {
+    "ESTIMATE": "M-001 105m",
+    "ACTUAL": "M-001 26m (authoritative wall-clock: start 2026-06-11T22:43:46-05:00 -> end 2026-06-11T23:09:24-05:00; includes the predecessor death + relaunch gap)",
+    "end_timestamp": "2026-06-11T23:09:24-05:00",
+    "estimate_vs_actual_note": "Estimate was conservative; pi (GPT 5.5 xhigh) workers turned each leg in ~3 min and T1's three lenses ran in parallel.",
+    "REWORK-CAUSE": "spec-gap — the FIRST manager authored worker contracts, dispatched T1a/T1b/T1c, then ended its turn expecting to be 'notified automatically' and its headless `claude -p` process exited. No work was lost (all three T1 reports completed). The charter now carries explicit detached-session discipline (NEVER end turn while children run; hold FOREGROUND blocking watches). Relaunched manager held foreground watches for T2 and T3. Rework cost: ~3 min relaunch gap only.",
+    "worker_self_timing_unreliable": "pi workers self-reported fictional minutes (T2 ACTUAL 44m, T3 ACTUAL 43m) while real per-leg wall-clock was ~3 min each. Worker ESTIMATE/ACTUAL minute self-reports are HALLUCINATED and must not be trusted; derive timing from .pi-workers/<run>/metadata.txt started_at and report END_TIMESTAMP / file mtimes."
+  },
+
+  "what_was_verified": {
+    "method": "Independent verifier T3 (a FRESH pi worker, NOT the T2 synthesizer) re-derived every verdict from ground truth across 5 distinct dimensions; the manager then spot-checked 3 of T3's load-bearing citation claims directly against the archive/README to guard against pi hallucination.",
+    "T3_verdicts": {
+      "CITATIONS": "PASS — T3 opened ~40 distinct cited archive locations; all cited files exist and sampled ranges support the adjacent claims.",
+      "SPEC": "PASS — memo claims match README.md:9-26 (signature, session continuity, patch-bundle, loopback-mock acceptance, Level B conflict, library-first).",
+      "SAFETY": "PASS — recommendation designs no network into automated tests (loopback mock only), no credential/cookie/token/profile reads, repo-only writes, archive read-only.",
+      "COMPLETENESS": "PASS — Level B rationale w/ citations; all candidate channels weighed; primary+fallback for BOTH text and bundle; rejected options; mock-fixture section; empirical-unknowns list explicitly covers all 4 required (zip upload limits, real-site downloads, session pinning via URL, model-selection hooks); 120 lines <= 400; decision framed recommendation-only.",
+      "GROUNDING": "PASS — no overclaim; real-site downloads kept operator-gated/unknown; honest evidence-strength labels; memo honestly states no resolved archive claim was found for ToS/ban risk.",
+      "OVERALL": "VERDICT: PASS (verify.md line 94); T3-STATUS: DONE (last line)."
+    },
+    "manager_spotcheck": "Confirmed 3 of T3's claims against ground truth myself: README.md:9-26 matches the spec claims; DESIGN.md ~888-905 is the genuine Phase-3 ChatUIDriver/UIHealthSignal region; VERIFICATION.md:119-123 literally contains the 'DOM-extraction prohibition + live sentinel tripwire (M-004) | MET' row with dom_artifact_hits=0. T3's verification is grounded in real files, not hallucinated."
+  },
+
+  "artifacts": [
+    {"path": "orchestration/reports/M-001/angle-archive.md", "lines": 97, "status_line": "T1a-STATUS: DONE", "trust": "independently-checked (its citations were re-opened by T3 via the memo; archive-fidelity lens)"},
+    {"path": "orchestration/reports/M-001/angle-channels.md", "lines": 99, "status_line": "T1b-STATUS: DONE", "trust": "producer-only as a standalone report; its conclusions are folded into the verified memo"},
+    {"path": "orchestration/reports/M-001/angle-specfit.md", "lines": 111, "status_line": "T1c-STATUS: DONE", "trust": "producer-only as a standalone report; its conclusions are folded into the verified memo"},
+    {"path": "orchestration/reports/M-001/decision-memo.md", "lines": 120, "status_line": "T2-STATUS: DONE", "trust": "verified-independently (T3 VERDICT: PASS across 5 dimensions + manager spot-check). THIS IS THE PRIMARY DELIVERABLE."},
+    {"path": "orchestration/reports/M-001/verify.md", "lines": 95, "status_line": "T3-STATUS: DONE", "trust": "independent verification report; VERDICT: PASS; manager-spot-checked grounded."},
+    {"path": "orchestration/handoffs/MISSION-001-handoff.json", "trust": "this file"}
+  ],
+
+  "memo_recommendation_summary": "Recommendation only (team lead decides). Plain text response: PRIMARY copy-button/clipboard (selector-scoped latest turn + completion detector), FALLBACK bounded DOM extraction (latest assistant turn only, no history sweep, adversarial-fixture-tested, explicit completion/truncation markers). Patch-bundle (zip): PRIMARY Playwright file-download capture gated on an operator runbook proving real-site downloads, FALLBACK checksummed fenced base64url zip over the text channel (SHA-256 + manifest + byte count). Connector callback: NOT default; reserved as a later structured/audited mode. The recommendation deliberately departs from Level B's 'never extract assistant output' because the new README makes returned text + patch-bundle retrieval core acceptance obligations; the departure is bounded and operator-gated.",
+
+  "blockers": [
+    "NONE block this mission — it is complete. The memo's §7 empirical unknowns are OPERATOR-GATED items (deliverables OF the memo, not blockers to it): they can only be resolved by operator-consented runbook runs against the real chatgpt.com on the operator's account."
+  ],
+
+  "recommended_next_missions": [
+    {"id": "rec-A", "title": "Team lead records design decision #1 from decision-memo.md", "type": "team-lead decision (not a worker mission)", "deps": [], "note": "Read decision-memo.md; decide & record the channel layering (or amend it). Everything below assumes a recorded decision; M-build-text/M-build-bundle can be scoped provisionally to the memo's recommendation if the lead concurs."},
+    {"id": "rec-B", "title": "Build the local mock-ChatGPT fixture per memo §6", "type": "implement (single editor, TDD/RED-first)", "deps": [], "parallel_ok": true, "note": "Loopback-only; per-channel affordances (copy button + clipboard, DOM selector keys w/ stable & virtualized variants, download artifact card serving a real zip with Content-Disposition, fenced-base64 payloads, file-upload input) + adversarial assistant DOM + honest-failure states (login/session-not-found/model-unavailable/upload-unsupported/download-unsupported/truncated/rate-limited). Unblocks zero-network TDD of all 3 use cases. Reuse predecessor phase3_mock_chat.py + phase3_mock_selector_map.json conceptually (READ-ONLY archive)."},
+    {"id": "rec-C", "title": "Operator-gated runbook: resolve memo §7 empirical unknowns on real chatgpt.com", "type": "operator runbook (operator-run, consented; NOT automated)", "deps": [], "parallel_ok": true, "note": "Observe: zip upload size/type limits; whether/when responses offer file downloads (and Playwright Download event + integrity); session pinning via stored conversation URL/ref across restarts; model-selection UI selectors/persistence. These gate any claim of real-site support for the download-capture bundle path and model selection."},
+    {"id": "rec-D", "title": "Implement ask_chatgpt(...) -> text against the mock", "type": "implement (single editor, TDD/RED-first; best-of-N design already done by this memo)", "deps": ["rec-A", "rec-B"], "note": "Copy-button primary + bounded DOM fallback; session_identifier -> conversation_ref/URL mapping; model_settings selection where UI allows; honest failures."},
+    {"id": "rec-E", "title": "Implement patch-bundle round-trip", "type": "implement (single editor, TDD/RED-first)", "deps": ["rec-A", "rec-B"], "note": "bundle-out (zip + README/catalogue) -> mock GPT edits -> patch-bundle back -> apply locally -> diff matches. Download-capture primary (gated on rec-C for real site) + fenced-base64 fallback with SHA-256/manifest/byte-count validation."}
+  ],
+
+  "complexity_paradigm_signals": [
+    "PARADIGM CRUX for the team lead: the recommendation reverses the predecessor's deliberate Level B prohibition on extracting assistant output. The memo argues the product DEFINITION changed (README makes text + patch-bundle retrieval core), and bounds the reader (latest-turn only, no history sweep, adversarial-fixture-tested, operator-gated). The lead must decide whether even a bounded reader is acceptable. This is the heart of design decision #1.",
+    "pi worker self-reported ESTIMATE/ACTUAL minutes are HALLUCINATED (off by ~15x). Fix forward: either instruct worker contracts to stamp real `date -Iseconds` at start and end, or derive all worker timing from run-dir metadata (started_at) + report END_TIMESTAMP; do not trust the minute self-reports in telemetry rollups.",
+    "SHARED pi-quota ceiling: during this mission another program (programs/pastore-repair: W34/W37/W39) ran 3 concurrent pi workers on the operator's pi account. This mission kept its own footprint at 1 concurrent worker (T2 then T3, sequential). When multiple teams/missions run pi workers concurrently, the operator's pi account is a shared global resource and needs explicit cross-mission allocation (sum of concurrent workers under the account ceiling) — there is no shared limiter.",
+    "Headless-manager turn-end death (the predecessor's failure) is now codified in the charter as detached-session discipline. The relaunch recovered with zero lost work because the T1 workers persist their own reports + status files independent of the manager process — the run-dir/status-file pattern is what made recovery cheap."
+  ]
+}
