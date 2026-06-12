@@ -21,9 +21,9 @@
     {
       "id": "M-003",
       "title": "Bundles (UC2) + CLI (UC3) + real-site acceptance runbook: best-of-N=3 protocol design -> bundle-out/patch-retrieve/zip-slip-safe apply -> round-trip + CLI acceptances -> N=3 verify panel",
-      "status": "DISPATCHED (ops-m003 watching)",
-      "contract": "orchestration/tasks/MISSION-003.md",
-      "estimate_minutes": "120 (flag at 240)"
+      "status": "RELAUNCHED (manager v2 via MISSION-003-RESUME.md; ops-m003b watching with auto-recovery). Manager headless-death #2 at ~64m: T1/T2/T6 committed, T3 worker survived+running, T4/T5/T7/handoff pending. ROOT CAUSE found: pi-worker-watch.sh default --wait-seconds 1800 exceeds manager Bash 600s cap -> watch dies at timeout -> manager backgrounds watches -> dies at turn end. Charter now carries the exact --wait-seconds 480 loop recipe; ops-runners now carry bounded auto-recovery (relaunch on exit-with-missing-handoff, max 2).",
+      "contract": "orchestration/tasks/MISSION-003.md + MISSION-003-RESUME.md",
+      "estimate_minutes": "120 from 01:56 (flag at 240)"
     },
     {
       "id": "M-004",
@@ -38,6 +38,7 @@
   ],
   "findings_from_operator_use": [],
   "apparatus_lessons": [
+    "MANAGER HEADLESS-DEATH #2 root-caused 2026-06-12: pi-worker-watch.sh default wait window (1800s) > manager Bash cap (600s); foreground watch errors at timeout; manager copes by backgrounding; backgrounded manager ends turn believing in re-invocation; claude -p exits. Fixes: (a) charter now prescribes the exact '--wait-seconds 480 foreground loop' recipe; (b) ops-runner contracts now include bounded auto-recovery (if manager exits with handoff MISSING and children alive/state!=DONE, relaunch with resume pointer, max 2) so recovery no longer routes through the team lead.",
     "OPERATOR EMPHASIS 2026-06-12: best-of-N is the default and must not be narrowed for resource caution (pi is unconstrained). Verification = panel of distinct dimensions over ONE authoritative evidence run + synthesis (N>=3 for critical missions). M-002 T9 upgraded mid-flight from single verifier to N=3 panel; M-003/M-004 contracts must carry explicit panels.",
     "OPERATOR CORRECTION 2026-06-12: the 'max 3 concurrent pi workers' cap was fiction — an unverified claim seeded at team spawn (team.json/charter/original-RESUME), enforced by nothing. Inherited resource numbers are CLAIMS to verify with the operator, not facts (agent-rigor: verify every claim, including those in your own contract).",
     "Headless claude -p managers DIE at turn end — charter now carries detached-session discipline (foreground watches only). REWORK-CAUSE: spec-gap, cost ~3 min.",

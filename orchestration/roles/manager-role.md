@@ -19,11 +19,14 @@ README.md spec acceptance executed green end-to-end via reproducible commands (`
 - Telemetry (adopted from predecessor's M-010 profiling): every worker report carries machine-readable `ESTIMATE: <task> <minutes>m` and `ACTUAL: <task> <minutes>m` lines, an explicit end timestamp, and — for any rework leg — a one-line `REWORK-CAUSE: <spec-gap|env-drift|frozen-file|dependency-rot|other>` code. Run `orchestration/bin/profile_extract.py` (adapt: written for the predecessor layout) at mission close.
 - Worker economics: token-heavy low-level work goes to pi (GPT 5.5 xhigh) workers via `.claude/skills/orchestration/references/pi-worker-watch.sh`, in focused self-contained single-problem contracts (pi can err — keep slices narrow and verifiable). NO hard cap on concurrent pi workers (operator, 2026-06-12); parallelize genuinely disjoint legs freely, but EDITING legs serialize (single editor in the shared tree). Mechanical launch/watch via long-blocking calls only.
 
-## Detached-session discipline (managers run headless `claude -p`)
+## Detached-session discipline (managers run headless `claude -p`) — THIS HAS KILLED TWO MANAGERS; FOLLOW EXACTLY
 
-- You are a headless print-mode session: WHEN YOUR TURN ENDS, YOUR PROCESS EXITS. No harness re-invokes you when a background task or child finishes — "I'll be notified automatically" is FALSE here. NEVER end your turn to await results while children are running or deliverables are unwritten.
-- Hold FOREGROUND blocking watches: `pi-worker-watch.sh` blocks until the worker exits (or its wait window elapses) and prints a `--watch <run-dir>` re-invocation; loop those foreground calls until every child's status exists, ingest, continue. Do not background watcher calls and stop talking.
-- Before ending your turn: every deliverable named in your mission contract exists on disk and your handoff is written (STATUS DONE, or PARTIAL/BLOCKED with exact resume state). A dispatched-but-unfinished child = your turn is not over.
+- You are a headless print-mode session: WHEN YOUR TURN ENDS, YOUR PROCESS EXITS. NOTHING re-invokes you — not background Bash tasks, not "held watches", not child completion. Any plan ending in "…and I'll be re-invoked/notified when it finishes" is a plan to die mid-mission.
+- NEVER background a watch/wait command (no `run_in_background`, no `&`). Watches are FOREGROUND, in a loop.
+- THE TIMEOUT TRAP (killed manager #2): your Bash tool caps one call at 600 s, but `pi-worker-watch.sh` DEFAULTS to `--wait-seconds 1800` — a default watch exceeds your cap, errors out, and tempts you into backgrounding. ALWAYS pass an explicit short window and loop, with your Bash timeout set to 600000 ms:
+  `bash .claude/skills/orchestration/references/pi-worker-watch.sh --wait-seconds 480 "<task pointer>"` to launch, then
+  `bash .claude/skills/orchestration/references/pi-worker-watch.sh --wait-seconds 480 --watch <run-dir>` repeatedly until the worker's `status` file exists. Long-running workers are NORMAL; ten consecutive short watches are cheap — dying is not.
+- Before ending your turn: every deliverable named in your mission contract exists on disk and your handoff is written (STATUS DONE, or PARTIAL/BLOCKED with exact resume state). A dispatched-but-unfinished child = your turn is NOT over.
 
 ## Shared resources
 
