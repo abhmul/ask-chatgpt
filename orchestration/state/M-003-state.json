@@ -1,0 +1,75 @@
+{
+  "mission": "MISSION-003",
+  "title": "Bundle workflow (UC2) + CLI (UC3) + real-site acceptance runbook",
+  "manager": "headless claude -p (Opus 4.8)",
+  "started_at": "2026-06-12T02:00:08-05:00",
+  "ESTIMATE_minutes": 120,
+  "flag_threshold_minutes": 240,
+  "status": "IN_PROGRESS",
+  "phase": "P3-editing chain: T2 dispatched. DONE: T1a/T1b/T1c/T1d/T6. docs/bundle-protocol.md shipped (460 lines, 12 sections, fixture-token-anchored, validate-before-mutate + zip-slip + oversize caps + adversarial matrix). Editing chain T2->T3->T4->T5 serialized; manager commits each green slice (prefix M-003:).",
+
+  "objective": "Implement UC2 (bundle workflow: zip files/dirs out with a GPT catalogue README; retrieve a changed-files-only patch bundle via download-capture PRIMARY + checksummed fenced-base64url FALLBACK; validate manifest+SHA-256+byte-count BEFORE any write; zip-slip-safe apply within caller root; round-trip diff-matches) and UC3 (ask-chatgpt CLI wrapping the public function). All mock-proven on the loopback fixture; ZERO chatgpt.com contact; real-site halves stay operator-runbook-gated. Extend M-002 stack; do NOT rebuild it.",
+
+  "constraints": [
+    "Automated tests + ALL work NEVER contact chatgpt.com/openai; mock fixture loopback-127.0.0.1 ephemeral ONLY; no channel=real in any test/script.",
+    "PATCH APPLY SAFETY: validate ENTIRE bundle (manifest, SHA-256, byte counts, path safety) BEFORE mutating ANY file; reject absolute paths, '..', symlink escapes; write only within caller root (+ repo tmp/ in tests); CLI never mutates without explicit apply flag.",
+    "Never read/store/log credentials/cookies/tokens/profile contents. Real channel stays fail-closed.",
+    "Write ONLY inside /home/abhmul/dev/ask-chatgpt (+ tmp/). Archive /home/abhmul/Documents/weak-simplex-conjecture READ-ONLY (never archive/ or human/). Never write .claude/ or .agents/. Never touch shared agent venv (~/.local/share/agent-python/.venv).",
+    "uv sync --all-groups ALWAYS (bare uv sync drops groups). Serialize pytest in this tree. EDITING legs serialize (single editor). NO pi concurrency cap for non-editing legs. NEVER git push. ESTIMATE BEFORE EXECUTE.",
+    "Best-of-N is the DEFAULT for every non-editing leg (operator-emphasized 2026-06-12); never narrow N for resource caution."
+  ],
+
+  "ground_truth_anchor": "README.md UC2+UC3 spec executed green end-to-end via reproducible commands (uv run pytest + scripted acceptance against the local mock-ChatGPT fixture), verified from inspected output + produced artifacts (NOT exit codes/log claims). Real-chatgpt.com proof is operator-run from runbooks, never automated.",
+
+  "binding_decisions": "D-001 (docs/DECISIONS.md): bundle retrieval = download-capture PRIMARY + checksummed fenced-base64url FALLBACK (BEGIN/END markers, manifest, byte count, SHA-256 validated before apply); text reader DOM-primary (already built, M-002).",
+
+  "consumes_from_M002": {
+    "stack": "src/ask_chatgpt/{errors,session_registry,selector_map,driver,readers,api}.py + selector_maps/{mock,real}.json — UC1 mock-proven, 60 tests green.",
+    "fixture_bundle_affordances": "tests/fixtures/mock_chatgpt/server.py serves: download_artifact (real zip + Content-Disposition; variants missing/delayed/wrong_older/corrupt/truncated/collision/unsupported) for download-capture-primary; fenced base64url payload (BEGIN/END_PATCH_BUNDLE + manifest + ZIP_BYTE_COUNT + ZIP_SHA256; variants missing_end/bad_hash/changed_and_unchanged/oversized) for fenced fallback; upload_input (<input type=file> + metadata; variants unsupported/reject_size_type/corrupt) for bundle-out.",
+    "network_guard": "autouse socket guard + Playwright route interception (tests/conftest.py, tests/test_network_guard.py) — every new test runs under it.",
+    "existing_test_modules": "tests/test_fixture_files.py exercises download/fenced/upload affordances; read it to learn the exact fixture API."
+  },
+
+  "tasks": [
+    {"id":"T1a","title":"design lens: GPT-interaction (catalogue README + response instructions for patch-bundle compliance)","type":"design-lens","editing":false,"deps":[],"deliverable":"orchestration/reports/M-003/design-gpt-interaction.md","status":"done","run_dir":".pi-workers/pi-worker-20260612-020404-2884969-26619","trust":"producer-only (synthesized+verified downstream by T1d/T7)"},
+    {"id":"T1b","title":"design lens: integrity/safety (manifest schema, validate-before-mutate order, zip-slip semantics, oversize caps, failure taxonomy)","type":"design-lens","editing":false,"deps":[],"deliverable":"orchestration/reports/M-003/design-integrity-safety.md","status":"done","run_dir":".pi-workers/pi-worker-20260612-020412-2885148-27026","trust":"producer-only (synthesized+verified downstream by T1d/T7)"},
+    {"id":"T1c","title":"design lens: ergonomics (ask_chatgpt files= signature, apply_patch API, CLI flags, stdout conventions, no-mutate default)","type":"design-lens","editing":false,"deps":[],"deliverable":"orchestration/reports/M-003/design-ergonomics.md","status":"done","run_dir":".pi-workers/pi-worker-20260612-020421-2885355-23296","trust":"producer-only (synthesized+verified downstream by T1d/T7)"},
+    {"id":"T1d","title":"synthesis -> docs/bundle-protocol.md (reconcile 3 lenses, rationale included)","type":"synthesis","editing":false,"deps":["T1a","T1b","T1c"],"deliverable":"docs/bundle-protocol.md","status":"done","run_dir":".pi-workers/pi-worker-20260612-021457-2890349-25914","trust":"producer-only (binding spec; conformance verified in T7c)"},
+    {"id":"T2","title":"implement bundle-out (zip builder from files/dirs + generated catalogue README + size/type guard + upload via driver/fixture)","type":"implement","editing":true,"deps":["T1d"],"deliverable":"src/ask_chatgpt/ bundle-out module + tests","status":"pending","run_dir":null,"trust":"pending"},
+    {"id":"T3","title":"implement patch retrieval+apply (download-capture primary + fenced fallback + full validation BEFORE write + zip-slip-safe apply + dry-run diff; adversarial variants MANDATORY)","type":"implement","editing":true,"deps":["T1d","T2"],"deliverable":"src/ask_chatgpt/ patch module + tests","status":"pending","run_dir":null,"trust":"pending"},
+    {"id":"T4","title":"UC2 round-trip E2E (bundle out -> mock edits -> patch back -> apply -> diff matches) + scripts/accept_uc2.sh","type":"implement","editing":true,"deps":["T2","T3"],"deliverable":"tests/ E2E + scripts/accept_uc2.{sh,py}","status":"pending","run_dir":null,"trust":"pending"},
+    {"id":"T5","title":"CLI ask-chatgpt console script ([project.scripts], wraps public fn ONLY) + UC3 acceptance + scripts/accept_uc3.sh","type":"implement","editing":true,"deps":["T2","T3","T4"],"deliverable":"src/ask_chatgpt/cli.py + pyproject [project.scripts] + tests + scripts/accept_uc3.{sh,py}","status":"pending","run_dir":null,"trust":"pending"},
+    {"id":"T6","title":"real-site acceptance runbook (operator-gated UC1+UC2+UC3 halves; NEVER automated)","type":"doc","editing":false,"deps":[],"deliverable":"docs/runbooks/real-site-acceptance.md","status":"done","run_dir":".pi-workers/pi-worker-20260612-020429-2885572-1631","trust":"producer-only (spec-conformance checked in T7c; UC3 commands to re-confirm vs final CLI after T5)","note":"DONE: docs/runbooks/real-site-acceptance.md (298 lines) + T6-report.md. UC3 commands may need re-confirm vs final CLI surface from T5."},
+    {"id":"T7a","title":"verification evidence runner (non-producer): fresh uv sync; FULL pytest; accept_uc1+uc2+uc3; deliberate zip-slip + network-guard violations must fail safely; ALL raw -> tmp/verify-m003/","type":"verify-evidence","editing":false,"deps":["T2","T3","T4","T5","T6"],"deliverable":"orchestration/reports/M-003/verify-run.md + tmp/verify-m003/ artifacts","status":"pending","run_dir":null,"trust":"pending"},
+    {"id":"T7b","title":"verify lens: correctness/reproduction (over T7a evidence)","type":"verify-lens","editing":false,"deps":["T7a"],"deliverable":"orchestration/reports/M-003/verify-correctness.md","status":"pending","run_dir":null,"trust":"pending"},
+    {"id":"T7c","title":"verify lens: spec-conformance (UC2+UC3 incl. round-trip diff-matches + catalogue README vs protocol doc)","type":"verify-lens","editing":false,"deps":["T7a"],"deliverable":"orchestration/reports/M-003/verify-spec.md","status":"pending","run_dir":null,"trust":"pending"},
+    {"id":"T7d","title":"verify lens: safety (zip-slip all rejected, validate-before-mutate proven, no credential reads, loopback-only, CLI no-mutate default)","type":"verify-lens","editing":false,"deps":["T7a"],"deliverable":"orchestration/reports/M-003/verify-safety.md","status":"pending","run_dir":null,"trust":"pending"},
+    {"id":"T7e","title":"verification synthesis -> orchestration/reports/M-003/verify.md (per-dimension verdicts + final VERDICT: PASS|FAIL)","type":"verify-synthesis","editing":false,"deps":["T7b","T7c","T7d"],"deliverable":"orchestration/reports/M-003/verify.md","status":"pending","run_dir":null,"trust":"pending"}
+  ],
+
+  "execution_plan": {
+    "P1": "Parallel: T1a+T1b+T1c (design lenses) + T6 (runbook) fast-launched concurrently; foreground blocking-watch each to completion.",
+    "P2": "T1d synthesis (single non-editing worker reads 3 lenses) -> docs/bundle-protocol.md; watch; light-verify coherence.",
+    "P3": "Editing chain SERIALIZED: T2 -> T3 -> T4 -> T5 (each default 30m blocking watch; ingest report; manager commits each working slice with prefix 'M-003:').",
+    "P4": "Verification panel: T7a evidence runner (single, authoritative) -> T7b+T7c+T7d parallel read-only lenses over T7a evidence -> T7e synthesis (VERDICT). On FAIL: revive offending leg (REWORK-CAUSE coded), re-run T7a + failed lenses.",
+    "P5": "Closeout: write orchestration/handoffs/MISSION-003-handoff.json; final commit incl. handoff + verify reports + state. NEVER push."
+  },
+
+  "telemetry": {
+    "ESTIMATE_M003_minutes": 120,
+    "ACTUAL_minutes": null,
+    "rework_causes": [],
+    "note": "Workers emit literal START_TIMESTAMP:/END_TIMESTAMP: + ESTIMATE: T<ID> <min>m. Manager derives ACTUAL from .pi-workers/<run>/metadata.txt started_at -> report END_TIMESTAMP/mtimes. pi minute self-reports are HALLUCINATED (~5-8x over) — never use them."
+  },
+
+  "artifacts_and_trust": [
+    {"path":"orchestration/reports/M-003/design-gpt-interaction.md","trust":"producer-only","note":"T1a lens; folded into protocol"},
+    {"path":"orchestration/reports/M-003/design-integrity-safety.md","trust":"producer-only","note":"T1b lens; folded into protocol"},
+    {"path":"orchestration/reports/M-003/design-ergonomics.md","trust":"producer-only","note":"T1c lens; folded into protocol"},
+    {"path":"docs/bundle-protocol.md","trust":"producer-only","note":"T1d synthesis; binding spec for T2-T5; conformance gated in T7c"},
+    {"path":"docs/runbooks/real-site-acceptance.md","trust":"producer-only","note":"T6; operator-gated, never automated; UC3 cmds to re-confirm vs final CLI"}
+  ],
+  "blockers": "NONE. (Real-site halves remain operator-gated: operator must run docs/runbooks/observe-chatgpt-unknowns.md to fill selector_maps/real.json before real channel works — does NOT block this mock-proven mission.)",
+  "commit_prefix": "M-003:",
+  "resume_instructions": "If resuming: read this file + orchestration/tasks/MISSION-003.md + MISSION-002-handoff.json + docs/DECISIONS.md + agent-rigor.md. Check each task's status/run_dir. For dispatched workers, watch via: bash .claude/skills/orchestration/references/pi-worker-watch.sh --watch <run_dir>. Editing legs serialize. Honor SAFETY BLOCK verbatim in every new contract. Do not rebuild M-002 stack."
+}
