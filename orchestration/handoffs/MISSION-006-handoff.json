@@ -1,68 +1,71 @@
 {
   "mission": "MISSION-006",
   "title": "Real-site enablement: opt-in real tier, selector discovery, UC1-3 real acceptance (D-002)",
-  "handoff_author": "manager-2 (RESUME), pid 3390129",
-  "handoff_written_at": "2026-06-12T11:36:39-05:00",
-  "supersedes": "the prior manager-1 PARTIAL/logged-out handoff (same path); B1 'logged out' is REFUTED — see blocker B2.",
+  "handoff_author": "manager-4 (RESUME3), pid 6057",
+  "handoff_written_at": "2026-06-12T16:32:45-05:00",
+  "supersedes": "manager-2's PARTIAL/B2 handoff (same path). B2 has since been DECIDED by the operator = CDP attach (commit 1120a1b). T1b (the mock-tier CDP plumbing) is now DONE+verified+committed. The mission is no longer awaiting a decision — it awaits the operator's CDP browser window.",
 
   "STATUS": "PARTIAL",
-  "headline": "T1 (tier plumbing) DONE+committed and unaffected. The automated real-site legs (T2 discovery, T3 acceptance) are INFEASIBLE as designed: chatgpt.com serves a Cloudflare 'Just a moment...' bot interstitial that NEVER clears for the Playwright-automated browser, so it cannot reach the app OR the login page. This is NOT an auth problem and NOT operator-sign-in-resolvable. Mission now needs an operator/team-lead DECISION (blocker B2). 0 of 30 real messages spent.",
+  "headline": "T1 (tier plumbing) and T1b (channel=cdp attach plumbing + mock-tier tests) are both DONE, manager-gate-verified, and committed (3693388, f9c330e). The full default suite is GREEN (136 passed / 1 deselected / exit 0). The real-site legs T2 (discovery) and T3 (UC1-3 acceptance) are OPERATOR-GATED: the CDP endpoint 127.0.0.1:9222 is CLOSED (operator on a trip; signed-in Chromium not running), so no real worker can attach. CDP_UNREACHABLE. 0 of 30 real messages spent; budget fully intact. This headless manager closed out cleanly per the operator-coordination rule (do not idle for the operator).",
 
   "telemetry": {
     "ESTIMATE": "M-006 150m",
-    "ACTUAL": "~97m wall-clock elapsed (first manager start 2026-06-12T09:59:16 -> 2026-06-12T11:36:39), of which ~61m active manager work (manager-1 T1 leg ~35m + manager-2 resume ~26m) and ~36m idle (operator-engagement gap between manager lifetimes). Mission NOT complete — blocked, not finished.",
+    "ESTIMATE_resume3": "M-006-resume3 35m",
+    "ACTUAL": "Mission NOT complete (PARTIAL). Wall-clock since first manager start 2026-06-12T09:59:16 -> 2026-06-12T16:32:45 = ~393m elapsed, DOMINATED by idle: the operator trip pause (~12:25 -> 16:02 ~= 217m) plus inter-lifetime operator-engagement gaps. Active manager work across 4 lifetimes ~= T1 leg ~35m + manager-2 resume ~26m + manager-3 resume2 (killed mid-T1b) ~20m + manager-4 resume3 ~30m. The T1b leg itself: ESTIMATE 35m / ACTUAL 15m (authoritative from run-dir: started_at 16:11:19 -> status mtime 16:26:08).",
     "MESSAGES_USED": 0,
-    "MESSAGES_USED_note": "0 across BOTH ledgers (tmp/real-audit-20260612T100518/messages.log = 0 lines; tmp/real-audit-20260612T111042/messages.log = 0 lines). Budget 30/30 intact. All 3 resume probes were pure page-render observation (zero prompts to ChatGPT).",
-    "END_TIMESTAMP": "2026-06-12T11:36:39-05:00",
-    "REWORK-CAUSE": "spec-gap",
-    "REWORK-CAUSE_detail": "The mission spec made real-site discovery/acceptance AGENT-DRIVEN, but ground truth (Cloudflare bot-block) makes that infeasible and it conflicts with the team charter's own anchor: 'Real-chatgpt.com proof is operator-run from runbooks, never automated.' Not env-drift (display/profile/version all fine) and not frozen-file/dependency-rot."
+    "MESSAGES_USED_note": "0 across BOTH ledgers (tmp/real-audit-20260612T100518/messages.log = 3 lines, all '#' comments, 0 data; tmp/real-audit-20260612T111042/messages.log = 4 lines, all '#' comments, 0 data). Budget 30/30 intact. T1b is a mock-tier leg that contacts nothing real.",
+    "END_TIMESTAMP": "2026-06-12T16:32:45-05:00",
+    "REWORK-CAUSE": "other",
+    "REWORK-CAUSE_detail": "T1b was re-run from scratch this turn because the operator paused the mission for a trip mid-leg (commit bb50a35) and its pi worker was hard-killed ~19m in, leaving unfinished/unverified/uncommitted edits. Per the pause record's option (a) those suspect edits were reverted to the clean T1 baseline and T1b was re-dispatched fresh. Not spec-gap / env-drift / frozen-file / dependency-rot."
   },
   "telemetry_lines": [
     "ESTIMATE: M-006 150m",
-    "ACTUAL: M-006 ~97m elapsed (~61m active), PARTIAL — blocked on Cloudflare (B2), not complete",
-    "REWORK-CAUSE: spec-gap (agent-driven real-site infeasible vs Cloudflare; conflicts with charter 'real proof is operator-run')"
+    "ESTIMATE: M-006-resume3 35m",
+    "ACTUAL: M-006-resume3 ~30m (T1b leg 15m authoritative); PARTIAL — T2/T3 CDP-gated, not complete",
+    "REWORK-CAUSE: other (operator-pause kill mid-T1b-leg; re-run fresh, verified green)"
   ],
 
   "what_was_verified": [
-    "Startup sibling-safety: recorded manager-1 pid 3288281 DEAD and duplicate 3286529 DEAD via kill -0 -> no live sibling; recorded my pid 3390129 in M-006-state.json (manager_lifetimes[1] + top-level manager_pid).",
-    "Budget from ground truth: counted 0 data lines in both audit ledgers -> spent=0, remaining=30. Created the resume ledger tmp/real-audit-20260612T111042/messages.log.",
-    "Env preflight: chromium NOT running, no SingletonLock (profile unlocked), DISPLAY=:0 + ~/.Xauthority present, profile dirs Default/Profile 1/System Profile present.",
-    "Cloudflare block confirmed by THREE independent zero-message render probes: v1 (3s) inconsistent; v2 (20s robust, both Profile 1 + Default) -> no composer/login/signup/history/account chrome, title 16 chars != 'ChatGPT'; v3 (45s confirm) -> title 'Just a moment...' continuously sec2->44 on chatgpt.com, composer=0 login_ctl=0 throughout. INTERSTITIAL_CONFIRMED: cloudflare, CLEARED_TO_APP_OR_LOGIN: no.",
-    "Default-tier purity intact: src/ask_chatgpt/selector_maps/real.json still 0 non-empty selectors (untouched); no git changes to it.",
-    "Safety honored: no login automated, no profile contents/cookies/tokens read, no account identifiers captured, NO bot-detection bypass attempted (explicitly forbidden the probe workers)."
+    "Sibling-safety (sole-live): process scan -> ONLY my own tree carries the M-006 RESUME prompt (launcher 6002 -> watch 6035 -> claude 6057; team-lead lineage 4327). The W150-W161 pi processes (parent claude 3389) are programs/pastore-repair workers = different program, NOT M-006, NOT mine to touch. tmux shows only my session claude-orch-20260612-160226-6035-2765. NO live sibling M-006 manager. Recorded manager_pid 6057 in M-006-state.json.",
+    "Budget from ground truth: 0 data lines in BOTH audit ledgers -> spent 0, remaining 30.",
+    "Dirty-tree revert: HEAD bb50a35; the dirty product files (driver.py +111, errors.py +18, test_driver.py + untracked cdp test/fixtures) matched the pause record. Reverted to the clean T1 baseline via `git stash push -u -- src/ tests/` (the global destructive-guard.sh hook BLOCKS git checkout/clean) -> src/+tests/ == HEAD; suspect edits preserved in stash@{0} (recoverable; superseded).",
+    "T1b manager-gate (re-derived from ground truth, NOT from the producer's claim): authoritative `uv run pytest` = 136 passed / 1 deselected / exit 0 (saved tmp/verify-m006/T1b_pytest.txt); 132 T1 baseline + 4 new CDP tests. Tier purity: 1 deselected = the real_site sample excluded by addopts; 0 real_site run in the default tier. real.json UNCHANGED at HEAD (empty diff) = fail-closed template intact. conftest.py autouse socket guard UNCHANGED at HEAD (empty diff). New errors present: CDPUnreachableError (errors.py:18), ChallengePresentError (errors.py:26). channel=cdp attach present: connect_over_cdp (driver.py:408), CDP_UNREACHABLE token (driver.py:410), always-new-tab branch (driver.py:437). Scope clean (only driver/errors/test_driver + new cdp test + empty-map fixture + report). Report last line T1b-STATUS: DONE, MESSAGES_USED: 0.",
+    "uv used the PROJECT .venv, not the shared agent venv: the `VIRTUAL_ENV ... does not match ... will be ignored` warning confirms correct isolation (charter: never touch the shared agent venv).",
+    "CDP preflight (the real-leg gate): 127.0.0.1:9222 = PORT_9222_CLOSED at manager start (16:02), after T1b (16:26), and at handoff (16:32). Consistently closed -> T2/T3 cannot start.",
+    "Safety honored: no real-site contact, no login automation, no profile/cookie/token reads, no account identifiers, NO stealth/evasion (T1b is mock + throwaway-local-browser only)."
   ],
 
   "artifacts": [
-    {"path": "orchestration/reports/M-006/RESUME-FINDING-cloudflare.md", "desc": "Authoritative manager-2 finding + evidence table + decision options", "trust": "manager-authored from 3 consistent worker probes"},
-    {"path": "orchestration/reports/M-006/T2-pre.md / T2-pre-v2.md / T2-pre-v3.md", "desc": "The 3 zero-message probe reports (v3 has the 45s Cloudflare timeline)", "trust": "worker-produced; cross-consistent"},
-    {"path": "orchestration/tasks/M-006/T2-pre-profile-confirm.md / -v2.md / T2-pre-confirm-interstitial.md", "desc": "The 3 self-contained probe contracts (SAFETY BLOCK verbatim; diagnose-only, no-bypass)", "trust": "manager-authored"},
-    {"path": "commit 3693388 (T1)", "desc": "Tier plumbing: real_site marker + addopts deselection + ASK_CHATGPT_REAL double-gate + real_allowlist + ProfileLockedError/preflight + executable_path; mock suite 132 passed/1 deselected", "trust": "manager-gate-verified; INDEPENDENT best-of-N verification still PENDING"},
-    {"path": "src/ask_chatgpt/selector_maps/real.json", "desc": "Unchanged all-empty fail-closed template", "trust": "verified untouched"}
+    {"path": "commit f9c330e (T1b)", "desc": "channel=cdp attach (connect_over_cdp; always-new-tab discipline; close()=detach-not-quit) + CDPUnreachableError/ChallengePresentError + decoupled fail-closed test (empty-map fixture) + throwaway-browser loopback CDP tests (tests/test_driver_cdp_attach.py)", "trust": "manager-gate-verified; INDEPENDENT best-of-N (tab-hygiene/new-tab/detach adversarial proof) deferred to T4a"},
+    {"path": "orchestration/reports/M-006/T1b.md", "desc": "T1b worker report (START/END, diff stat, validation, honest disclosures); last line T1b-STATUS: DONE", "trust": "producer-authored; cross-checked by manager gate"},
+    {"path": "tmp/verify-m006/T1b_pytest.txt", "desc": "authoritative manager run: 136 passed / 1 deselected / exit 0 (git-ignored)", "trust": "manager-run"},
+    {"path": "commit 3693388 (T1)", "desc": "Tier plumbing (real_site marker + addopts deselection + ASK_CHATGPT_REAL double-gate + real_allowlist + ProfileLockedError/preflight + executable_path)", "trust": "manager-gate-verified; INDEPENDENT best-of-N still PENDING (T4)"},
+    {"path": "src/ask_chatgpt/selector_maps/real.json", "desc": "Unchanged all-empty fail-closed template", "trust": "verified untouched through T1+T1b"},
+    {"path": "git stash@{0}", "desc": "WIP on main bb50a35: the reverted suspect T1b mid-leg edits", "trust": "producer-only / suspect — superseded by f9c330e; SAFE TO DROP"}
   ],
 
   "blocker": {
-    "id": "B2",
-    "owner": "operator / team-lead (decision)",
-    "condition": "chatgpt.com Cloudflare 'Just a moment...' bot interstitial blocks the Playwright-automated headed Chromium (system binary + operator's real profile); persists 45s, never clears to app or login. The automated browser cannot reach chatgpt.com's app OR auth layer.",
-    "why_agent_cannot_resolve": "Not auth (operator's own human browser is signed in and passes Cloudflare; automation just can't reach auth, so 'sign in again' does nothing). Passing Cloudflare needs bot-detection evasion = outward-facing + not authorized under D-002 + plausible OpenAI ToS risk for the operator account + disallowed by charter. Agent did NOT attempt it.",
-    "decision_options": {
-      "A_DEFAULT_recommended": "Revert real-site proof to OPERATOR-RUN runbooks (matches the charter anchor 'Real-chatgpt.com proof is operator-run from runbooks, never automated'). Mock tier (132 passing) is the authoritative automated acceptance. T1 stands as the delivered automated artifact; real.json stays empty/fail-closed. Operator resolves the 10 unknowns + UC1-3 from docs/runbooks/observe-chatgpt-unknowns.md and docs/runbooks/real-site-acceptance.md.",
-      "B_optional_CDP_attach": "Operator launches their OWN signed-in Chromium with --remote-debugging-port=9222 (passes Cloudflare as a real human browser); a worker connect_over_cdp()s to that human session instead of launch_persistent_context. NOT bot-evasion (drives a genuine human browser) but needs operator consent + the debug-port launch, may re-challenge on navigation, and is more complex. A fresh manager would author CDP-attach variants of T2/T3 under the SAME SAFETY BLOCK + 30-msg budget.",
-      "C_not_recommended": "Stealth/anti-detection to pass Cloudflare — flagged for completeness; do NOT pursue without explicit operator sign-off owning the ToS/charter risk."
-    },
-    "exact_next_step": "Team lead relays B2 to the operator; operator picks A, B, or C and notifies the lead. Default (A) needs no real-site automation — only an optional T1 independent verification + a mission closeout."
+    "id": "B2-CDP",
+    "owner": "operator (launch the browser) -> team-lead (resume a manager)",
+    "condition": "CDP endpoint 127.0.0.1:9222 is CLOSED. Real-site legs T2/T3 attach to the operator's own signed-in Chromium over CDP (operator decision B2); they cannot start until that browser is running with the debug port open. The operator is on a trip; the window is not open.",
+    "why_agent_cannot_resolve": "The manager must NOT launch the operator's browser and must NEVER automate login; the operator owns and opens the signed-in browser window. This is by-design coordination, not a fault.",
+    "exact_operator_action": "During a run window, launch (yourself): chromium --profile-directory='Profile 1' --remote-debugging-port=9222   (the 'agent' profile, signed into chatgpt.com). Keep it running. Then tell the team lead to resume MISSION-006 so a fresh manager can re-preflight CDP and dispatch the real discovery worker.",
+    "challenge_caveat": "If, once attached, chatgpt.com shows a Cloudflare/human-verification UI, the driver raises ChallengePresentError and the manager runs the challenge-pause protocol (read-only poll <=10min for YOU to clear it in the window; else PARTIAL). The tool NEVER interacts with the challenge and NEVER uses stealth/evasion.",
+    "budget_impact": "none — 0 of 30 real messages spent."
   },
 
   "recommended_next_tasks": [
-    {"task": "T1 independent best-of-N verification (mock-only, non-real, UNBLOCKED NOW)", "detail": "The one remaining automated task that is NOT blocked by Cloudflare. N=3 distinct lenses (correctness of the double-gate/addopts deselection; allowlist + preflight conformance; default-tier purity = clean `uv run pytest` collects zero real_site + socket guard intact) over ONE authoritative suite run, + synthesis. Raises T1 from manager-gate-verified to independently-verified. Do this under option A, or fold into the final T4 under option B.", "deps": ["T1"], "real_site": false, "parallelism": "the 3 lenses run in parallel over one shared pytest output (do NOT have 3 workers each re-run the heavy suite concurrently)."},
-    {"task": "If option A: close M-006 for automated scope", "detail": "Mark T2/T3 INFEASIBLE-BY-CLOUDFLARE (delegated to operator/runbooks), keep T1 as the delivered artifact, update VERIFICATION.md real-site section honestly (mock-proven; real proof = operator-run, automation infeasible due to Cloudflare), closeout commit.", "deps": ["T1 verification"], "real_site": false},
-    {"task": "If option B: author CDP-attach T2/T3", "detail": "connect_over_cdp() to the operator's --remote-debugging-port browser; same 10-unknown discovery + UC1-3 acceptance, same 30-msg HARD budget + ledger + audit + headed/serialized/login-never-automated rules; then T2b install + T4 panel as originally planned.", "deps": ["operator launches debug-port browser"], "real_site": true}
+    {"task": "T2 real-site discovery over CDP (ONE real worker, <=12 msgs)", "detail": "GATED on the operator's CDP browser being up. Before dispatch the manager MUST: re-preflight 127.0.0.1:9222 reachable; REVISE the T2 contract (orchestration/tasks/M-006/T2-discovery.md was written for launch_persistent_context) for CDP — connect_over_cdp, ALWAYS open a new tab, NEVER touch operator tabs, challenge-pause protocol, log EVERY message to the ledger BEFORE send. Resolve the 10 observe-runbook unknowns; write PROPOSED selectors + discovery.md; do NOT edit src/real.json (T2b does).", "deps": ["T1", "T1b", "operator CDP browser up"], "real_site": true},
+    {"task": "T2b install selectors (mock-only single editor)", "detail": "Install T2's verified selectors into src/ask_chatgpt/selector_maps/real.json + extend real_allowlist with discovered asset domains + full suite green + commit. NOTE: T1b already decoupled the fail-closed test from live real.json (empty-map fixture), so T2b's old decouple sub-task is subsumed.", "deps": ["T2"], "real_site": false},
+    {"task": "T3 UC1-3 real acceptance over CDP (ONE real worker, <=15 msgs)", "detail": "channel=cdp config path; UC1 continuity via conversation-URL pinning + model_settings; UC2 bundle round-trip; UC3 via CLI. Revise the T3 contract for CDP before dispatch. Document the channel=cdp knob as the supported real mechanism in the runbooks.", "deps": ["T1", "T1b", "T2", "T2b"], "real_site": true},
+    {"task": "T4 best-of-N verification panel (N=3 + synthesis; non-producers)", "detail": "Folds in the deferred T1 + T1b independent verification: (a) tier purity + CDP mock-tests + tab-hygiene/new-tab/detach adversarial proof + test_driver decouple; (b) D-002-as-amended conformance (grep for stealth/AutomationControlled patterns and confirm ABSENT; challenge protocol honored; budgets/audit consistent; no account identifiers); (c) empirical findings + spec coverage (10 unknowns; UC1-3 evidence; D-001 revisit). Synthesis -> VERIFICATION.md + orchestration/reports/M-006/verify.md with VERDICT: PASS|FAIL. Run the 3 lenses in PARALLEL over ONE shared authoritative pytest output; do not have 3 workers re-run the heavy suite concurrently.", "deps": ["T1b", "T2", "T3"], "real_site": false}
   ],
 
   "complexity_paradigm_signals": [
-    "PARADIGM: the 'agent-driven real-site' design is falsified by Cloudflare and conflicts with the charter's own ground-truth anchor (real proof is operator-run). The simplest correct design is to honor the anchor: mock = authoritative automated acceptance, real = operator-run. Recommend the team lead/operator update D-002 / the mission model to reflect that automated chatgpt.com browser-driving is infeasible without evasion.",
-    "The prior manager's 'logged out' BLOCKER (B1) was a MISDIAGNOSIS of the same Cloudflare interstitial (or a transient pre-challenge state). Lesson: a single 3s render probe with narrow markers is not enough to diagnose a real-site block; the title 'Just a moment...' + a poll-to-clear test is the reliable discriminator. Captured as agent memory for future managers."
+    "TOOLING GOTCHA for future managers in this repo: the global ~/.claude/hooks/destructive-guard.sh BLOCKS `git checkout -- ...` and `git clean ...` (it substring-matches the WHOLE command, INCLUDING comments — a forbidden phrase in a comment will block an otherwise-safe command). Use `git stash push -u -- <paths>` to revert a dirty subtree non-destructively (it also preserves the work as a recoverable safety net). Keep destructive git verbs out of command text AND comments.",
+    "The CDP-attach pivot (B2) is the correct simplest design that honors the charter anchor 'real proof is operator-run': the tool drives the operator's OWN human browser (passes Cloudflare legitimately) rather than an automated browser (Cloudflare-blocked) or stealth (forbidden). T1b proves the mechanics with zero real-site contact, so the only remaining dependency for real proof is the operator opening the window.",
+    "Headless-manager discipline held: foreground watches only (--wait-seconds 480, looped), worker run-dir recorded before watching, handoff written before turn end. No backgrounded watches."
   ],
 
-  "resume_ready_state_pointer": "orchestration/state/M-006-state.json (status PARTIAL_BLOCKED_CLOUDFLARE; B2 active; B1 refuted; budget 0/30; manager_pid 3390129). Do NOT re-run the B1 logged-out path. A fresh manager: re-read this handoff + state, recompute budget from BOTH ledgers (still 0), and proceed by the operator's B2 decision."
+  "resume_ready_state_pointer": "orchestration/state/M-006-state.json (status IN_PROGRESS; T1+T1b DONE; T2/T3 OPERATOR-GATED on CDP; blocker B2-CDP; budget 0/30; manager_pid 6057; HEAD f9c330e). A fresh manager: re-read this handoff + state, sibling-pid + budget re-check from BOTH ledgers (still 0), re-preflight CDP, and proceed from T2 ONLY if 127.0.0.1:9222 is reachable (else stay PARTIAL). Do NOT re-run T1/T1b. stash@{0} is the superseded suspect T1b edits (safe to drop)."
 }
