@@ -37,6 +37,7 @@
   ],
   "findings_from_operator_use": [],
   "apparatus_lessons": [
+    "OPERATOR EMPHASIS 2026-06-12: best-of-N is the default and must not be narrowed for resource caution (pi is unconstrained). Verification = panel of distinct dimensions over ONE authoritative evidence run + synthesis (N>=3 for critical missions). M-002 T9 upgraded mid-flight from single verifier to N=3 panel; M-003/M-004 contracts must carry explicit panels.",
     "OPERATOR CORRECTION 2026-06-12: the 'max 3 concurrent pi workers' cap was fiction — an unverified claim seeded at team spawn (team.json/charter/original-RESUME), enforced by nothing. Inherited resource numbers are CLAIMS to verify with the operator, not facts (agent-rigor: verify every claim, including those in your own contract).",
     "Headless claude -p managers DIE at turn end — charter now carries detached-session discipline (foreground watches only). REWORK-CAUSE: spec-gap, cost ~3 min.",
     "pi worker self-reported ACTUAL minutes are hallucinated (~15x off); telemetry v2: workers stamp date -Iseconds START/END_TIMESTAMP lines; manager derives ACTUAL from run-dir metadata + mtimes (in M-002 contract onward).",
