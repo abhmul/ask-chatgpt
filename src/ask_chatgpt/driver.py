@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ipaddress
 from pathlib import Path
 import time
 from typing import Any
@@ -248,7 +249,20 @@ class BrowserSession:
         assert self._playwright is not None
         self._browser = self._playwright.chromium.launch(headless=True)
         self._context = self._browser.new_context()
+        self._install_mock_route_guard()
         self._context.grant_permissions(["clipboard-read", "clipboard-write"], origin=self._base_url)
+
+    def _install_mock_route_guard(self) -> None:
+        if self._context is None:
+            raise AskChatGPTError("Browser context is unavailable. Operator action: start the session and retry.")
+
+        def guard(route: Any) -> None:
+            if _is_loopback_request_url(route.request.url):
+                route.continue_()
+            else:
+                route.abort("blockedbyclient")
+
+        self._context.route("**/*", guard)
 
     def _start_real_context(self) -> None:
         if self._profile_path is None:
@@ -372,8 +386,25 @@ def _is_loopback_http_url(url: str) -> bool:
     parsed = urlparse(url)
     if parsed.scheme != "http":
         return False
-    host = parsed.hostname
-    return host in {"127.0.0.1", "localhost", "::1"}
+    return _is_loopback_host(parsed.hostname)
+
+
+def _is_loopback_request_url(url: str) -> bool:
+    parsed = urlparse(url)
+    if parsed.scheme not in {"http", "https", "ws", "wss"}:
+        return True
+    return _is_loopback_host(parsed.hostname)
+
+
+def _is_loopback_host(host: str | None) -> bool:
+    if host in {"127.0.0.1", "localhost", "::1"}:
+        return True
+    if host is None:
+        return False
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
 
 
 __all__ = ["BrowserSession", "REAL_BASE_URL"]
