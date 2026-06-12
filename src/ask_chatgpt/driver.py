@@ -1,4 +1,4 @@
-"""Playwright browser-session controller for mock and real ChatGPT channels."""
+"""Playwright browser-session controller for mock, real, and CDP-attached ChatGPT channels."""
 
 from __future__ import annotations
 
@@ -22,6 +22,8 @@ from playwright.sync_api import (
 
 from ask_chatgpt.errors import (
     AskChatGPTError,
+    CDPUnreachableError,
+    ChallengePresentError,
     LoginRequiredError,
     ModelUnavailableError,
     ProfileLockedError,
@@ -35,6 +37,7 @@ from ask_chatgpt.selector_map import SelectorMap, load_selector_map
 
 
 REAL_BASE_URL = "https://chatgpt.com"
+_DEFAULT_CDP_ENDPOINT = "http://127.0.0.1:9222"
 _DEFAULT_NAVIGATION_TIMEOUT_MS = 5_000
 _POLL_INTERVAL_S = 0.1
 _REAL_REQUIRED_SELECTOR_KEYS = (
@@ -65,7 +68,7 @@ _REAL_REQUIRED_ATTRIBUTE_KEYS = ("conversation_ref", "turn_id")
 class BrowserSession:
     """Own a Playwright context/page plus a fail-closed selector map.
 
-    ``channel="mock"`` is the tested path and only navigates to the caller-provided loopback fixture URL. ``channel="real"`` is built for operator-runbook use via a persistent profile path, but automated tests must never exercise it.
+    ``channel="mock"`` is the tested path and only navigates to the caller-provided loopback fixture URL. ``channel="real"`` is built for operator-runbook use via a persistent profile path, while ``channel="cdp"`` attaches to an operator-owned browser and uses a new tab only.
     """
 
     def __init__(
@@ -77,17 +80,21 @@ class BrowserSession:
         executable_path: str | Path | None = None,
         maps_dir: Path | None = None,
         grant_clipboard: bool = True,
+        cdp_endpoint: str | None = None,
     ) -> None:
         self.channel = channel
-        self.selectors: SelectorMap = load_selector_map(channel, maps_dir=maps_dir)
         self._base_url = self._resolve_base_url(channel=channel, base_url=base_url)
+        selector_channel = self._selector_map_channel(channel=channel, base_url=self._base_url)
+        self.selectors: SelectorMap = load_selector_map(selector_channel, maps_dir=maps_dir)
         self._profile_path = Path(profile_path) if profile_path is not None else None
         self._executable_path = Path(executable_path) if executable_path is not None else None
         self._grant_clipboard = bool(grant_clipboard)
+        self._cdp_endpoint = _DEFAULT_CDP_ENDPOINT if channel == "cdp" and cdp_endpoint is None else cdp_endpoint
         self._playwright: Playwright | None = None
         self._browser: Browser | None = None
         self._context: BrowserContext | None = None
         self.page: Page | None = None
+        self._cdp_owned_pages: list[Page] = []
         self._active_conversation_ref: str | None = None
         self.aborted_off_domain_hosts: list[str] = []
 
@@ -111,17 +118,24 @@ class BrowserSession:
         try:
             if self.channel == "mock":
                 self._start_mock_context()
+                page = self._new_or_existing_page()
             elif self.channel == "real":
                 self._start_real_context()
+                page = self._new_or_existing_page()
+            elif self.channel == "cdp":
+                self._start_cdp_context()
+                page = self._new_cdp_page()
+                self._install_cdp_route_guard(page)
             else:
                 raise AskChatGPTError(
-                    f"Unsupported channel '{self.channel}'. Operator action: choose 'mock' for tests or 'real' for operator-runbook use."
+                    f"Unsupported channel '{self.channel}'. Operator action: choose 'mock' for tests, 'real' for operator-runbook launch, or 'cdp' for operator-owned browser attach."
                 )
-            page = self._new_or_existing_page()
             self.page = page
             page.goto(self._base_url, wait_until="load", timeout=_DEFAULT_NAVIGATION_TIMEOUT_MS)
-            if self.channel == "real":
+            if self.channel in {"real", "cdp"}:
                 self._raise_login_required_for_auth_redirect(page.url)
+            if self.channel == "cdp":
+                self._raise_challenge_present_if_detected()
             return self
         except Exception:
             self.close()
@@ -132,27 +146,39 @@ class BrowserSession:
         context = self._context
         browser = self._browser
         playwright = self._playwright
+        owned_pages = list(self._cdp_owned_pages)
+        is_cdp = self.channel == "cdp"
         self.page = None
         self._context = None
         self._browser = None
         self._playwright = None
+        self._cdp_owned_pages = []
         self._active_conversation_ref = None
 
-        if page is not None:
-            try:
-                page.close()
-            except PlaywrightError:
-                pass
-        if context is not None:
-            try:
-                context.close()
-            except PlaywrightError:
-                pass
-        if browser is not None:
-            try:
-                browser.close()
-            except PlaywrightError:
-                pass
+        if is_cdp:
+            if page is not None and all(opened_page is not page for opened_page in owned_pages):
+                owned_pages.append(page)
+            for opened_page in owned_pages:
+                try:
+                    opened_page.close()
+                except PlaywrightError:
+                    pass
+        else:
+            if page is not None:
+                try:
+                    page.close()
+                except PlaywrightError:
+                    pass
+            if context is not None:
+                try:
+                    context.close()
+                except PlaywrightError:
+                    pass
+            if browser is not None:
+                try:
+                    browser.close()
+                except PlaywrightError:
+                    pass
         if playwright is not None:
             try:
                 playwright.stop()
@@ -292,14 +318,22 @@ class BrowserSession:
     def _install_mock_route_guard(self) -> None:
         if self._context is None:
             raise AskChatGPTError("Browser context is unavailable. Operator action: start the session and retry.")
+        self._install_loopback_route_guard(self._context)
 
+    def _install_cdp_route_guard(self, page: Page) -> None:
+        if _is_loopback_http_url(self._base_url):
+            self._install_loopback_route_guard(page)
+        else:
+            install_real_allowlist(page, on_abort=self.aborted_off_domain_hosts.append)
+
+    def _install_loopback_route_guard(self, route_owner: Any) -> None:
         def guard(route: Any) -> None:
             if _is_loopback_request_url(route.request.url):
                 route.continue_()
             else:
                 route.abort("blockedbyclient")
 
-        self._context.route("**/*", guard)
+        route_owner.route("**/*", guard)
 
     def _ensure_real_selector_map_ready(self) -> None:
         for key in _REAL_REQUIRED_SELECTOR_KEYS:
@@ -328,6 +362,24 @@ class BrowserSession:
         ):
             raise LoginRequiredError("browser redirected to a login/auth URL shape")
 
+    def _raise_challenge_present_if_detected(self) -> None:
+        page = self._require_page()
+        try:
+            title = page.title().strip().lower()
+        except PlaywrightError:
+            title = ""
+        if "just a moment" in title or "verify you are human" in title or "checking your browser" in title:
+            raise ChallengePresentError("CHALLENGE_PRESENT: challenge-like page title detected")
+
+        for selector in ("#challenge-running", "iframe[src*='challenges.cloudflare.com']"):
+            try:
+                if page.locator(selector).count() > 0:
+                    raise ChallengePresentError("CHALLENGE_PRESENT: challenge marker detected")
+            except ChallengePresentError:
+                raise
+            except PlaywrightError:
+                continue
+
     def _start_real_context(self) -> None:
         if self._profile_path is None:
             raise AskChatGPTError("Real channel requires an opaque profile_path directory. Operator action: pass the operator-owned profile path and retry.")
@@ -349,18 +401,42 @@ class BrowserSession:
                 "Real browser launch failed. Operator action: check the opaque profile directory and browser availability, then retry."
             ) from None
 
+    def _start_cdp_context(self) -> None:
+        assert self._playwright is not None
+        endpoint = str(self._cdp_endpoint or _DEFAULT_CDP_ENDPOINT)
+        try:
+            self._browser = self._playwright.chromium.connect_over_cdp(endpoint, timeout=_DEFAULT_NAVIGATION_TIMEOUT_MS)
+        except PlaywrightError as exc:
+            raise CDPUnreachableError(f"CDP_UNREACHABLE: connect_over_cdp failed for endpoint {endpoint!r}") from exc
+        if not self._browser.contexts:
+            raise CDPUnreachableError(f"CDP_UNREACHABLE: endpoint {endpoint!r} exposed no browser contexts")
+        self._context = self._browser.contexts[0]
+
     def _new_or_existing_page(self) -> Page:
         if self._context is None:
             raise AskChatGPTError("Browser context is unavailable. Operator action: start the session and retry.")
         return self._context.pages[0] if self._context.pages else self._context.new_page()
 
+    def _new_cdp_page(self) -> Page:
+        if self._context is None:
+            raise AskChatGPTError("Browser context is unavailable. Operator action: start the session and retry.")
+        page = self._context.new_page()
+        self._cdp_owned_pages.append(page)
+        return page
+
     @staticmethod
     def _resolve_base_url(*, channel: str, base_url: str | None) -> str:
-        if channel == "real":
+        if channel in {"real", "cdp"} and base_url is None:
             return REAL_BASE_URL
         if base_url is None:
             return ""
         return str(base_url).rstrip("/")
+
+    @staticmethod
+    def _selector_map_channel(*, channel: str, base_url: str) -> str:
+        if channel == "cdp":
+            return "mock" if _is_loopback_http_url(base_url) else "real"
+        return channel
 
     def _require_page(self) -> Page:
         if self.page is None:

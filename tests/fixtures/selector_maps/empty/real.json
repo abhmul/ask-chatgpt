@@ -1,0 +1,31 @@
+{
+  "channel": "real",
+  "version": 1,
+  "note": "Test fixture: all-empty fail-closed real selector map. Keep independent from src/ask_chatgpt/selector_maps/real.json so live selectors may be populated later.",
+  "selectors": {
+    "ready_root": "",
+    "chat_list": "",
+    "chat_item": "",
+    "new_chat_button": "",
+    "composer": "",
+    "send_button": "",
+    "model_menu": "",
+    "model_option": "",
+    "model_option_disabled": "",
+    "assistant_message": "",
+    "message_body": "",
+    "streaming_marker": "",
+    "completion_marker": "",
+    "copy_button": "",
+    "download_artifact": "",
+    "upload_input": "",
+    "login_wall": "",
+    "conversation_not_found": "",
+    "truncation_marker": "",
+    "rate_limit_marker": ""
+  },
+  "attributes": {
+    "conversation_ref": "",
+    "turn_id": ""
+  }
+}

@@ -15,6 +15,21 @@ class AskChatGPTError(Exception):
         super().__init__(message)
 
 
+class CDPUnreachableError(AskChatGPTError):
+    default_message = (
+        "CDP_UNREACHABLE: Chromium DevTools Protocol endpoint is unreachable. "
+        "Operator action: launch Chromium with chromium --profile-directory='Profile 1' "
+        "--remote-debugging-port=9222, then retry."
+    )
+
+
+class ChallengePresentError(AskChatGPTError):
+    default_message = (
+        "CHALLENGE_PRESENT: ChatGPT is showing a Cloudflare or human-verification "
+        "challenge. Operator action: resolve it manually in the browser UI, then retry."
+    )
+
+
 class LoginRequiredError(AskChatGPTError):
     default_message = (
         "ChatGPT is not logged in. Operator action: sign in through the "
@@ -129,6 +144,8 @@ class PatchApplyError(AskChatGPTError):
 
 __all__ = [
     "AskChatGPTError",
+    "CDPUnreachableError",
+    "ChallengePresentError",
     "LoginRequiredError",
     "ProfileLockedError",
     "SessionNotFoundError",

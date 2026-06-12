@@ -16,7 +16,7 @@ from ask_chatgpt.errors import (
 from ask_chatgpt.selector_map import load_selector_map
 
 
-REAL_SELECTOR_MAP_PATH = Path("src/ask_chatgpt/selector_maps/real.json")
+EMPTY_REAL_SELECTOR_MAPS_DIR = Path(__file__).parent / "fixtures" / "selector_maps" / "empty"
 
 
 def test_driver_happy_path_returns_latest_completed_turn(mock_chatgpt):
@@ -147,15 +147,16 @@ def test_tests_use_loopback_only_while_real_constant_exists(mock_chatgpt):
         assert "chatgpt.com" not in session.page.url
 
 
-def test_real_selector_template_is_all_empty_and_fails_closed():
-    payload = json.loads(REAL_SELECTOR_MAP_PATH.read_text(encoding="utf-8"))
+def test_empty_real_selector_map_fixture_fails_closed():
+    fixture_path = EMPTY_REAL_SELECTOR_MAPS_DIR / "real.json"
+    payload = json.loads(fixture_path.read_text(encoding="utf-8"))
     assert payload["channel"] == "real"
     assert payload["selectors"]
     assert payload["attributes"]
     assert all(value == "" for value in payload["selectors"].values())
     assert all(value == "" for value in payload["attributes"].values())
 
-    selector_map = load_selector_map("real")
+    selector_map = load_selector_map("real", maps_dir=EMPTY_REAL_SELECTOR_MAPS_DIR)
     first_selector_key = next(iter(payload["selectors"]))
     with pytest.raises(SelectorUnavailableError):
         selector_map.selector(first_selector_key)
