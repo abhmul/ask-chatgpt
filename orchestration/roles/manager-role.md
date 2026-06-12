@@ -30,7 +30,7 @@ README.md spec acceptance executed green end-to-end via reproducible commands (`
 
 ## Shared resources
 
-- ChatGPT account/quota: operator-owned; automated tests NEVER contact chatgpt.com/openai or consume quota; the PRODUCT touches the real site only via operator-consented, operator-gated flows; the tool never reads or stores credentials/cookies/profile contents, and none of those (nor session tokens) ever appear in code, logs, commits, events, or reports.
+- ChatGPT account/quota: operator-owned. The DEFAULT test tier never contacts chatgpt.com/openai. Real-site automation is permitted ONLY within D-002 bounds (docs/DECISIONS.md, operator consent 2026-06-12): `real_site` marker + `ASK_CHATGPT_REAL=1` double-gate, hard per-run message budget with an audit log, headed browser on the operator's signed-in profile, login NEVER automated, profile-lock/logged-out → named actionable stop. The tool never reads or stores credentials/cookies/profile contents, and none of those (nor session tokens) ever appear in code, logs, commits, events, or reports.
 - Git: commit working slices only (no broken state, secrets, venvs, archives, `*.db`); NEVER `git push` — the operator pushes.
 - Kill only processes your own runs start (browser/test fixtures); never the operator's browsers or unrelated daemons; never assume a fixed network port is free.
 

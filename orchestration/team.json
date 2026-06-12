@@ -13,7 +13,7 @@
   },
   "ground_truth": "README.md spec acceptance executed green end-to-end via reproducible commands (uv run pytest + scripted acceptance against the local mock-ChatGPT fixture), verified from inspected command output and produced artifacts — never from log claims or exit codes alone; real-chatgpt.com halves are operator-run from runbooks",
   "shared_resources": {
-    "chatgpt_account_and_quota": "operator-owned; ZERO automated consumption by tests — all real chatgpt.com interaction is operator-consented and operator-gated",
+    "chatgpt_account_and_quota": "operator-owned; default test tier consumes ZERO quota (loopback mock); real-site automation permitted per D-002 (operator consent 2026-06-12): opt-in real_site tier, hard message budget (<=30/run) with audit log, headed on operator's signed-in profile, login never automated",
     "pi_workers": "NO hard concurrency cap (operator correction 2026-06-12; the old 'max 3' was an unverified spawn-config claim — launcher enforces nothing). Bound parallelism by judgement: single-editor rule for shared-tree mutations, genuinely disjoint work only, machine practicality.",
     "shared_agent_venv": "~/.local/share/agent-python/.venv is READ-ONLY infra; this repo's deps live in its own uv project",
     "archive_read_only": "/home/abhmul/Documents/weak-simplex-conjecture — NEVER write; read control-plane/ + orchestration/ for prior art"

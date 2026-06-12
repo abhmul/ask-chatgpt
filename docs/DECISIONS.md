@@ -1,5 +1,19 @@
 # Design decisions — ask-chatgpt
 
+## D-002 (2026-06-12): Real-site automated testing enabled by operator consent — tiered, bounded, audited
+
+**Status:** DECIDED (team lead), on explicit operator grant 2026-06-12: "It is okay to do automated tests with the real chatgpt account. I am signed into both chromium and firefox currently." Supersedes the absolute "automated tests NEVER contact chatgpt.com" rule (README, charter, seed) with the following bounded posture:
+
+1. **Two test tiers.** The DEFAULT suite (`uv run pytest`) remains loopback-mock-only — deterministic, zero quota. Real-site tests live behind a `real_site` pytest marker, deselected by default, and additionally gated on `ASK_CHATGPT_REAL=1` — both conditions required; CI-style runs can never hit the real site accidentally.
+2. **Bounded consumption.** Any real-site run has a HARD message budget (≤30 messages per full run; per-phase sub-budgets), every message logged with purpose to an audit artifact. Stop at budget → honest PARTIAL, never silent overrun. Rate-limit signals are honored as named failures, not retried through.
+3. **Headed, operator-session, login never automated.** Real runs use the operator's signed-in Chromium profile, headed (no headless on a personal account); the profile path is opaque config — contents never read/stored/logged; if logged out or the profile is locked by a running browser, raise the named actionable error and stop. Firefox sign-in is noted as a fallback lane only.
+4. **Network discipline inverts, not disappears.** The default tier keeps the socket guard; the `real_site` tier replaces it with a browser-level domain allowlist (chatgpt.com + empirically-discovered asset domains), so real tests still cannot wander.
+5. **What this unlocks:** the previously operator-manual runbooks (observe-unknowns selector discovery; UC1–3 real-site acceptance) may now be agent-driven, same bounds. Operator retains: signing in, closing the browser for run windows, and `git push`.
+
+**Rejected:** making the default suite contact the real site (non-deterministic, quota-burning, no upside); copying/exporting cookies into an automation profile (violates credential non-reading); headless real-account automation (worst anti-bot posture for no benefit).
+
+
+
 ## D-001 (2026-06-11): Response & file return channels — bounded extraction, departing Level B deliberately
 
 **Status:** DECIDED (team lead), recorded before any implementation. Informed by `orchestration/reports/M-001/decision-memo.md` (independently verified, `VERDICT: PASS`); archive rationale read first per operator instruction.

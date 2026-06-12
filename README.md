@@ -15,14 +15,14 @@ Three use cases define done:
 
 ## Acceptance shape (binding intent; the team refines into per-mission criteria)
 
-- Each use case has an automated end-to-end acceptance against a **local mock ChatGPT** (loopback fixture; automated tests NEVER contact chatgpt.com/openai), plus an **operator-gated runbook half** proving it against the real site on the operator's account with explicit consent.
+- Each use case has an automated end-to-end acceptance against a **local mock ChatGPT** (loopback fixture; the DEFAULT test suite never contacts chatgpt.com/openai), plus a **real-site half** proving it against chatgpt.com on the operator's account. Since 2026-06-12 (operator consent; `docs/DECISIONS.md` D-002) the real-site half may be agent-driven via an opt-in `real_site` test tier — marker + `ASK_CHATGPT_REAL=1` double-gated, hard message budget, headed, audited; the manual runbooks remain the operator-run alternative.
 - Round-trip file test: bundle out → (mock) GPT edits → patch bundle back → applied locally → diff matches expectation.
 - Honest failure modes: login required, session not found, upload/download unsupported, response truncated — each named actionably.
 
 ## Design constraints & posture
 
 - The predecessor's **Level B rule (seed prompts only, never DOM extraction)** conflicts with `-> text` and patch-bundle retrieval. Resolving this is **design decision #1** — made deliberately, recorded, with the archive's reasoning read first (`SEED-from-control-plane.md` §delta).
-- Operator owns the ChatGPT account, browser profile, credentials, and quota. The tool never touches credentials; real-site automation runs only with operator consent; tests use local fakes.
+- Operator owns the ChatGPT account, browser profile, credentials, and quota. The tool never touches credentials (the profile path is opaque config; login is never automated); real-site automation runs only with operator consent (granted 2026-06-12 within D-002 bounds); the default test tier uses local fakes.
 - Library-first: the function is the product; the CLI wraps it. No daemons/registries/multi-project frameworks unless a use case forces one.
 - Python, `uv`-managed project in this repo; zero-dependency bias beyond what the browser layer needs.
 
