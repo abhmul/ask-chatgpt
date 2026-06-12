@@ -1,0 +1,1 @@
+"""Selector map data package."""

@@ -4,6 +4,8 @@ import socket
 
 import pytest
 
+from tests.fixtures.mock_chatgpt import MockChatGPTServer
+
 _ALLOWED_HOSTS = {"localhost", "127.0.0.1", "::1"}
 _GUARD_ACTIVE = False
 
@@ -60,3 +62,13 @@ def _network_guard():
 def socket_guard_active():
     """Tests request this fixture to assert the autouse guard is active."""
     return _GUARD_ACTIVE
+
+
+@pytest.fixture
+def mock_chatgpt():
+    """Start a loopback-only ephemeral-port mock ChatGPT server."""
+    server = MockChatGPTServer().start()
+    try:
+        yield server.make_handle()
+    finally:
+        server.stop()

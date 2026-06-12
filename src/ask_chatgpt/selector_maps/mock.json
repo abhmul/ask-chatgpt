@@ -1,0 +1,22 @@
+{
+  "channel": "mock",
+  "version": 1,
+  "selectors": {
+    "ready_root": "[data-testid=\"mock-ready-root\"]",
+    "chat_list": "[data-testid=\"mock-chat-list\"]",
+    "chat_item": "[data-testid=\"mock-chat-item\"]",
+    "new_chat_button": "[data-testid=\"mock-new-chat-button\"]",
+    "composer": "[data-testid=\"mock-composer\"]",
+    "send_button": "[data-testid=\"mock-send-button\"]",
+    "model_menu": "[data-testid=\"mock-model-menu\"]",
+    "model_option": "[data-testid=\"mock-model-option\"]",
+    "assistant_message": "[data-message-author-role=\"assistant\"]",
+    "message_body": "[data-testid=\"mock-message-body\"]",
+    "streaming_marker": "[data-testid=\"assistant-streaming\"]",
+    "completion_marker": "[data-testid=\"assistant-turn-complete\"]"
+  },
+  "attributes": {
+    "conversation_ref": "data-conversation-ref",
+    "turn_id": "data-turn-id"
+  }
+}
