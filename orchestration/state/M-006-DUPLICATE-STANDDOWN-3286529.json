@@ -1,0 +1,44 @@
+{
+  "_THIS_IS_NOT_MISSION_STATE": "Informational stand-down note from a DUPLICATE M-006 manager. The canonical mission state is orchestration/state/M-006-state.json, owned by the live sibling manager (PID 3288281). Do NOT treat this file as the task queue.",
+  "note_type": "duplicate-manager-standdown",
+  "written_by_manager_pid": 3286529,
+  "written_at": "2026-06-12 ~10:09 (-05:00)",
+
+  "finding": "TWO concurrent MISSION-006 managers were running on the same mission, sharing one finite 30-message real-account budget and one single-editor working tree. This is a double-launch apparatus fault. I (PID 3286529) am the duplicate and am standing down so exactly ONE manager (the sibling) continues.",
+
+  "evidence": {
+    "me_duplicate": {
+      "pid": 3286529,
+      "tmux_session": "claude-orch-20260612-095811-3286503-5994",
+      "started": "2026-06-12 09:58:11",
+      "wrapper": ".claude-orchestrators/claude-orch-20260612-095811-3286503-5994/run-orch.sh is ONE-SHOT (no relaunch loop)",
+      "watched_by_lead": false,
+      "note": "My attempt to write M-006-state.json was REJECTED because the file already existed (sibling created it at 10:05:18)."
+    },
+    "sibling_primary": {
+      "pid": 3288281,
+      "tmux_session": "claude-orch-20260612-095916-3288256-4321",
+      "started": "2026-06-12 09:59:16",
+      "status": "ALIVE and actively progressing",
+      "owns_canonical_state": "orchestration/state/M-006-state.json (created 10:05:18, updated 10:05:56)",
+      "owns_audit_ledger": "tmp/real-audit-20260612T100518/",
+      "authored": "orchestration/tasks/M-006/T1-tier-plumbing.md (16842 bytes, 10:08) -- sibling's T1 contract",
+      "watched_by_lead": true,
+      "lead_watcher": "PID 3301341 = claude-orchestrator-watch.sh --wait-seconds 480 --watch .../claude-orch-20260612-095916-3288256-4321 (parent = team lead claude PID 2739134)"
+    }
+  },
+
+  "decision": "STAND DOWN (yield to sibling). Deterministic tie-break: the manager the team lead is NOT watching yields. The lead watches the sibling (095916), so the sibling continues and I yield. I cannot and must not kill the sibling (it is the lead's chosen process, not one my own run started). Yielding resolves to exactly one live manager.",
+
+  "harm_done_by_me": "NONE. Workers dispatched: 0. Real messages spent: 0. real.json: untouched (still all-empty fail-closed template, 22 empty values). Canonical M-006-state.json: untouched (sibling-owned). Product/source files: untouched. Git: not committed, not pushed. Only side effect: mkdir -p of orchestration/tasks/M-006 and orchestration/reports/M-006 (shared dirs the sibling's own state also expects; left in place).",
+
+  "why_safe_to_exit": "My run-orch.sh is one-shot (verified: runs claude -p once, writes exit code, exits) and NO orchestrator-watch monitors my session 095811, so my turn-end process exit removes the duplicate with no self-relaunch. The sibling remains under the lead's active watch + bounded auto-recovery, so the mission cannot be stranded by my exit.",
+
+  "real_budget_status": "30-message mission budget INTACT (spent 0). The sibling's ledger tmp/real-audit-20260612T100518/messages.log is the live ledger; budget spans all manager lifetimes.",
+
+  "recommendation_to_operator_and_lead": [
+    "APPARATUS BUG: the launcher double-spawned MISSION-006 (095811 @09:58:11 then 095916 @09:59:16). Add a per-mission singleton guard before spawning a manager: e.g. atomically create/lock orchestration/state/M-006-state.json (or a M-006.lock) and refuse to spawn if a live manager already holds it. Record alongside the existing manager-death apparatus lessons in lead.state.json.",
+    "No remediation needed for this mission run itself: the sibling is the sole surviving manager and the real-account budget was not double-spent (I spent 0).",
+    "If the sibling later dies, normal resume applies: a fresh manager reads M-006-state.json and recomputes spent messages from the audit ledger."
+  ]
+}
