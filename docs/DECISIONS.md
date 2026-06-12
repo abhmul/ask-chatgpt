@@ -12,6 +12,8 @@
 
 **Rejected:** making the default suite contact the real site (non-deterministic, quota-burning, no upside); copying/exporting cookies into an automation profile (violates credential non-reading); headless real-account automation (worst anti-bot posture for no benefit).
 
+**Addendum (2026-06-12, operator decision B2):** Cloudflare hard-blocks Playwright-*launched* browsers on chatgpt.com before the auth layer (M-006 finding, three zero-message probes). The real channel is therefore **CDP attach**: the operator launches their own Chromium (`chromium --profile-directory='Profile 1' --remote-debugging-port=9222`) during a run window; the tool `connect_over_cdp`s to that genuine human-launched session. Not bot-evasion — no fingerprint spoofing; any Cloudflare challenge mid-run pauses automation for the human to clear. Debug port is localhost-only and should be open only during run windows. **Stealth/anti-detection patching was explicitly rejected** (circumvents an active technical control; account + ToS risk) — the team will not build it. Manual runbooks remain the no-automation fallback.
+
 
 
 ## D-001 (2026-06-11): Response & file return channels — bounded extraction, departing Level B deliberately
