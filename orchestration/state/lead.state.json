@@ -28,10 +28,16 @@
     },
     {
       "id": "M-004",
-      "title": "Independent directive verification (final gate): clean-clone evidence run + N=5 panel (spec/correctness/safety/failure-modes/docs) + synthesis -> VERIFICATION.md",
-      "status": "DISPATCHED (ops-m004 watching with auto-recovery)",
-      "contract": "orchestration/tasks/MISSION-004.md",
-      "estimate_minutes": "90 (flag at 180)"
+      "title": "Independent directive verification (final gate)",
+      "status": "DONE 2026-06-12 (mission complete; directive VERDICT: FAIL with 4 defects — the panel caught what producer-panels missed; product tree untouched; ACTUAL ~95m vs 90m; REWORK-CAUSE env-drift (clone offline-sync greenlet, recovered); head 193c6f5)",
+      "defects": "D1 material: real-site runbook references nonexistent CLI flags/error names. D2 material: driver.start() goto(chatgpt.com) before fail-closed selector check on real channel. D3 minor: CLI --session untested. D4 minor: telemetry literal JSON fields absent in handoffs (fix-forward)."
+    },
+    {
+      "id": "M-005",
+      "title": "Fix D1-D3 (+D4 forward) + independent N=3 re-verification panel -> updated VERIFICATION.md final VERDICT",
+      "status": "DISPATCHED (ops-m005 watching with auto-recovery)",
+      "contract": "orchestration/tasks/MISSION-005.md",
+      "estimate_minutes": "75 (flag at 150)"
     }
   ],
   "operator_action_items": [
