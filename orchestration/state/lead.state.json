@@ -32,11 +32,12 @@
   ],
   "operator_action_items": [
     "After M-002 lands: docs/runbooks/observe-chatgpt-unknowns.md can be run anytime (manual observation, no tool) to resolve memo §7 unknowns — unblocks real-site claims for downloads/model-selection/session-pinning.",
-    "Shared pi-account contention observed during M-001 (programs/pastore-repair ran 3 concurrent pi workers). This team caps at 3 (charter) and editing legs serialize anyway; operator owns the global allocation across programs — flag if a tighter per-team cap is wanted.",
+    "RESOLVED 2026-06-12 (operator): no pi concurrency cap exists; pi workers effectively unconstrained. The 'max 3' was an unverified predecessor spawn-config claim; corrected in team.json, charter, MISSION-002.md, RESUME. M-001 handoff's 'cross-mission pi allocation needed' signal is moot as a numeric ceiling.",
     "After M-004: run real-site runbooks; then operator pushes (team never pushes)."
   ],
   "findings_from_operator_use": [],
   "apparatus_lessons": [
+    "OPERATOR CORRECTION 2026-06-12: the 'max 3 concurrent pi workers' cap was fiction — an unverified claim seeded at team spawn (team.json/charter/original-RESUME), enforced by nothing. Inherited resource numbers are CLAIMS to verify with the operator, not facts (agent-rigor: verify every claim, including those in your own contract).",
     "Headless claude -p managers DIE at turn end — charter now carries detached-session discipline (foreground watches only). REWORK-CAUSE: spec-gap, cost ~3 min.",
     "pi worker self-reported ACTUAL minutes are hallucinated (~15x off); telemetry v2: workers stamp date -Iseconds START/END_TIMESTAMP lines; manager derives ACTUAL from run-dir metadata + mtimes (in M-002 contract onward).",
     "Run-dir/status-file persistence made the manager-death recovery zero-loss; keep requiring resume-ready state files in every mission.",

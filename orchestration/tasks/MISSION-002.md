@@ -54,7 +54,7 @@ A `uv` Python project in this repo where `ask_chatgpt(prompt, session_identifier
 
 - pi (GPT 5.5 xhigh) via `bash .claude/skills/orchestration/references/pi-worker-watch.sh "<pointer to task file>"` from repo root; FOREGROUND blocking watches per your charter's detached-session discipline (you die at turn end — never end your turn with children running).
 - Worker contracts: one file per task under `orchestration/tasks/M-002/`, fully self-contained (exact deliverable paths, the files to read — `docs/DECISIONS.md`, memo §6, this contract's relevant section — the SAFETY BLOCK verbatim, telemetry v2 lines, report-length cap ~200 lines).
-- Max 3 pi workers concurrent (team cap), but editing legs serialize; the operator's pi account is SHARED with other programs — if pi launches throttle or fail oddly, drop to 1 concurrent and note it in the handoff.
+- NO hard cap on concurrent pi workers (operator correction 2026-06-12 — ignore any 'max 3' you may have read elsewhere); parallelize genuinely disjoint legs freely. EDITING legs still serialize (single editor in this shared tree). If pi launches throttle or fail oddly, note it in the handoff.
 
 ## Handoff requirements (`orchestration/handoffs/MISSION-002-handoff.json`)
 

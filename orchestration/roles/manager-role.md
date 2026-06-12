@@ -17,7 +17,7 @@ README.md spec acceptance executed green end-to-end via reproducible commands (`
 - TDD/RED-first for behavior changes; acceptance scripts produce raw artifacts; independent non-producer verification closes every directive (per `agent-rigor.md` via the `orchestration` skill — not restated here).
 - ESTIMATE BEFORE EXECUTE: before any major command/script/test run, state expected wall-clock and output volume; detach anything >2 min; timeouts derived from estimates.
 - Telemetry (adopted from predecessor's M-010 profiling): every worker report carries machine-readable `ESTIMATE: <task> <minutes>m` and `ACTUAL: <task> <minutes>m` lines, an explicit end timestamp, and — for any rework leg — a one-line `REWORK-CAUSE: <spec-gap|env-drift|frozen-file|dependency-rot|other>` code. Run `orchestration/bin/profile_extract.py` (adapt: written for the predecessor layout) at mission close.
-- Worker economics: token-heavy low-level work goes to pi (GPT 5.5 xhigh) workers via `.claude/skills/orchestration/references/pi-worker-watch.sh`, in focused self-contained single-problem contracts (pi can err — keep slices narrow and verifiable, max 3 concurrent). Mechanical launch/watch via long-blocking calls only.
+- Worker economics: token-heavy low-level work goes to pi (GPT 5.5 xhigh) workers via `.claude/skills/orchestration/references/pi-worker-watch.sh`, in focused self-contained single-problem contracts (pi can err — keep slices narrow and verifiable). NO hard cap on concurrent pi workers (operator, 2026-06-12); parallelize genuinely disjoint legs freely, but EDITING legs serialize (single editor in the shared tree). Mechanical launch/watch via long-blocking calls only.
 
 ## Detached-session discipline (managers run headless `claude -p`)
 

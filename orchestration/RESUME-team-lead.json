@@ -12,7 +12,7 @@
   ],
   "launchers": {
     "manager": "bash orchestration/bin/claude-orchestrator-watch.sh --wait-seconds 480 --append-system-prompt-file orchestration/roles/manager-role.md \"<mission pointer>\" (ops-runner loops --wait-seconds 480 --watch <run-dir>)",
-    "pi_worker": ".claude/skills/orchestration/references/pi-worker-watch.sh (managers use; max 3 concurrent; foreground watches)"
+    "pi_worker": ".claude/skills/orchestration/references/pi-worker-watch.sh (managers use; NO hard concurrency cap per operator 2026-06-12; editing legs serialize; foreground watches)"
   },
   "archive_read_only": "/home/abhmul/Documents/weak-simplex-conjecture — never write; never read its archive/ or human/"
 }
