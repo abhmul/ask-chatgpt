@@ -1,23 +1,21 @@
 {
   "handoff_type": "team-lead-resume",
-  "as_of": "2026-06-12 (directive automated half ACHIEVED; team idle pending operator runbooks)",
+  "as_of": "2026-06-12 ~12:25 OPERATOR PAUSE (trip) \u2014 all workers/managers/ops-runners stopped gracefully",
   "team": "ask-chatgpt",
   "branch": "main",
-  "note": "Resume protocol: read THIS, then orchestration/team.json, then orchestration/state/lead.state.json (DIRECTIVE_STATUS + apparatus_lessons), then VERIFICATION.md (final VERDICT: PASS at line ~67), then docs/DECISIONS.md. Re-verify from ground truth: git log --oneline -8; tmux ls | grep -E 'pi-worker|claude-orch' (expect none); mesh inbox /home/abhmul/dev/wsc-mesh/inbox/ask-chatgpt/ (triage anything new).",
-  "OBJECTIVE": "ACHIEVED (automated half, 2026-06-12): README's 3 use cases mock-proven + independently verified (M-001..M-005; final gate N=5 panel FAIL -> M-005 fixes -> independent re-verify PASS; clean-clone 121 tests). Mission queue EMPTY.",
+  "note": "Resume protocol: read orchestration/OPERATOR-PAUSE-2026-06-12.md FIRST (stop record, dirty-tree decision, mission position), then team.json, lead.state.json, docs/DECISIONS.md (D-002 + CDP addendum). Re-verify ground truth: git log/status, tmux ls (expect NO mission sessions), audit ledgers (0/30 messages spent).",
+  "OBJECTIVE": "Mock half ACHIEVED (M-001..M-005, VERIFICATION.md PASS). Real half IN PROGRESS via CDP attach (D-002 addendum): M-006 paused mid-T1b by operator trip. Pickup = relaunch MISSION-006-RESUME2.md per the pause record.",
   "awaiting_operator": [
-    "docs/runbooks/observe-chatgpt-unknowns.md — resolves 10 real-site unknowns, fills src/ask_chatgpt/selector_maps/real.json (currently all-empty fail-closed template).",
-    "docs/runbooks/real-site-acceptance.md — UC1/UC2/UC3 proof on the operator's account (CLI surface re-verified against shipped cli.py in M-005/D1).",
-    "git push — operator only; team never pushes."
+    "docs/runbooks/observe-chatgpt-unknowns.md \u2014 resolves 10 real-site unknowns, fills src/ask_chatgpt/selector_maps/real.json (currently all-empty fail-closed template).",
+    "docs/runbooks/real-site-acceptance.md \u2014 UC1/UC2/UC3 proof on the operator's account (CLI surface re-verified against shipped cli.py in M-005/D1).",
+    "git push \u2014 operator only; team never pushes."
   ],
   "if_resuming": [
-    "If operator reports runbook results: ingest into lead.state.json findings_from_operator_use; if real-site behavior contradicts mock assumptions (e.g. DOM flakier than copy -> flip D-001 default order constant; download affordance absent -> fenced fallback becomes primary), author a small follow-up mission per the M-005 pattern (fix legs + independent re-verify panel).",
-    "If new directive arrives: queue missions per the established apparatus (contracts in orchestration/tasks/, Sonnet ops-runners with --wait-seconds 480 loops + bounded auto-recovery, pi workers via --wait-seconds 480 foreground watches, best-of-N default per operator emphasis, telemetry v2).",
-    "Apparatus lessons live in lead.state.json apparatus_lessons (manager headless-death recipe, hallucinated pi self-timing, no pi concurrency cap, best-of-N emphasis) and in team-lead persistent memory."
+    "Follow orchestration/OPERATOR-PAUSE-2026-06-12.md \u2014 it is the authoritative pickup instruction (T1b dirty-tree options, ops-runner template pointer, browser-window coordination)."
   ],
   "launchers": {
     "manager": "bash orchestration/bin/claude-orchestrator-watch.sh --wait-seconds 480 --append-system-prompt-file orchestration/roles/manager-role.md \"<mission pointer>\"",
     "pi_worker": ".claude/skills/orchestration/references/pi-worker-watch.sh --wait-seconds 480 (foreground loops; managers use)"
   },
-  "archive_read_only": "/home/abhmul/Documents/weak-simplex-conjecture — never write; never read its archive/ or human/"
+  "archive_read_only": "/home/abhmul/Documents/weak-simplex-conjecture \u2014 never write; never read its archive/ or human/"
 }
