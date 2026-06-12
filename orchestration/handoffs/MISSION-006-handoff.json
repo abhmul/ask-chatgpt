@@ -1,0 +1,63 @@
+{
+  "mission": "MISSION-006",
+  "title": "Real-site enablement: opt-in real tier, selector discovery, UC1-3 real acceptance (D-002)",
+  "status": "PARTIAL",
+  "status_explanation": "The automated/tier-plumbing half is DONE and verified; the real-site half is BLOCKED on an operator-owned sign-in and cannot proceed under headless automation (login is never automated, D-002). T1 (real test-tier plumbing) shipped green and was manager-gate-verified from ground truth. T2 (real-site discovery) launched a real headed Chromium successfully but found the chatgpt.com profile LOGGED OUT and correctly stopped without automating login, spending 0 of the 30 real-message budget. T2b/T3/T4 depend on a signed-in session and are not started. This is the mission's explicitly anticipated logged-out path: complete T1, handoff PARTIAL with the exact operator action, recommend immediate resume.",
+  "date": "2026-06-12",
+  "manager": "PID 3288281, tmux claude-orch-20260612-095916-3288256-4321 (sole-live canonical manager; a duplicate PID 3286529 self-detected and stood down at ~10:09 with zero harm — see orchestration/state/M-006-DUPLICATE-STANDDOWN-3286529.json; apparatus bug = double-spawn, recommend per-mission singleton spawn-guard).",
+  "base_head_at_start": "5a1a392",
+  "head_after_T1": "3693388",
+
+  "ESTIMATE": "M-006 150m",
+  "ACTUAL": "M-006 ~33m (to blocked stop; mission not complete)",
+  "REWORK-CAUSE": "none (T1 green first dispatch, zero rework legs; T2 halted on an operator-owned precondition (logged-out session), not a defect or rework)",
+  "telemetry_lines": [
+    "ESTIMATE: M-006 150m",
+    "ACTUAL: M-006 ~33m (partial; blocked on operator sign-in)",
+    "REWORK-CAUSE: none"
+  ],
+  "telemetry_detail": {
+    "manager_started": "2026-06-12T10:05:18-05:00",
+    "T1": {"dispatched": "2026-06-12T10:08:18-05:00", "done": "2026-06-12T10:18:56-05:00", "actual_minutes": 10.6, "estimate": "T1 worker self-set", "status": "DONE", "commit": "3693388"},
+    "T2": {"dispatched": "2026-06-12T10:36:28-05:00", "blocked": "2026-06-12T10:37:33-05:00", "actual_minutes": 1.1, "status": "BLOCKED logged-out", "messages_used": 0},
+    "manager_overhead": "~17m between T1-done and T2-dispatch = T1 ground-truth verification + duplicate-manager investigation/resolution + T2 contract authoring + plan refinement (T2 discovery / T2b install split).",
+    "rework_legs": 0
+  },
+
+  "real_message_budget": {"total_cap": 30, "spent": 0, "remaining": 30, "T2_cap": 12, "T3_cap": 15, "ledger": "tmp/real-audit-20260612T100518/messages.log (0 data lines)", "note": "Budget fully intact; spans all manager lifetimes. Recompute on resume by counting non-comment ledger lines."},
+
+  "what_was_verified": {
+    "T1_tier_plumbing": "DONE, manager-gate-verified from ground truth (not producer claim). Commit 3693388 adds: (a) real_site pytest marker + addopts default-deselection (pyproject.toml); (b) ASK_CHATGPT_REAL=1 double-gate via conftest pytest_collection_modifyitems + a subprocess collect-only GUARD test proving the default run collects ZERO real_site tests; (c) real_allowlist.py browser-level domain allowlist (host/subdomain match, abort+log off-domain, HOST-ONLY logging) wired into the real channel; (d) ProfileLockedError + SingletonLock preflight (named, before any browser side effect); (e) selector-independent logged-out URL/redirect heuristic -> LoginRequiredError after navigation; (f) executable_path knob threaded into launch_persistent_context for the real channel. Evidence: authoritative `uv run pytest` = 132 passed, 1 deselected, exit 0 (the 1 deselected = the sample real_site test => default-tier purity proven); src/ask_chatgpt/selector_maps/real.json STILL all-empty (D2 fail-closed + default purity intact); commit scope clean (pyproject, driver, errors, real_allowlist.py, conftest + 4 test files; no real.json change, no stray files). Trust: manager-gate-verified; a full independent best-of-N panel was NOT run (deferred to the resume's T4, which verifies T1+T2+T3 together; OR can be run standalone if the operator decides the real-site half will not resume).",
+    "real_launch_recipe": "PROVEN viable by T2 preflight: headed Chromium launched with executable_path=/usr/bin/chromium, user_data_dir=/home/abhmul/.config/chromium, --profile-directory=Default, accept_downloads=True, on DISPLAY=:0. No Playwright(1.60.0)/Chromium(149) protocol mismatch occurred; display reached the worker; profile was unlocked. The ONLY missing precondition was an authenticated session.",
+    "asset_hosts_partial": "From the logged-out preflight, distinct request hosts seen: chatgpt.com, cdn.openai.com, api.oaistatsig.com, accounts.google.com. Partial input for the enforced allowlist; the authenticated session will reveal the full set."
+  },
+
+  "blockers": [
+    {"id": "B1", "severity": "blocking (operator-owned, not an agent-resolvable defect)", "blocks": ["T2", "T2b", "T3", "T4a", "T4b", "T4c", "T4d"], "condition": "Chromium Default profile (~/.config/chromium) is logged out of chatgpt.com (login/auth wall on navigation). D-002 forbids automating login, so the worker stopped.", "exact_operator_action": "1) Sign into chatgpt.com in the Chromium profile at ~/.config/chromium (Default). 2) Close that Chromium window so the profile is UNLOCKED for the headed worker (do not leave it running). 3) Resume MISSION-006 (the resume manager re-dispatches T2 from preflight). If your signed-in ChatGPT session is in a DIFFERENT Chromium profile-directory, tell the resume manager the profile-directory name so T2 targets it via --profile-directory; the agent will not inspect your profiles.", "explicitly_not_the_blocker": "display (DISPLAY=:0 worked), profile lock (was unlocked), playwright/chromium version (149 drove cleanly with the system binary). Only sign-in remains.", "budget_impact": "none; 0/30 messages spent."}
+  ],
+
+  "artifacts": [
+    {"path": "commit 3693388", "desc": "T1 real test-tier plumbing (see what_was_verified)", "trust": "manager-gate-verified (full panel deferred)"},
+    {"path": "orchestration/reports/M-006/T1.md", "desc": "T1 producer report: per-part RED/GREEN, full-suite gate 132 passed/1 deselected, commit SHA, T1-STATUS DONE", "trust": "producer-only; corroborated by manager ground-truth gate"},
+    {"path": "orchestration/reports/M-006/discovery.md", "desc": "T2 discovery report: BLOCKED logged-out; preflight results (display ok, no lock, no version mismatch); 0 messages; partial asset-host list; per-unknown 'not observed' with reasons; T2-STATUS BLOCKED", "trust": "verified-independently (manager read raw evidence)"},
+    {"path": "orchestration/reports/M-006/real-selectors-proposed.json", "desc": "Full real selector schema, every value EMPTY (fail-closed) — no logged-in selector verified", "trust": "verified (all-empty)"},
+    {"path": "orchestration/tasks/M-006/T1-tier-plumbing.md", "desc": "T1 worker contract (completed)", "trust": "n/a"},
+    {"path": "orchestration/tasks/M-006/T2-discovery.md", "desc": "T2 worker contract (re-usable verbatim on resume; recipe proven)", "trust": "n/a"},
+    {"path": "orchestration/state/M-006-state.json", "desc": "resume-ready mission state (status PARTIAL_BLOCKED, blocker B1, full resume path)", "trust": "current"},
+    {"path": "tmp/real-audit-20260612T100518/messages.log", "desc": "shared real-message ledger (0 data lines); git-ignored", "trust": "current"}
+  ],
+
+  "recommended_next_missions": [
+    {"id": "operator-action", "type": "operator-gated unblock", "scope": "Sign into chatgpt.com in the ~/.config/chromium Default profile, close Chromium, then resume M-006. This is the only thing standing between the proven launch recipe and full real-site discovery+acceptance.", "depends_on": "operator"},
+    {"id": "M-006-resume", "type": "agent mission (after unblock)", "scope": "Fresh manager resumes from orchestration/state/M-006-state.json: re-dispatch T2 (contract exists) -> author+run T2b (install proposed map into src/real.json + decouple test_driver.py:150 fail-closed test to an empty-map fixture + extend real_allowlist asset domains + suite green + commit) -> author+run T3 (real UC1-3 acceptance, <=15 msgs) -> T4a-d best-of-N verification -> VERIFICATION.md real-site section + verify.md VERDICT -> closeout commit. Budget on resume: 30 messages (T2<=12, T3<=15).", "depends_on": "operator-action"},
+    {"id": "optional-T1-standalone-verify", "type": "optional agent task", "scope": "If the operator decides the real-site half will not resume soon, run a standalone independent best-of-N verification of T1 (default-tier purity, double-gate, allowlist mechanism, preflight, fail-closed schema) and record it in VERIFICATION.md, so the tier-plumbing carries a full independent verdict rather than a manager-gate one.", "depends_on": "M-006 T1 (done)"},
+    {"id": "apparatus-fix", "type": "lead/operator process fix", "scope": "Add a per-mission singleton spawn-guard so a manager is not double-launched (M-006 was spawned twice at 09:58 and 09:59; the duplicate self-resolved with zero harm this time). See the duplicate's stand-down note.", "depends_on": "none"}
+  ],
+
+  "complexity_paradigm_signals": [
+    "The two risks I most feared for the real legs — worker display reachability and the Playwright 1.60.0 vs system-Chromium 149 protocol/profile mismatch — both turned out to be NON-issues: the headed system-Chromium drove cleanly under DISPLAY=:0 with executable_path=/usr/bin/chromium. Future real-site legs can treat the launch recipe as proven and budget around it; the real gate is session auth state, which is operator-owned and cannot be designed away.",
+    "Splitting the mission's 'T2 fills real.json' into T2 (real discovery, writes a proposed map) + T2b (mock-only single-editor installs it AND decouples the committed-real.json-empty fail-closed test test_driver.py:150) is the right call: it keeps the budget-constrained real worker off the pytest source, and a blocked real leg leaves real.json empty and the suite green (exactly what happened). Carry this split into the resume.",
+    "test_driver.py:150 (test_real_selector_template_is_all_empty_and_fails_closed) hard-codes the assumption that the committed real.json is permanently empty; the moment real.json is populated this test breaks AND its fail-closed assertion goes vacuous. The resume MUST rewrite it to prove fail-closed via an empty-map fixture before/with populating real.json (already scoped into T2b).",
+    "A duplicate manager double-spawn occurred but self-resolved deterministically (the lead-unwatched sibling yielded). Zero double-spend, zero double-edit. The deterministic tie-break (yield if the lead is not watching you) worked; a spawn-time singleton guard would prevent the race entirely."
+  ]
+}

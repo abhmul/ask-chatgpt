@@ -65,3 +65,33 @@ No-regression: the authoritative clean clone is HEAD `261a16b` and contains the 
 Independence: this re-verification uses a fresh non-producer panel, not T1-T3; T4a produced the authoritative evidence once, and T4b/T4c independently reasoned over those artifacts plus committed files without rerunning the heavy suite (`orchestration/reports/M-005/T4b.md:6,8`, `orchestration/reports/M-005/T4c.md:6`).
 
 VERDICT: PASS
+
+---
+
+# M-006 (2026-06-12) — Real-site enablement (D-002): INTERIM status — tier-plumbing verified, real-site BLOCKED on operator sign-in
+
+This section is an **interim** manager status, not a final mission verdict. The mission's full best-of-N real-site verification (T4a–d) has not run because the real-site half is blocked on an operator-owned sign-in.
+
+## Automated / tier-plumbing half (T1) — DONE, manager-gate-verified (mock-proven)
+
+Commit `3693388` adds the opt-in real test tier and real-channel safety plumbing:
+
+| item | evidence | verdict |
+|---|---|---|
+| `real_site` pytest marker + default deselection (`-m 'not real_site'`) | `pyproject.toml` `[tool.pytest.ini_options]`; authoritative `uv run pytest` shows `1 deselected` (the sample real_site test) | PASS (manager-gate) |
+| `ASK_CHATGPT_REAL=1` double-gate + guard test (default run collects ZERO real_site tests) | `tests/conftest.py` `pytest_collection_modifyitems`; subprocess collect-only guard test; `tests/test_real_tier_gating.py` | PASS (manager-gate) |
+| real-tier browser-level domain allowlist (abort+log off-domain, host-only logging) | `src/ask_chatgpt/real_allowlist.py`; `tests/test_real_allowlist.py` | PASS (manager-gate) |
+| profile-lock preflight → named `ProfileLockedError` (before any browser side effect) | `src/ask_chatgpt/errors.py`; `src/ask_chatgpt/driver.py`; `tests/test_driver_real_preflight.py` | PASS (manager-gate) |
+| logged-out URL/redirect heuristic → `LoginRequiredError` (selector-independent) | `src/ask_chatgpt/driver.py`; `tests/test_driver_real_preflight.py` | PASS (manager-gate) |
+| `executable_path` knob for the real channel | `src/ask_chatgpt/driver.py` | PASS (manager-gate) |
+| default-tier purity preserved (socket guard intact; `real.json` still all-empty fail-closed; D2 fail-closed unbroken) | `src/ask_chatgpt/selector_maps/real.json` unchanged (all-empty); authoritative suite `132 passed, 1 deselected, exit 0` | PASS (manager-gate) |
+
+Trust: **manager-gate-verified from ground truth** (non-producer manager re-derived the diff scope, confirmed real.json all-empty, confirmed symbols, and ran the authoritative suite). A full independent best-of-N panel was **not** run; it is deferred to the resume's T4 (which verifies T1+T2+T3 together) or may be run standalone if the real-site half will not resume.
+
+## Real-site half (T2 discovery, T2b install, T3 acceptance, T4 verify) — BLOCKED, UNPROVEN
+
+T2 launched a **real headed Chromium successfully** (executable_path=/usr/bin/chromium, user_data_dir=~/.config/chromium, Default profile, DISPLAY=:0; **no** Playwright-1.60/Chromium-149 protocol mismatch; profile unlocked) but found **chatgpt.com logged out** and stopped without automating login. **0 of 30 real messages spent.** Real selectors, completion signals, DOM extraction, copy fallback, upload/download affordances, session pinning, model selection, and failure-message detectability **remain UNPROVEN on the real site**.
+
+Resume requires an **operator action**: sign into chatgpt.com in the ~/.config/chromium Default profile, close Chromium, then resume MISSION-006. Detail + full resume path: `orchestration/handoffs/MISSION-006-handoff.json` and `orchestration/state/M-006-state.json`.
+
+M-006-INTERIM: TIER-PLUMBING PASS (manager-gate); REAL-SITE BLOCKED (operator sign-in)
