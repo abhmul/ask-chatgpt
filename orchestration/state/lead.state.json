@@ -14,15 +14,16 @@
     },
     {
       "id": "M-002",
-      "title": "Core build: scaffold + mock fixture (memo §6, incl. bundle affordances) + browser layer + ResponseReader (D-001 order) + session registry + ask_chatgpt() + UC1 acceptance + network guard + observation runbook draft",
-      "status": "DISPATCHED (ops-m002 watching)",
-      "contract": "orchestration/tasks/MISSION-002.md",
-      "estimate_minutes": "120 (flag at 240)"
+      "title": "Core build (UC1)",
+      "status": "DONE 2026-06-12T01:48 (handoff STATUS DONE; verify VERDICT PASS via N=3 panel + re-verify; 60 tests green; ACTUAL 135m vs EST 120m; 1 rework leg T4c spec-gap CAUGHT BY PANEL; head f771b15)",
+      "key_facts": "UC1 mock-proven incl. session continuity + honest failures + network guard + adversarial booby-trap resistance; D-001 DOM-primary empirically supported; channel='real' built but fail-closed (real.json empty template); observation runbook ready for operator"
     },
     {
       "id": "M-003",
-      "title": "Bundles + CLI: zip out (catalogue README) + patch bundle back + apply + round-trip acceptance; ask-chatgpt CLI + acceptance; real-site runbooks for UC1-3",
-      "status": "PENDING (blocked on M-002; contract to author at M-002 ingest)"
+      "title": "Bundles (UC2) + CLI (UC3) + real-site acceptance runbook: best-of-N=3 protocol design -> bundle-out/patch-retrieve/zip-slip-safe apply -> round-trip + CLI acceptances -> N=3 verify panel",
+      "status": "DISPATCHED (ops-m003 watching)",
+      "contract": "orchestration/tasks/MISSION-003.md",
+      "estimate_minutes": "120 (flag at 240)"
     },
     {
       "id": "M-004",
