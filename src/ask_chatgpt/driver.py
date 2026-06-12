@@ -34,6 +34,29 @@ from ask_chatgpt.selector_map import SelectorMap, load_selector_map
 REAL_BASE_URL = "https://chatgpt.com"
 _DEFAULT_NAVIGATION_TIMEOUT_MS = 5_000
 _POLL_INTERVAL_S = 0.1
+_REAL_REQUIRED_SELECTOR_KEYS = (
+    "ready_root",
+    "chat_list",
+    "chat_item",
+    "new_chat_button",
+    "composer",
+    "send_button",
+    "model_menu",
+    "model_option",
+    "model_option_disabled",
+    "assistant_message",
+    "message_body",
+    "streaming_marker",
+    "completion_marker",
+    "copy_button",
+    "download_artifact",
+    "upload_input",
+    "login_wall",
+    "conversation_not_found",
+    "truncation_marker",
+    "rate_limit_marker",
+)
+_REAL_REQUIRED_ATTRIBUTE_KEYS = ("conversation_ref", "turn_id")
 
 
 class BrowserSession:
@@ -75,6 +98,8 @@ class BrowserSession:
     def start(self) -> BrowserSession:
         if self._playwright is not None:
             return self
+        if self.channel == "real":
+            self._ensure_real_selector_map_ready()
         self._playwright = sync_playwright().start()
         try:
             if self.channel == "mock":
@@ -266,6 +291,12 @@ class BrowserSession:
                 route.abort("blockedbyclient")
 
         self._context.route("**/*", guard)
+
+    def _ensure_real_selector_map_ready(self) -> None:
+        for key in _REAL_REQUIRED_SELECTOR_KEYS:
+            self.selectors.selector(key)
+        for key in _REAL_REQUIRED_ATTRIBUTE_KEYS:
+            self.selectors.attribute(key)
 
     def _start_real_context(self) -> None:
         if self._profile_path is None:
