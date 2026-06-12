@@ -6,9 +6,9 @@
     {
       "id": "M-001",
       "title": "Design decision #1 research: response/file return channel vs Level B rationale (best-of-N=3 + synthesis + verify; NON-EDITING)",
-      "status": "DISPATCHED",
-      "contract": "orchestration/tasks/MISSION-001.md",
-      "estimate_minutes": "90-120 (flag at 240)",
+      "status": "RELAUNCHED (manager v2 via MISSION-001-RESUME.md). REWORK-CAUSE: spec-gap — first manager ended its turn awaiting 'automatic notification' after dispatching T1a/b/c; headless claude -p exits on turn end. Workers survived (T1c done at relaunch). Durable fix: 'Detached-session discipline' section added to manager-role.md charter.",
+      "contract": "orchestration/tasks/MISSION-001.md + orchestration/tasks/MISSION-001-RESUME.md",
+      "estimate_minutes": "90-120 from 22:43 (flag at 240)",
       "next_on_ingest": "team lead decides + records docs/DECISIONS.md #1, then authors M-002"
     },
     {
