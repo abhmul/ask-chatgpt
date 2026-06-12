@@ -16,6 +16,8 @@
     "streaming_marker": "[data-testid=\"assistant-streaming\"]",
     "completion_marker": "[data-testid=\"assistant-turn-complete\"]",
     "copy_button": "[data-testid=\"mock-copy-button\"]",
+    "download_artifact": "[data-testid=\"mock-download-artifact\"]",
+    "upload_input": "[data-testid=\"mock-upload-input\"]",
     "login_wall": "[data-testid=\"login-wall\"]",
     "conversation_not_found": "[data-testid=\"conversation-not-found\"]",
     "truncation_marker": "[data-testid=\"assistant-truncated\"]",
