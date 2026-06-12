@@ -36,7 +36,7 @@ uv sync --all-groups
 mkdir -p tmp/real-site-acceptance/state
 export ASK_CHATGPT_STATE_DIR="$PWD/tmp/real-site-acceptance/state"
 export ASK_CHATGPT_PROFILE_PATH="/absolute/path/to/operator-owned/chatgpt-browser-profile"
-# Optional, only if the observed real UI exposes a stable model label and you want to select it:
+# Optional, only if the observed real UI exposes a stable model label and you want to select it from Python UC1:
 # export ASK_CHATGPT_MODEL="observed model label from the real UI"
 uv run python - <<'PY'
 import json
@@ -56,17 +56,16 @@ if missing:
     raise SystemExit("real.json is not populated; run docs/runbooks/observe-chatgpt-unknowns.md first. Empty keys: " + ", ".join(missing))
 print("real.json appears populated for real-site acceptance. Review it manually for secrets before proceeding.")
 PY
+uv run ask-chatgpt --help
 ```
 
 Also confirm by manual review that `real.json` contains only selector strings, attribute names, stable visible labels, and nonsecret behavior mappings. It must not contain credentials, cookies, auth tokens, account emails, workspace names, private conversation refs, private transcript content, screenshots, or browser-profile contents.
 
-## Command freshness check for CLI sections
+## Committed CLI surface used by UC2 and UC3
 
-At T6 authoring time the public function signature is `ask_chatgpt(prompt, *, session_identifier=None, model_settings=None, channel="real", base_url=None, profile_path=None, registry=None, reader_order=None, timeout_s=30.0) -> str`. The UC1 Python command below matches that API.
+The committed CLI is a single command, `ask-chatgpt`, with no subcommands. Confirm the local install before any CLI command contacts the real site by running `uv run ask-chatgpt --help` and checking for these operator-facing flags: positional `prompt`, `--prompt`, `--session`, `--model-settings`, `--files`, `--dirs`, `--out`, `--apply`, `--dry-run`, `--root`, `--channel`, `--base-url`, `--profile-path`, and `--timeout`.
 
-The `ask-chatgpt` CLI may still be landing while this runbook is authored. Every CLI command below is therefore marked **CONFIRM AGAINST `ask-chatgpt --help`**. Before any CLI command contacts the real site, run `uv run ask-chatgpt --help`, verify the final flag names, and preserve the semantics shown here: explicit `--channel real`, explicit profile path, explicit session identifier, explicit file/dir inputs, `--out` for file output, and no local mutation without an explicit `--apply` and explicit `--root`.
-
-If `uv run ask-chatgpt --help` is unavailable or lacks the needed UC2/UC3 flags, do not run UC2/UC3 real-site acceptance yet. Record UC2/UC3 as blocked pending the CLI/UC2 implementation, not as a real-site failure.
+For patch workflows, the current CLI retrieves a returned patch bundle inside the same real-site invocation that sent `--files` or `--dirs`. `--dry-run` validates and summarizes the returned patch without writing to `--root`; `--apply` validates and then mutates only under the explicit `--root`. The current CLI does not provide a separate operator-facing saved-bundle input/output; if you need to preserve evidence, keep the assistant text written by `--out` and the JSON summary printed to stdout.
 
 ## Acceptance record template
 
@@ -129,13 +128,13 @@ If the visible browser answer contains the nonce but the returned text does not,
 | Requested model label is absent, disabled, upgraded away, or not selectable. | `ModelUnavailableError` | The optional `ASK_CHATGPT_MODEL` does not match the real UI/account. Clear it or set it to an observed available label. |
 | Browser shows rate limit/backoff/capacity message. | `RateLimitedError` | Quota or rate limit is hit. Wait per UI guidance and rerun only if the operator consents. |
 | The assistant visibly continues, asks to continue generating, lacks a completion marker, or stderr says truncation/timeout. | `ResponseTruncatedError` | The completion signal or output completeness failed. Retry with a shorter prompt/longer timeout after updating selectors if needed. |
-| Upload unsupported, download unsupported, patch malformed, hash/byte-count mismatch, oversized payload, or path escape appears during this plain UC1 command. | `UploadUnsupportedError`, `DownloadUnsupportedError`, `PatchBundleMalformedError`, `PatchBundleIntegrityError`, `PatchBundleTooLargeError`, or `PatchPathEscapeError` as applicable | These are not expected in plain UC1. Treat as wrong command path, stale CLI invocation, or cross-feature bug; stop and record the named error before any local mutation. |
+| Upload unsupported, download unsupported, patch malformed, hash/byte-count mismatch, oversized payload, or path escape appears during this plain UC1 command. | `UploadUnsupportedError`, `DownloadUnsupportedError`, `PatchMalformedError`, `BundleIntegrityError`, `OversizedPayloadError`, or `PathEscapeError` as applicable | These are not expected in plain UC1. Treat as wrong command path, stale invocation, or cross-feature bug; stop and record the named error before any local mutation. |
 
 ## UC2 — bundle workflow: send files/dirs, retrieve changed-files-only patch bundle, apply locally
 
 ### UC2 non-contact setup and CLI confirmation
 
-These setup commands do not contact the real site. The `ask-chatgpt` flag spellings in the later command must be confirmed against the final CLI help before use.
+These setup commands do not contact the real site. They create a disposable scratch root, confirm the committed CLI help, and intentionally use paths relative to the later `--root` when invoking `--files`.
 
 ```bash
 cd /home/abhmul/dev/ask-chatgpt
@@ -147,47 +146,62 @@ printf 'favorite_color = "red"\n' > tmp/real-site-acceptance/uc2/root/example.tx
 printf 'Expected UC2 edit: change favorite_color from red to blue in example.txt only.\n' > tmp/real-site-acceptance/uc2/expected.txt
 ```
 
-If `uv run ask-chatgpt --help` is unavailable, or if the final CLI uses different names than `--files`, `--patch-out`, `apply-patch`, `--root`, `--dry-run`, or `--apply`, adapt the spelling to the final help before continuing and record the exact command used. Do not weaken the semantics: bundle retrieval must prefer download capture and may fall back to fenced base64url; apply must validate the full bundle before writing; apply must require explicit `--root` and explicit `--apply`.
+If `uv run ask-chatgpt --help` is unavailable, or if it does not show `--files`, `--dirs`, `--root`, `--dry-run`, `--apply`, `--out`, `--channel`, `--profile-path`, and `--session`, do not run UC2 real-site acceptance. Record UC2 as blocked pending the CLI/UC2 implementation, not as a real-site failure.
 
-### UC2 command 1: contact real site, upload synthetic bundle, retrieve patch bundle
+### UC2 command 1: contact real site, upload synthetic bundle, retrieve and validate patch bundle without writes
 
-This command contacts `chatgpt.com` only after the operator types `I-CONSENT-REAL-CHATGPT-UC2`. **CONFIRM AGAINST `ask-chatgpt --help` before running.**
+This command contacts `chatgpt.com` only after the operator types `I-CONSENT-REAL-CHATGPT-UC2-DRY-RUN`. It uploads the synthetic `example.txt`, asks for a changed-files-only patch, writes the assistant text to `assistant-response-dry-run.txt`, and prints a JSON dry-run summary to stdout; it must not write to the scratch root.
 
 ```bash
 cd /home/abhmul/dev/ask-chatgpt
 mkdir -p tmp/real-site-acceptance/state tmp/real-site-acceptance/uc2
 export ASK_CHATGPT_STATE_DIR="$PWD/tmp/real-site-acceptance/state"
 : "${ASK_CHATGPT_PROFILE_PATH:?Set ASK_CHATGPT_PROFILE_PATH to an operator-owned browser profile path before proceeding}"
-printf 'UC2 will upload a synthetic bundle to REAL chatgpt.com and consume quota. Type I-CONSENT-REAL-CHATGPT-UC2 to proceed: '
+printf 'UC2 dry-run will upload a synthetic bundle to REAL chatgpt.com and consume quota. Type I-CONSENT-REAL-CHATGPT-UC2-DRY-RUN to proceed: '
 read -r ACCEPT_REAL_SITE
-if [ "$ACCEPT_REAL_SITE" != "I-CONSENT-REAL-CHATGPT-UC2" ]; then echo 'Consent token mismatch; stopping before real-site contact.' >&2; exit 2; fi
+if [ "$ACCEPT_REAL_SITE" != "I-CONSENT-REAL-CHATGPT-UC2-DRY-RUN" ]; then echo 'Consent token mismatch; stopping before real-site contact.' >&2; exit 2; fi
 uv run ask-chatgpt \
   --channel real \
-  --profile "$ASK_CHATGPT_PROFILE_PATH" \
-  --session real-site-acceptance-uc2 \
-  --prompt 'Real-site acceptance UC2. You are editing a synthetic file. Change favorite_color from "red" to "blue" in example.txt. Return a patch bundle containing ONLY changed files, with repo-root-relative forward-slash paths, no absolute paths, no .. traversal, and no unchanged files. Prefer a downloadable .zip; if no download artifact is available, use the exact fenced patch-bundle fallback required by the bundle protocol.' \
-  --files tmp/real-site-acceptance/uc2/root/example.txt \
-  --out tmp/real-site-acceptance/uc2/assistant-response.txt \
-  --patch-out tmp/real-site-acceptance/uc2/patch-bundle.zip
+  --profile-path "$ASK_CHATGPT_PROFILE_PATH" \
+  --session real-site-acceptance-uc2-dry-run \
+  --prompt 'Real-site acceptance UC2 dry-run. You are editing a synthetic file. Change favorite_color from "red" to "blue" in example.txt. Return a patch bundle containing ONLY changed files, with repo-root-relative forward-slash paths, no absolute paths, no .. traversal, and no unchanged files. Prefer a downloadable .zip; if no download artifact is available, use the exact fenced patch-bundle fallback required by the bundle protocol.' \
+  --files example.txt \
+  --root tmp/real-site-acceptance/uc2/root \
+  --dry-run \
+  --out tmp/real-site-acceptance/uc2/assistant-response-dry-run.txt \
+  --timeout 120 \
+  | tee tmp/real-site-acceptance/uc2/dry-run-summary.json
+grep -Fx 'favorite_color = "red"' tmp/real-site-acceptance/uc2/root/example.txt
 ```
 
-### UC2 command 2: validate then apply only to the explicit scratch root
+Before applying, manually inspect `tmp/real-site-acceptance/uc2/dry-run-summary.json`. It must show `"dry_run": true`, exactly one modified path `example.txt`, and the explicit scratch root. The JSON summary may report hashes/counts rather than a content diff; use it to confirm scope, then use the final file check after apply to confirm the red-to-blue content. If the summary is empty, names any other path, reports a delete/add you did not intend, or reports any validation error, stop before local mutation.
 
-This command should not contact `chatgpt.com`. It must validate the entire patch bundle before mutating any file. It first runs dry-run, then requires a second local typed confirmation before the explicit `--apply` mutation. **CONFIRM AGAINST `ask-chatgpt --help` before running.**
+### UC2 command 2: contact real site again, validate, then apply only to the explicit scratch root
+
+The current CLI applies only the patch bundle returned by the same invocation, so this command requires both renewed real-site consent and a separate local mutation token before it runs. It repeats the same synthetic task, writes the assistant text to `assistant-response-apply.txt`, validates the returned patch bundle, applies only after validation, and prints a JSON apply summary to stdout.
 
 ```bash
 cd /home/abhmul/dev/ask-chatgpt
-uv run ask-chatgpt apply-patch \
-  --bundle tmp/real-site-acceptance/uc2/patch-bundle.zip \
-  --root tmp/real-site-acceptance/uc2/root \
-  --dry-run
-printf 'Dry-run must show only example.txt changing red -> blue under tmp/real-site-acceptance/uc2/root. Type APPLY-UC2-SYNTHETIC-PATCH to mutate that scratch root: '
+mkdir -p tmp/real-site-acceptance/state tmp/real-site-acceptance/uc2
+export ASK_CHATGPT_STATE_DIR="$PWD/tmp/real-site-acceptance/state"
+: "${ASK_CHATGPT_PROFILE_PATH:?Set ASK_CHATGPT_PROFILE_PATH to an operator-owned browser profile path before proceeding}"
+printf 'UC2 apply will contact REAL chatgpt.com again using synthetic data. Type I-CONSENT-REAL-CHATGPT-UC2-APPLY to proceed: '
+read -r ACCEPT_REAL_SITE
+if [ "$ACCEPT_REAL_SITE" != "I-CONSENT-REAL-CHATGPT-UC2-APPLY" ]; then echo 'Consent token mismatch; stopping before real-site contact.' >&2; exit 2; fi
+printf 'UC2 apply may mutate only tmp/real-site-acceptance/uc2/root/example.txt after validation. Type APPLY-UC2-SYNTHETIC-PATCH to mutate that scratch root: '
 read -r ACCEPT_APPLY
-if [ "$ACCEPT_APPLY" != "APPLY-UC2-SYNTHETIC-PATCH" ]; then echo 'Apply token mismatch; stopping before local mutation.' >&2; exit 2; fi
-uv run ask-chatgpt apply-patch \
-  --bundle tmp/real-site-acceptance/uc2/patch-bundle.zip \
+if [ "$ACCEPT_APPLY" != "APPLY-UC2-SYNTHETIC-PATCH" ]; then echo 'Apply token mismatch; stopping before real-site contact and before local mutation.' >&2; exit 2; fi
+uv run ask-chatgpt \
+  --channel real \
+  --profile-path "$ASK_CHATGPT_PROFILE_PATH" \
+  --session real-site-acceptance-uc2-apply \
+  --prompt 'Real-site acceptance UC2 apply. You are editing a synthetic file. Change favorite_color from "red" to "blue" in example.txt. Return a patch bundle containing ONLY changed files, with repo-root-relative forward-slash paths, no absolute paths, no .. traversal, and no unchanged files. Prefer a downloadable .zip; if no download artifact is available, use the exact fenced patch-bundle fallback required by the bundle protocol.' \
+  --files example.txt \
   --root tmp/real-site-acceptance/uc2/root \
-  --apply
+  --apply \
+  --out tmp/real-site-acceptance/uc2/assistant-response-apply.txt \
+  --timeout 120 \
+  | tee tmp/real-site-acceptance/uc2/apply-summary.json
 grep -Fx 'favorite_color = "blue"' tmp/real-site-acceptance/uc2/root/example.txt
 ```
 
@@ -195,7 +209,7 @@ grep -Fx 'favorite_color = "blue"' tmp/real-site-acceptance/uc2/root/example.txt
 
 Expected, to be confirmed on the real site: the real UI accepts the synthetic uploaded bundle, ChatGPT reads the catalogue/file, returns a patch bundle containing only the changed `example.txt`, and the tool retrieves that patch bundle either via Playwright download capture or via the checksummed fenced base64url fallback.
 
-A PASS requires all of the following: command 1 exits zero and writes `assistant-response.txt` plus a patch bundle artifact; command 2 dry-run reports only one changed path under the explicit scratch root; full validation completes before any write; the explicit `--apply` writes only `tmp/real-site-acceptance/uc2/root/example.txt`; the final file contains exactly `favorite_color = "blue"`; no absolute path, `..`, symlink escape, unchanged-file overwrite, or out-of-root write occurs.
+A PASS requires all of the following: the dry-run command exits zero, writes `assistant-response-dry-run.txt`, prints a dry-run JSON summary showing only `example.txt`, and leaves the scratch file red; the apply command exits zero after both consent tokens, writes `assistant-response-apply.txt`, prints an apply JSON summary showing only `example.txt`, and changes only `tmp/real-site-acceptance/uc2/root/example.txt`; the final file contains exactly `favorite_color = "blue"`; no absolute path, `..`, symlink escape, unchanged-file overwrite, or out-of-root write occurs.
 
 If download capture succeeds, record that the real site offered a usable download affordance for this prompt/model/account and note suggested filename/MIME if visible. If download capture is absent but fenced fallback succeeds and validates, UC2 can still pass via D-001 fallback, but record that real-site download support was absent or inconclusive. If both paths fail, UC2 real-site acceptance fails or blocks depending on the named error.
 
@@ -210,10 +224,12 @@ Watch D-001 revisit triggers: if real artifacts are not scoped to the latest ass
 | Upload control is absent, rejects `.zip`, rejects size/type, scanning fails, or the tool cannot attach the outgoing bundle. | `UploadUnsupportedError` | Real upload support is absent, disabled, over limit, or selector/config is stale. Stop UC2; update observation limits/selectors or reduce synthetic payload if the UI says size/type is the issue. |
 | No downloadable artifact appears, Playwright download capture does not fire, or the artifact is unavailable; fenced fallback then succeeds. | `DownloadUnsupportedError` may be logged/handled internally before fallback, final command may still pass | Download-capture primary is unsupported or inconclusive for this real run; acceptance may pass via fenced fallback, but record the real download behavior. |
 | No downloadable artifact appears and the fenced fallback also cannot be parsed. | `DownloadUnsupportedError` or `ResponseTruncatedError` depending on visible/fenced symptoms | Retrieval failed. Record whether the model never produced a bundle, produced text only, or truncated; revise prompt/protocol or real capability config before retry. |
-| Patch zip is corrupt, manifest missing/invalid, required fields missing, multiple bundles are returned, unchanged files are included when forbidden, or fence markers are malformed/missing. | `PatchBundleMalformedError` | The bundle is not structurally valid. The apply step must not mutate anything; save only nonsecret diagnostics and update prompt/protocol. |
-| Whole-zip byte count, whole-zip SHA-256, per-file byte count, or per-file SHA-256 does not match. | `PatchBundleIntegrityError` | The retrieved bytes are incomplete, altered, or not the declared bundle. No apply; retry with smaller payload or alternate retrieval path after recording the mismatch. |
-| Upload or returned fenced payload exceeds configured caps, UI reports size limit, or parser rejects payload as too large. | `PatchBundleTooLargeError` for retrieved patch payload, or `UploadUnsupportedError` for outgoing upload rejection | Payload is over safe/observed limits. Reduce bundle size, split files, or update observed limits only after rerunning the observation runbook. |
-| Manifest or zip entry uses an absolute path, contains `..`, targets outside `--root`, or would follow/write through a symlink escape. | `PatchPathEscapeError` | Treat as unsafe or adversarial output. No file may be written; report the prompt/model behavior and preserve only redacted diagnostics. |
+| Patch zip is corrupt, manifest missing/invalid, required fields missing, multiple bundles are returned, unchanged files are included when forbidden, or fence markers are malformed/missing. | `PatchMalformedError` | The bundle is not structurally valid. No apply may mutate anything; save only nonsecret diagnostics and update prompt/protocol. |
+| Whole-zip byte count, whole-zip SHA-256, per-file byte count, or per-file SHA-256 does not match. | `BundleIntegrityError` | The retrieved bytes are incomplete, altered, or not the declared bundle. No apply; retry with smaller payload or alternate retrieval path after recording the mismatch. |
+| Upload or returned fenced payload exceeds configured caps, UI reports size limit, or parser rejects payload as too large. | `OversizedPayloadError` for retrieved patch payload, or `UploadUnsupportedError` for outgoing upload rejection | Payload is over safe/observed limits. Reduce bundle size, split files, or update observed limits only after rerunning the observation runbook. |
+| Manifest or zip entry uses an absolute path, contains `..`, targets outside `--root`, or would follow/write through a symlink escape. | `PathEscapeError` | Treat as unsafe or adversarial output. No file may be written; report the prompt/model behavior and preserve only redacted diagnostics. |
+| A patch validates but local write, rollback, filesystem, or transaction-journal handling fails. | `PatchApplyError` | Local mutation failed after validation. Stop, inspect only the synthetic scratch root and transaction detail, and do not retry on private data. |
+| Generic patch or upload validation fails without a more specific subclass. | `PatchBundleValidationError` | The bundle was rejected before any write. Treat the detail as safe diagnostic input and rerun only after reducing payload or fixing the prompt/protocol. |
 | Assistant response visibly stops early, asks to continue, lacks `END_PATCH_BUNDLE`, lacks final markers, or times out. | `ResponseTruncatedError` | The text channel or completion signal was insufficient. Prefer download capture, reduce payload, or update real truncation limits before retry. |
 | Model option unavailable, rate limit banner, or selector unavailable appears. | `ModelUnavailableError`, `RateLimitedError`, or `SelectorUnavailableError` | Not a bundle-format failure. Resolve account/model/quota/selector condition first, then rerun UC2 only with renewed consent. |
 
@@ -221,11 +237,19 @@ Watch D-001 revisit triggers: if real artifacts are not scoped to the latest ass
 
 ### UC3 CLI confirmation
 
-Run `uv run ask-chatgpt --help` and confirm the final flags before real-site contact. The commands below assume a thin CLI over the public library with `--channel`, `--profile`, `--session`, `--prompt`, optional `--model`, and `--out`. If final help differs, adapt spelling only; do not remove the consent gate, real-channel explicitness, session explicitness, or no-mutation-by-default posture.
+Run the following non-contact confirmation before real-site contact. The commands below use only committed CLI flags and keep real-channel explicitness, session explicitness, and no-mutation-by-default posture.
+
+```bash
+cd /home/abhmul/dev/ask-chatgpt
+uv sync --all-groups
+uv run ask-chatgpt --help
+```
+
+If the help output is unavailable, or if it does not show `--channel`, `--profile-path`, `--session`, `--prompt`, `--out`, and `--timeout`, do not run UC3 real-site acceptance. If model selection is required for a later CLI run, express it with the real `--model-settings JSON` flag after confirming the observed model label; do not proceed on guesses.
 
 ### UC3 command 1: CLI prints response to stdout
 
-This command contacts `chatgpt.com` only after the operator types `I-CONSENT-REAL-CHATGPT-UC3-STDOUT`. **CONFIRM AGAINST `ask-chatgpt --help` before running.**
+This command contacts `chatgpt.com` only after the operator types `I-CONSENT-REAL-CHATGPT-UC3-STDOUT`.
 
 ```bash
 cd /home/abhmul/dev/ask-chatgpt
@@ -238,16 +262,17 @@ read -r ACCEPT_REAL_SITE
 if [ "$ACCEPT_REAL_SITE" != "I-CONSENT-REAL-CHATGPT-UC3-STDOUT" ]; then echo 'Consent token mismatch; stopping before real-site contact.' >&2; exit 2; fi
 uv run ask-chatgpt \
   --channel real \
-  --profile "$ASK_CHATGPT_PROFILE_PATH" \
+  --profile-path "$ASK_CHATGPT_PROFILE_PATH" \
   --session real-site-acceptance-uc3-stdout \
   --prompt "Real-site acceptance UC3 stdout. Reply with exactly this single line and no extra words: REAL-SITE-UC3-STDOUT-PASS $NONCE" \
+  --timeout 90 \
   | tee tmp/real-site-acceptance/uc3/stdout.txt
 grep -F "REAL-SITE-UC3-STDOUT-PASS $NONCE" tmp/real-site-acceptance/uc3/stdout.txt
 ```
 
 ### UC3 command 2: CLI writes response to `--out`
 
-This command contacts `chatgpt.com` only after the operator types `I-CONSENT-REAL-CHATGPT-UC3-OUT`. **CONFIRM AGAINST `ask-chatgpt --help` before running.**
+This command contacts `chatgpt.com` only after the operator types `I-CONSENT-REAL-CHATGPT-UC3-OUT`.
 
 ```bash
 cd /home/abhmul/dev/ask-chatgpt
@@ -260,10 +285,11 @@ read -r ACCEPT_REAL_SITE
 if [ "$ACCEPT_REAL_SITE" != "I-CONSENT-REAL-CHATGPT-UC3-OUT" ]; then echo 'Consent token mismatch; stopping before real-site contact.' >&2; exit 2; fi
 uv run ask-chatgpt \
   --channel real \
-  --profile "$ASK_CHATGPT_PROFILE_PATH" \
+  --profile-path "$ASK_CHATGPT_PROFILE_PATH" \
   --session real-site-acceptance-uc3-out \
   --prompt "Real-site acceptance UC3 --out. Reply with exactly this single line and no extra words: REAL-SITE-UC3-OUT-PASS $NONCE" \
-  --out tmp/real-site-acceptance/uc3/out.txt
+  --out tmp/real-site-acceptance/uc3/out.txt \
+  --timeout 90
 grep -F "REAL-SITE-UC3-OUT-PASS $NONCE" tmp/real-site-acceptance/uc3/out.txt
 ```
 
@@ -271,7 +297,7 @@ grep -F "REAL-SITE-UC3-OUT-PASS $NONCE" tmp/real-site-acceptance/uc3/out.txt
 
 Expected, to be confirmed on the real site: command 1 exits zero and prints the assistant response to stdout; command 2 exits zero and writes the assistant response to the path given by `--out`; both outputs contain the expected nonce; stderr contains no credentials, cookies, tokens, profile contents, private refs, or private transcript text.
 
-A PASS means the installed `ask-chatgpt` console script wraps the public function for the real channel with the operator's explicit consent and preserves stdout/`--out` behavior. UC3 plain prompt acceptance does not by itself prove UC2 file apply; if the CLI also exposes file/apply flags, those inherit UC2's patch validation and explicit `--apply --root` requirements.
+A PASS means the installed `ask-chatgpt` console script wraps the public function for the real channel with the operator's explicit consent and preserves stdout/`--out` behavior. UC3 plain prompt acceptance does not by itself prove UC2 file apply; if the CLI also uses file/apply flags, those inherit UC2's patch validation and explicit `--apply --root` requirements.
 
 Watch D-001 revisit triggers from the CLI surface too: if CLI output differs from the visible latest assistant turn, if `--out` writes partial/stale text, if DOM-primary fails while copy fallback would have succeeded, or if CLI error messages include private account/profile details, stop and report before broader use.
 
@@ -279,15 +305,15 @@ Watch D-001 revisit triggers from the CLI surface too: if CLI output differs fro
 
 | What the operator sees | Named error expected from tool | Meaning and action |
 | --- | --- | --- |
-| CLI help is unavailable or the `ask-chatgpt` console script is not installed. | No real-site error; UC3 implementation/preflight is blocked | Do not contact the site for UC3. Install/sync the implemented CLI or wait for T5 completion, then rerun help confirmation. |
+| CLI help is unavailable or the `ask-chatgpt` console script is not installed. | No real-site error; UC3 implementation/preflight is blocked | Do not contact the site for UC3. Install/sync the implemented CLI or wait for CLI completion, then rerun help confirmation. |
 | Browser shows login wall or CLI exits with login-required text. | `LoginRequiredError` | The real profile is not authenticated. Sign in manually in the visible browser if you consent; the CLI must not request or log credentials. |
 | CLI reports the stored session cannot be opened. | `SessionNotFoundError` | The disposable CLI session ref is stale/deleted. Delete/recreate the registry entry under `ASK_CHATGPT_STATE_DIR` or use a new session identifier. |
 | CLI reports missing/stale selector-map key or cannot find real UI controls. | `SelectorUnavailableError` | `real.json` is incomplete or stale for this rollout. Stop and update via the observation runbook. |
-| Requested model flag is not available in the UI/account. | `ModelUnavailableError` | Remove or correct the model flag using observed labels. |
+| Requested model setting is not available in the UI/account. | `ModelUnavailableError` | Remove or correct the model setting using observed labels. |
 | Rate/capacity/quota banner appears or stderr reports backoff. | `RateLimitedError` | Wait for the operator's quota/backoff window; rerun only with consent. |
 | Output lacks the nonce, includes only partial text, times out, or visible UI asks to continue. | `ResponseTruncatedError` or nonzero CLI exit if nonce check fails | The reader/completion path is incomplete or wrong-turn. Reduce prompt, update selectors, or investigate DOM-vs-copy behavior before accepting. |
 | Upload/download unsupported appears when using CLI file flags. | `UploadUnsupportedError` or `DownloadUnsupportedError` | UC3 file mode inherits UC2 real-site capability limits. Record whether fallback succeeded; no local apply unless a valid patch exists. |
-| Patch malformed, hash/byte-count mismatch, oversized payload, or path escape appears when using CLI file/apply flags. | `PatchBundleMalformedError`, `PatchBundleIntegrityError`, `PatchBundleTooLargeError`, or `PatchPathEscapeError` | The CLI must stop before mutation unless a valid explicit apply passes full validation. Preserve redacted diagnostics, update prompt/protocol/selectors, and rerun only with consent. |
+| Patch malformed, hash/byte-count mismatch, oversized payload, path escape, validation failure, or apply failure appears when using CLI file/apply flags. | `PatchMalformedError`, `BundleIntegrityError`, `OversizedPayloadError`, `PathEscapeError`, `PatchBundleValidationError`, or `PatchApplyError` | The CLI must stop before mutation unless a valid explicit apply passes full validation. Preserve redacted diagnostics, update prompt/protocol/selectors, and rerun only with consent. |
 
 ## Stop conditions and reporting
 
