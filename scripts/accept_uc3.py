@@ -80,7 +80,14 @@ def _script_patch_response(handle, *, response_text: str = "PATCH_BUNDLE_DOWNLOA
     )
 
 
-def _run_cli(out_dir: Path, name: str, args: list[str], *, timeout: float = 45.0) -> dict[str, Any]:
+def _run_cli(
+    out_dir: Path,
+    name: str,
+    args: list[str],
+    *,
+    timeout: float = 45.0,
+    env: dict[str, str] | None = None,
+) -> dict[str, Any]:
     command = ["uv", "run", "ask-chatgpt", *args]
     proc = subprocess.run(
         command,
@@ -89,6 +96,7 @@ def _run_cli(out_dir: Path, name: str, args: list[str], *, timeout: float = 45.0
         capture_output=True,
         timeout=timeout,
         check=False,
+        env=({**os.environ, **env} if env else None),
     )
     safe = _safe_name(name)
     stdout_path = out_dir / f"{safe}-stdout.txt"
@@ -105,6 +113,10 @@ def _run_cli(out_dir: Path, name: str, args: list[str], *, timeout: float = 45.0
     }
     command_path.write_text(json.dumps(command_data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return {**command_data, "stdout": proc.stdout, "stderr": proc.stderr, "command_path": str(command_path)}
+
+
+def _user_texts(snapshot: dict[str, Any], ref: str) -> list[str]:
+    return [t["text"] for t in snapshot["conversations"][ref]["turns"] if t["role"] == "user"]
 
 
 def _assert_expected_summary(summary: dict[str, Any], project_root: Path) -> None:
@@ -209,6 +221,84 @@ def main(argv: list[str] | None = None) -> int:
                 raise AssertionError(f"unexpected --out file contents: {actual!r}")
             return {"detail": "--out wrote assistant text and left stdout empty", "out_file": str(out_file), "returned_text": actual, "subprocess": run}
 
+        def session_continuity() -> dict[str, Any]:
+            handle.reset()
+            state_dir = out_dir / "session-state"
+            shutil.rmtree(state_dir, ignore_errors=True)
+            state_env = {"ASK_CHATGPT_STATE_DIR": str(state_dir)}
+            first_expected = "accept UC3 session response one"
+            second_expected = "accept UC3 session response two"
+            expected_turns = ["accept UC3 session prompt one", "accept UC3 session prompt two"]
+
+            handle.script_next_response(first_expected)
+            run1 = _run_cli(
+                out_dir,
+                "session-first",
+                [
+                    "--channel",
+                    "mock",
+                    "--base-url",
+                    handle.base_url,
+                    "--timeout",
+                    "5",
+                    "--session",
+                    "accept-uc3-sess",
+                    expected_turns[0],
+                ],
+                env=state_env,
+            )
+            if run1["returncode"] != 0:
+                raise AssertionError(f"first CLI returned {run1['returncode']}: stderr={run1['stderr']!r}")
+            if run1["stdout"] != first_expected:
+                raise AssertionError(f"unexpected first stdout: {run1['stdout']!r}")
+            if run1["stderr"]:
+                raise AssertionError(f"unexpected first stderr: {run1['stderr']!r}")
+
+            handle.script_next_response(second_expected)
+            run2 = _run_cli(
+                out_dir,
+                "session-second",
+                [
+                    "--channel",
+                    "mock",
+                    "--base-url",
+                    handle.base_url,
+                    "--timeout",
+                    "5",
+                    "--session",
+                    "accept-uc3-sess",
+                    expected_turns[1],
+                ],
+                env=state_env,
+            )
+            if run2["returncode"] != 0:
+                raise AssertionError(f"second CLI returned {run2['returncode']}: stderr={run2['stderr']!r}")
+            if run2["stdout"] != second_expected:
+                raise AssertionError(f"unexpected second stdout: {run2['stdout']!r}")
+            if run2["stderr"]:
+                raise AssertionError(f"unexpected second stderr: {run2['stderr']!r}")
+
+            snapshot = handle.inspect()
+            conversations = snapshot["conversations"]
+            if len(conversations) != 1:
+                raise AssertionError(f"expected exactly one reused conversation, got {len(conversations)}")
+            conversation_ref = next(iter(conversations))
+            user_turns = _user_texts(snapshot, conversation_ref)
+            if user_turns != expected_turns:
+                raise AssertionError(f"unexpected session user turns: {user_turns!r}")
+            registry_path = state_dir / "sessions.json"
+            if not registry_path.exists():
+                raise AssertionError(f"isolated session registry was not written: {registry_path}")
+            return {
+                "detail": "CLI --session reused one conversation across two subprocess invocations",
+                "conversation_ref": conversation_ref,
+                "registry_path": str(registry_path),
+                "state_dir": str(state_dir),
+                "user_turns": user_turns,
+                "subprocess_first": run1,
+                "subprocess_second": run2,
+            }
+
         def files_dry_run() -> dict[str, Any]:
             handle.reset()
             project_root = out_dir / "dry-run-project"
@@ -256,6 +346,7 @@ def main(argv: list[str] | None = None) -> int:
         _run_step(out_dir, steps, "prompt-stdout", prompt_stdout)
         _run_step(out_dir, steps, "out-file", out_file_call)
         _run_step(out_dir, steps, "files-dry-run-no-mutation", files_dry_run)
+        _run_step(out_dir, steps, "session-continuity", session_continuity)
     finally:
         server.stop()
 

@@ -88,6 +88,10 @@ def _script_patch_response(mock_chatgpt, *, response_text: str = "PATCH_BUNDLE_D
     )
 
 
+def _user_texts(snapshot, ref):
+    return [t["text"] for t in snapshot["conversations"][ref]["turns"] if t["role"] == "user"]
+
+
 def _assert_expected_summary(payload: dict[str, object], *, dry_run: bool) -> None:
     assert payload["dry_run"] is dry_run
     assert payload["added"] == 1
@@ -131,6 +135,82 @@ def test_main_prompt_writes_only_response_stdout(mock_chatgpt, capsys):
     assert code == 0
     assert captured.out == "CLI text answer"
     assert captured.err == ""
+
+
+def test_main_session_reuses_same_conversation_through_cli(mock_chatgpt, tmp_path, monkeypatch, capsys):
+    state_dir = tmp_path / "state"
+    monkeypatch.setenv("ASK_CHATGPT_STATE_DIR", str(state_dir))
+    mock_chatgpt.reset()
+
+    mock_chatgpt.script_next_response("first answer")
+    code1 = cli.main([
+        "--channel",
+        "mock",
+        "--base-url",
+        mock_chatgpt.base_url,
+        "--timeout",
+        "5",
+        "--session",
+        "sess-A",
+        "first prompt",
+    ])
+    captured = capsys.readouterr()
+    assert code1 == 0
+    assert captured.out == "first answer"
+    assert captured.err == ""
+
+    mock_chatgpt.script_next_response("second answer")
+    code2 = cli.main([
+        "--channel",
+        "mock",
+        "--base-url",
+        mock_chatgpt.base_url,
+        "--timeout",
+        "5",
+        "--session",
+        "sess-A",
+        "second prompt",
+    ])
+    captured = capsys.readouterr()
+    assert code2 == 0
+    assert captured.out == "second answer"
+    assert captured.err == ""
+
+    snapshot = mock_chatgpt.inspect()
+    conversations = snapshot["conversations"]
+    assert len(conversations) == 1
+    sess_a_ref = next(iter(conversations))
+    assert _user_texts(snapshot, sess_a_ref) == ["first prompt", "second prompt"]
+
+    registry_path = state_dir / "sessions.json"
+    assert registry_path.exists()
+
+    mock_chatgpt.script_next_response("different answer")
+    code3 = cli.main([
+        "--channel",
+        "mock",
+        "--base-url",
+        mock_chatgpt.base_url,
+        "--timeout",
+        "5",
+        "--session",
+        "sess-B",
+        "different prompt",
+    ])
+    captured = capsys.readouterr()
+    assert code3 == 0
+    assert captured.out == "different answer"
+    assert captured.err == ""
+
+    snapshot = mock_chatgpt.inspect()
+    conversations = snapshot["conversations"]
+    assert len(conversations) == 2
+    registry = json.loads(registry_path.read_text(encoding="utf-8"))
+    sess_a_ref = registry["sessions"]["sess-A"]["conversation_ref"]
+    sess_b_ref = registry["sessions"]["sess-B"]["conversation_ref"]
+    assert sess_a_ref != sess_b_ref
+    assert _user_texts(snapshot, sess_a_ref) == ["first prompt", "second prompt"]
+    assert _user_texts(snapshot, sess_b_ref) == ["different prompt"]
 
 
 def test_main_out_writes_response_file_without_stdout(mock_chatgpt, cli_project_root, capsys):
