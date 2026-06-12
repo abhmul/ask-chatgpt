@@ -248,6 +248,7 @@ class BrowserSession:
         assert self._playwright is not None
         self._browser = self._playwright.chromium.launch(headless=True)
         self._context = self._browser.new_context()
+        self._context.grant_permissions(["clipboard-read", "clipboard-write"], origin=self._base_url)
 
     def _start_real_context(self) -> None:
         if self._profile_path is None:
