@@ -1,0 +1,75 @@
+{
+  "STATUS": "DONE",
+  "mission": "MISSION-002",
+  "title": "Core build: scaffold, mock-ChatGPT fixture, browser layer, ask_chatgpt()->text, UC1 acceptance",
+  "manager": "headless claude -p (Opus 4.8)",
+  "started_at": "2026-06-11T23:34:02-05:00",
+  "ended_at": "2026-06-12T01:48:32-05:00",
+  "ESTIMATE_minutes": 120,
+  "ACTUAL_minutes": 135,
+  "actual_note": "1.1x estimate, well under 2x flag threshold (240m). ACTUAL derived from .pi-workers/<run>/metadata.txt started_at -> report END_TIMESTAMP / file mtimes — NEVER pi minute self-reports (which were ~5-8x over actual every leg).",
+  "objective_met": true,
+  "objective": "uv Python project where ask_chatgpt(prompt, session_identifier, model_settings) -> str works end-to-end vs a loopback mock-ChatGPT fixture; automated acceptance green; ZERO chatgpt.com contact. Real-channel code built but NEVER exercised by tests (operator-runbook-proven later).",
+
+  "what_was_verified": {
+    "method": "best-of-N independent verification panel (3 non-producer lenses over ONE authoritative heavy run) + a remediation leg + an independent re-verify, synthesized by the manager into orchestration/reports/M-002/verify.md. Per agent-rigor.md.",
+    "final_verdict": "VERDICT: PASS (orchestration/reports/M-002/verify.md, ends T9-STATUS: DONE)",
+    "authoritative_test_output": "uv run pytest -q -> 60 passed in 26.41s, zero failures (fresh uv sync --all-groups; re-confirmed by the independent re-verify lens after remediation)",
+    "acceptance": "scripts/accept_uc1.sh exit 0; produced tmp/accept-uc1-<ts>/results.json (ephemeral, gitignored) INSPECTED (not exit code alone): overall=pass; CONTINUITY PROVEN (two same-session_identifier calls both used conversation conv-1 holding BOTH user prompts); a model_settings call succeeded; honest-failure step raised LoginRequiredError with an actionable credential-free message. Re-run: bash scripts/accept_uc1.sh",
+    "network_guard": "tests/test_network_guard.py deliberate-violation test attempts a non-loopback connect to 93.184.216.34 and asserts the autouse socket guard raises RuntimeError NETWORK BLOCKED; plus Playwright route interception on the mock context. PROVEN to trip.",
+    "d001_conformance": "DOM-primary default reader order; one ResponseReader interface (DomReader primary + CopyButtonReader fallback); bounded latest-completed-turn ONLY (no history sweep); fail-closed selectors (SelectorUnavailableError on missing/empty, no cross-channel fallback); adversarial booby-trap NEVER returned across {DOM,copy}x{stable,virtualized}x{boobytrap,copy_mode=wrong}; fail-closed not masked (read_response falls through only on SelectorUnavailableError).",
+    "safety_boundary": "chatgpt.com appears ONLY as a src/ constant + inert test literals + an in-suite guard test asserting it never appears in page.url; no test/script navigates the real site or runs channel=real/launch_persistent_context; profile_path treated as opaque (never opened/read/listed/logged); no credential/cookie/token/profile reads anywhere; mock binds 127.0.0.1 ephemeral only."
+  },
+
+  "lens_reports": {
+    "verify.md": "manager synthesis, VERDICT PASS (trust: independent panel)",
+    "verify-run.md": "V1 authoritative run, V1-VERDICT PASS",
+    "verify-d001-safety.md": "V2 D-001/safety/adversarial, V2-VERDICT PASS (file:line evidence)",
+    "verify-completeness.md": "V3 completeness/spec, V3-VERDICT FAIL -> the one gap (now closed)",
+    "verify-reverify.md": "RV after remediation, RV-VERDICT PASS"
+  },
+
+  "git_commits_M-002": [
+    "d75336c scaffold + socket guard + chromium smoke (T1); errors + session registry, reproducible build (T2)",
+    "77eac42 mock-ChatGPT fixture core (T3) + operator observation runbook (T8)",
+    "b4c17c7 fixture reader-facing adversarial/failure/streaming/copy modes (T4)",
+    "6df3443 fixture bundle affordances download/fenced/upload (T4b)",
+    "3a9731e driver core mock/real channels, fail-closed selectors, completion detector (T5)",
+    "e9c1f26 readers DomReader primary + CopyButtonReader fallback, D-001 core (T6)",
+    "1c0102b ask_chatgpt() integration + UC1 E2E + accept_uc1.sh + network guard (T7)",
+    "edb2eb4 REWORK copy permission-denied simulation + proof (T4c)"
+  ],
+  "note_uncommitted_at_handoff": "This handoff + final state + verify*.md panel reports are committed in a final closeout commit after this file is written. NEVER git push (operator pushes).",
+
+  "artifacts_and_trust": [
+    {"path": "src/ask_chatgpt/ (errors.py, session_registry.py, selector_map.py, driver.py, readers.py, api.py, __init__, selector_maps/{mock,real}.json)", "trust": "verified-independently (panel)", "note": "public ask_chatgpt() + full UC1 stack"},
+    {"path": "tests/ (conftest socket guard + mock_chatgpt fixture; test_smoke/errors/session_registry/fixture_core/fixture_adversarial/fixture_files/driver/readers/ask_chatgpt_uc1/network_guard)", "trust": "verified-independently", "note": "60 passed"},
+    {"path": "tests/fixtures/mock_chatgpt/server.py", "trust": "verified-independently", "note": "complete mock per memo-6; loopback ephemeral; scriptable adversarial/failure/streaming/copy/download/fenced/upload modes"},
+    {"path": "scripts/accept_uc1.{sh,py}", "trust": "verified-independently", "note": "scripted UC1 acceptance, raw artifacts to tmp/accept-uc1-<ts>/, exits nonzero on failure"},
+    {"path": "docs/runbooks/observe-chatgpt-unknowns.md", "trust": "verified-independently (completeness lens)", "note": "operator-run, all 10 memo-7 unknowns, M-003-consumable results template"},
+    {"path": "src/ask_chatgpt/driver.py channel='real' path (REAL_BASE_URL, launch_persistent_context, profile_path)", "trust": "producer-only / UNVERIFIED-against-real-site", "note": "BUILT but NEVER executed by any test; correctness vs chatgpt.com is operator-runbook-gated"},
+    {"path": "src/ask_chatgpt/selector_maps/real.json", "trust": "intended-empty template", "note": "all-empty -> fails closed; operator fills from the observation runbook"}
+  ],
+
+  "mock_proven_vs_real_unproven": {
+    "MOCK_PROVEN": "UC1 ask_chatgpt()->text end-to-end incl. session continuity, model selection, honest failures (login/session-not-found/model-unavailable/truncated/rate-limited/selector-unavailable + upload/download-unsupported), DOM-primary + copy-fallback reading (incl. clipboard permission-denied), adversarial booby-trap resistance, network egress blocking. All loopback, deterministic.",
+    "REAL_SITE_UNPROVEN": "Every memo-7 empirical unknown (real chatgpt.com selectors, real download/upload/clipboard/model-selection/session-pinning/completion behavior). channel='real' is exercised ONLY by operator-consented runbook runs, never automated. real.json is an all-empty fail-closed template until the operator resolves the runbook."
+  },
+
+  "blockers": "NONE for mission completion. OPERATOR ACTION to unblock real-site + the real half of M-003: run docs/runbooks/observe-chatgpt-unknowns.md (operator-consented, on the operator's own profile) to resolve the 10 empirical unknowns and fill src/ask_chatgpt/selector_maps/real.json. Until then the real channel correctly fails closed.",
+
+  "recommended_next_missions": [
+    {"id": "M-003", "title": "Bundle workflow (UC2): bundle-out (zip files + README/catalog), patch-bundle-back retrieval + apply locally; round-trip diff test", "readiness": "READY vs mock. M-003 CONSUMES these already-built fixture affordances: download_artifact (real zip + Content-Disposition + missing/delayed/wrong_older/corrupt/truncated/collision/unsupported variants) for the download-capture-primary bundle retrieval; the fenced base64url payload (BEGIN/END_PATCH_BUNDLE + manifest + ZIP_BYTE_COUNT + ZIP_SHA256 + missing_end/bad_hash/changed_and_unchanged/oversized variants) for the checksummed-fenced fallback (D-001 #2); upload_input (<input type=file> + metadata recording + unsupported/reject_size_type/corrupt) for bundle-out. Build the bundle builder/zipper + README/catalog generator, the patch-bundle retriever (download primary + fenced fallback, validate manifest+SHA-256 before apply), and the local apply+diff. Reuse driver/readers. The real download/upload halves stay operator-runbook-gated.", "parallelism": "Independent of operator runbook; can start now."},
+    {"id": "UC3-CLI", "title": "CLI entry point wrapping ask_chatgpt() (prompt/session/file args, stdout/file output)", "readiness": "READY; thin wrapper over the public function. Could fold into M-003 or be its own small mission.", "parallelism": "Independent."}
+  ],
+
+  "complexity_paradigm_signals": [
+    "FIXTURE-FIRST paradigm worked: building the complete adversarial mock (T3+T4+T4b) before the client (T5+T6+T7) gave every client leg a deterministic, fully-adversarial target, so client tests assert REAL fail-closed/adversarial behavior rather than mocking it. Recommend the same for M-003.",
+    "EDITING SERIALIZATION dominated wall-clock (one editor at a time in the shared tree). Only the doc leg (T8) and read-only verify lenses (V2/V3) overlapped other work. The per-leg work was fast (~6-14m each); serialization + manager orchestration overhead is the real cost.",
+    "pi MINUTE SELF-ESTIMATES are unusable (~5-8x over actual every leg) — confirmed M-001's lesson. Telemetry derived from metadata.started_at -> report END_TIMESTAMP is reliable; keep doing that.",
+    "D-001 DOM-primary (team-lead override of the memo's copy-first rec) is now EMPIRICALLY justified by tests: the default composite returns correct text even when the copy affordance is booby-trapped (copy_mode=wrong) or permission-denied. The empirical revisit trigger (flip order if real-site DOM is flakier) remains a runbook observation.",
+    "ONE rework leg (T4c, REWORK-CAUSE spec-gap): the verification panel caught that memo-6 'simulate permission denial' was omitted from the T4 contract's copy_mode list. This is the best-of-N panel earning its cost — a single verifier reasoning over the same checklist might have missed it. Lesson: transcribe memo-6 sub-bullets EXHAUSTIVELY into fixture contracts."
+  ],
+
+  "resume_state": "orchestration/state/M-002-state.json (status DONE). All deliverables on disk + committed."
+}
