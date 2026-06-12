@@ -1,18 +1,23 @@
 {
   "handoff_type": "team-lead-resume",
-  "as_of": "2026-06-11 ~23:30 (M-001 done; D-001 recorded; M-002 dispatched)",
+  "as_of": "2026-06-12 (directive automated half ACHIEVED; team idle pending operator runbooks)",
   "team": "ask-chatgpt",
   "branch": "main",
-  "note": "Resume protocol: read THIS, then orchestration/team.json, then orchestration/state/lead.state.json (current queue + apparatus lessons), then docs/DECISIONS.md (D-001 binding). Re-verify live claims from ground truth: git log --oneline -5; tmux ls | grep -E 'pi-worker|claude-orch'; ls orchestration/handoffs/ orchestration/reports/; mesh inbox /home/abhmul/dev/wsc-mesh/inbox/ask-chatgpt/.",
-  "OBJECTIVE": "Directive in lead.state.json. Progress: M-001 DONE (decision memo verified PASS); D-001 recorded in docs/DECISIONS.md; M-002 (core build) dispatched with ops-runner ops-m002 watching; M-003 (bundles+CLI+runbooks) and M-004 (independent verify) pending.",
-  "if_resuming_mid_M-002": [
-    "Check tmux for claude-orch-* / pi-worker-* sessions and orchestration/handoffs/MISSION-002-handoff.json; deliverables list is in orchestration/tasks/MISSION-002.md.",
-    "If the manager died mid-mission: orchestration/state/M-002-state.json is the resume anchor; relaunch pattern = MISSION-001-RESUME.md precedent (author MISSION-002-RESUME.md pointing at recorded state; charter already carries detached-session discipline).",
-    "If M-002 handoff exists DONE: ingest, then author MISSION-003 contract (bundles consume fixture affordances built in M-002; CLI wraps the function; real-site runbooks for UC1-3 reference docs/runbooks/observe-chatgpt-unknowns.md results)."
+  "note": "Resume protocol: read THIS, then orchestration/team.json, then orchestration/state/lead.state.json (DIRECTIVE_STATUS + apparatus_lessons), then VERIFICATION.md (final VERDICT: PASS at line ~67), then docs/DECISIONS.md. Re-verify from ground truth: git log --oneline -8; tmux ls | grep -E 'pi-worker|claude-orch' (expect none); mesh inbox /home/abhmul/dev/wsc-mesh/inbox/ask-chatgpt/ (triage anything new).",
+  "OBJECTIVE": "ACHIEVED (automated half, 2026-06-12): README's 3 use cases mock-proven + independently verified (M-001..M-005; final gate N=5 panel FAIL -> M-005 fixes -> independent re-verify PASS; clean-clone 121 tests). Mission queue EMPTY.",
+  "awaiting_operator": [
+    "docs/runbooks/observe-chatgpt-unknowns.md — resolves 10 real-site unknowns, fills src/ask_chatgpt/selector_maps/real.json (currently all-empty fail-closed template).",
+    "docs/runbooks/real-site-acceptance.md — UC1/UC2/UC3 proof on the operator's account (CLI surface re-verified against shipped cli.py in M-005/D1).",
+    "git push — operator only; team never pushes."
+  ],
+  "if_resuming": [
+    "If operator reports runbook results: ingest into lead.state.json findings_from_operator_use; if real-site behavior contradicts mock assumptions (e.g. DOM flakier than copy -> flip D-001 default order constant; download affordance absent -> fenced fallback becomes primary), author a small follow-up mission per the M-005 pattern (fix legs + independent re-verify panel).",
+    "If new directive arrives: queue missions per the established apparatus (contracts in orchestration/tasks/, Sonnet ops-runners with --wait-seconds 480 loops + bounded auto-recovery, pi workers via --wait-seconds 480 foreground watches, best-of-N default per operator emphasis, telemetry v2).",
+    "Apparatus lessons live in lead.state.json apparatus_lessons (manager headless-death recipe, hallucinated pi self-timing, no pi concurrency cap, best-of-N emphasis) and in team-lead persistent memory."
   ],
   "launchers": {
-    "manager": "bash orchestration/bin/claude-orchestrator-watch.sh --wait-seconds 480 --append-system-prompt-file orchestration/roles/manager-role.md \"<mission pointer>\" (ops-runner loops --wait-seconds 480 --watch <run-dir>)",
-    "pi_worker": ".claude/skills/orchestration/references/pi-worker-watch.sh (managers use; NO hard concurrency cap per operator 2026-06-12; editing legs serialize; foreground watches)"
+    "manager": "bash orchestration/bin/claude-orchestrator-watch.sh --wait-seconds 480 --append-system-prompt-file orchestration/roles/manager-role.md \"<mission pointer>\"",
+    "pi_worker": ".claude/skills/orchestration/references/pi-worker-watch.sh --wait-seconds 480 (foreground loops; managers use)"
   },
   "archive_read_only": "/home/abhmul/Documents/weak-simplex-conjecture — never write; never read its archive/ or human/"
 }
