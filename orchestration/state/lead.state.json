@@ -1,9 +1,38 @@
 {
   "team_lead": "claude (interactive)",
-  "updated": "2026-06-11 — TEAM SPAWNED by predecessor control-plane team lead. No missions run yet. Incoming directive recorded below; first lead actions: read orchestration/handoffs/SEED-from-control-plane.md + README.md (the spec), then author M-001.",
-  "incoming_directive": "Build and fully verify the ask-chatgpt tool per README.md: (1) ask_chatgpt(prompt, session_identifier, model_settings...) -> text against chatgpt.com; (2) local-filesystem read-write via zip bundles out (files/dirs + catalogue README) and patch bundles back (changed files only); (3) CLI entry point. Design decision #1 (response extraction vs predecessor's Level B no-DOM rule) must be made deliberately and recorded before implementation. Mock-ChatGPT acceptance automated; real-site proof operator-gated.",
-  "mission_queue": [],
+  "updated": "2026-06-11 — M-001 contract authored and dispatched via Sonnet ops-runner.",
+  "incoming_directive": "Build and fully verify the ask-chatgpt tool per README.md: (1) ask_chatgpt(prompt, session_identifier, model_settings...) -> text against chatgpt.com; (2) local-filesystem read-write via zip bundles out (files/dirs + catalogue README) and patch bundles back (changed files only); (3) CLI entry point. Design decision #1 (response extraction vs predecessor's Level B no-DOM rule) must be made deliberately and recorded before implementation. Mock-ChatGPT acceptance automated; real-site proof operator-gated. Operator constraints: token-efficient (pi workers for token-heavy slices, Sonnet ops-runners for watch, lead context lean); ESTIMATE/ACTUAL telemetry from day one; tests never contact chatgpt.com; never git push.",
+  "mission_queue": [
+    {
+      "id": "M-001",
+      "title": "Design decision #1 research: response/file return channel vs Level B rationale (best-of-N=3 + synthesis + verify; NON-EDITING)",
+      "status": "DISPATCHED",
+      "contract": "orchestration/tasks/MISSION-001.md",
+      "estimate_minutes": "90-120 (flag at 240)",
+      "next_on_ingest": "team lead decides + records docs/DECISIONS.md #1, then authors M-002"
+    },
+    {
+      "id": "M-002",
+      "title": "Core build: uv scaffold + mock-ChatGPT fixture + browser layer (per recorded decision) + session registry + ask_chatgpt() -> text + use-case-1 automated acceptance green",
+      "status": "PENDING (blocked on M-001 + recorded decision)",
+      "contract": "to be authored on M-001 ingest"
+    },
+    {
+      "id": "M-003",
+      "title": "Bundles + CLI: zip bundle out (catalogue README) + patch bundle back + apply locally + round-trip acceptance; CLI entry point + acceptance; operator runbooks for real-site halves",
+      "status": "PENDING (blocked on M-002)",
+      "contract": "to be authored"
+    },
+    {
+      "id": "M-004",
+      "title": "Independent directive verification (non-producer panel, distinct dimensions over one authoritative run): spec coverage, no-chatgpt.com-contact proof in tests, honest failure modes, telemetry adoption; VERIFICATION.md",
+      "status": "PENDING (blocked on M-003; last mission of directive)",
+      "contract": "to be authored"
+    }
+  ],
+  "operator_action_items": [
+    "After M-004: run the operator-gated real-site runbooks (login/profile, real ask_chatgpt, real bundle round-trip) — automated halves never touch chatgpt.com"
+  ],
   "findings_from_operator_use": [],
-  "operator_action_items": [],
-  "notes": "Telemetry conventions (ESTIMATE/ACTUAL lines, end timestamps, REWORK-CAUSE codes, profile_extract at mission close) are charter requirements from day one. Worker economics: pi (GPT 5.5) for token-heavy slices, Sonnet ops-runners for watch, lead context lean."
+  "notes": "Apparatus verified on disk 2026-06-11: pi+tmux+claude+uv present; pi-worker-watch.sh at .claude/skills/orchestration/references/; archive readable at /home/abhmul/Documents/weak-simplex-conjecture. Managers: claude-orchestrator-watch.sh (opus/max, charter appended, no Agent tool). Ops-runner pattern: background Sonnet agent loops the watch with --wait-seconds 480 (each Bash call under its 600s cap), verifies shipment (handoff STATUS token + deliverable files), returns digest. Design decision #1 is the TEAM LEAD's to record in docs/DECISIONS.md after the M-001 memo — not the manager's."
 }
