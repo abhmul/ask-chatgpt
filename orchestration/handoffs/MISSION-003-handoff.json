@@ -1,0 +1,75 @@
+{
+  "mission": "MISSION-003",
+  "title": "Bundle workflow (UC2) + CLI (UC3) + real-site acceptance runbook",
+  "status": "DONE",
+  "verdict": "PASS",
+  "manager": "headless claude -p (Opus 4.8); RELAUNCHED after predecessor headless-death #2",
+  "first_manager_start": "2026-06-12T01:56:28-05:00",
+  "end_timestamp": "2026-06-12T04:13:01-05:00",
+  "ESTIMATE_minutes": 120,
+  "ACTUAL_minutes": 137,
+  "flag_threshold_minutes": 240,
+  "within_threshold": true,
+  "commit_prefix": "M-003:",
+  "pushed": false,
+
+  "rework_causes": [
+    {
+      "leg": "manager relaunch (headless-death #2, mid-T3)",
+      "code": "spec-gap",
+      "detail": "pi-worker-watch.sh default --wait-seconds 1800 exceeds the manager Bash 600s cap; the predecessor backgrounded its T3 watch and ended its turn expecting re-invocation, but headless claude -p exits at turn end. No deliverable was lost: T3's worker finished and shipped patch.py + test_patch.py + T3-report.md (status DONE) despite the missing watcher status file. Fixed by the charter detached-session recipe (--wait-seconds 480 foreground loops, never background a watch), applied for T4/T5/T7a-e this session with zero recurrence."
+    }
+  ],
+  "rework_note": "T3 itself did NOT require re-dispatch — its deliverables were intact and independently re-gated green (89 passed) on relaunch. The only rework was the manager relaunch itself.",
+
+  "objective_verified": "UC2 (bundle-out: zip files/dirs + GPT catalogue README; retrieve changed-files-only patch bundle via download-capture PRIMARY + checksummed fenced-base64url FALLBACK; validate manifest+SHA-256+byte-count BEFORE any write; zip-slip-safe apply within caller root; round-trip diff-matches) and UC3 (ask-chatgpt CLI wrapping the public function). All mock-proven on the loopback fixture; ZERO chatgpt.com/OpenAI contact; real-site halves remain operator-runbook-gated.",
+
+  "verified_what_and_evidence": {
+    "method": "Best-of-N verification PANEL (operator-emphasized default): T7a single authoritative non-producer evidence run -> T7b/T7c/T7d parallel read-only lenses (correctness / spec-conformance / safety) over that ONE evidence set -> T7e synthesis. Manager additionally re-ran the pre-commit pytest gate independently before each editing-slice commit and confirmed zero source/test drift since the T5 commit (git diff --name-only bc7f557 -- src tests scripts pyproject.toml == empty).",
+    "full_suite": "uv run pytest -q -> '119 passed in 43.37s' (T7a authoritative; matches manager gate 119 passed in 43.09s). tmp/verify-m003/pytest.txt.",
+    "uc1_regression": "scripts/accept_uc1.sh overall=pass (4/4 steps) — M-002 UC1 not regressed.",
+    "uc2_roundtrip": "scripts/accept_uc2.sh overall=pass; results.json shows overall_diff_matches=true for BOTH download-primary AND fenced-fallback (modified/added/deleted/unchanged all true; modified_text and added_text content-verified by independent file inspection).",
+    "uc3_cli": "scripts/accept_uc3.sh overall=pass; prompt->stdout, --out file-write, and --files --dry-run-without-mutation all proven (dry-run tree inspected unchanged). Console script registered: ask-chatgpt = ask_chatgpt.cli:main.",
+    "zip_slip": "Self-authored adversarial probe: absolute path, '..' traversal, zip-symlink entry, AND symlink-parent escape ALL rejected with PathEscapeError; every case root_unchanged=True outside_unchanged=True canary_absent=True. apply_patch uses realpath+commonpath containment (not string-prefix) and never calls ZipFile.extract/extractall. tmp/verify-m003/zipslip.txt.",
+    "validate_before_mutate": "apply_patch validates entire bundle (manifest, per-file SHA-256, byte counts, path safety) BEFORE any write; dry_run=True writes nothing; a late (2nd-file SHA) failure leaves the root byte-for-byte unchanged (test_late_validation_failure...).",
+    "network_safety": "Autouse socket guard + Playwright route interception block non-loopback; test_network_guard.py genuinely attempts socket.create_connection to 93.184.216.34:80 asserting RuntimeError 'NETWORK BLOCKED' and a Playwright nav to a non-loopback host expecting a blocked error (2 passed). No test/script sets channel='real' or launch_persistent_context (grep_status=1). Mock fixture binds 127.0.0.1 only, ephemeral port.",
+    "credential_safety": "No credential/cookie/session-token/profile-content reads or logging in src. Real channel fail-closed: requires opaque profile_path and raises before launch; real selector map is all-empty ('Empty values intentionally fail closed') and SelectorMap raises on absent/empty.",
+    "deviations_adjudicated": [
+      "(a) Upload reject_size_type -> UploadUnsupportedError, while a LOCAL preflight cap breach -> OversizedPayloadError (T3 corrected the T2 mapping). T7c + T7e ruled CONFORMANT to the protocol failure taxonomy with ground-truth quotes.",
+      "(b) T4 extended tests/fixtures/mock_chatgpt/server.py for scripted changed/deleted patch bundles. T7d + T7e ruled SAFE: confined to loopback-only fixture kwargs (_patch_kwargs_from_extra: patch_changed_files/patch_deleted_files/patch_operations); introduces no channel='real' and no non-loopback path; does not bypass the socket guard.",
+      "(c) T5 telemetry START_TIMESTAMP recorded late (cosmetic only; END accurate) — no functional impact."
+    ]
+  },
+
+  "artifacts_and_trust": [
+    {"path": "src/ask_chatgpt/patch.py", "trust": "verified-independently (T3 producer-green; T7a/T7b/T7d re-derived)", "note": "retrieve_patch_bundle (download-primary + fenced-fallback) + apply_patch(bundle,root,*,dry_run=True) + PatchBundle/PatchBundleCaps/FileDiff/DiffSummary. commit dfe42b3."},
+    {"path": "src/ask_chatgpt/bundle.py", "trust": "verified-independently", "note": "build_bundle + catalogue README + prompt instructions + upload_bundle; upload error mapping corrected. commits f83c17e (T2) + dfe42b3 (T3 correction)."},
+    {"path": "src/ask_chatgpt/api.py", "trust": "verified-independently", "note": "ask_chatgpt(...,files,dirs,bundle_root)->str|AskChatGPTResult{text,patch_bundle}; UC1 no-files path preserved. commit 570f70a."},
+    {"path": "src/ask_chatgpt/cli.py", "trust": "verified-independently", "note": "main(argv)->int, stdlib argparse, thin wrapper of ask_chatgpt/apply_patch; no-mutate default; --apply requires --root; --apply/--dry-run mutually exclusive; exit map 0/2/3-12/1. commit bc7f557."},
+    {"path": "pyproject.toml", "trust": "verified-independently", "note": "[project.scripts] ask-chatgpt = ask_chatgpt.cli:main. commit bc7f557."},
+    {"path": "tests/test_patch.py + test_uc2_roundtrip.py + test_cli.py + test_bundle_out.py", "trust": "verified-independently", "note": "§9 adversarial matrix + round-trip both paths + 28 CLI tests; non-vacuous (T7b sampled)."},
+    {"path": "scripts/accept_uc2.{sh,py} + accept_uc3.{sh,py}", "trust": "verified-independently", "note": "ephemeral mock; raw artifacts + results.json with diff_match_evidence; nonzero on failure."},
+    {"path": "docs/bundle-protocol.md", "trust": "producer-only-but-conformance-checked", "note": "T1d synthesis binding spec; §10/§11/failure-taxonomy conformance confirmed in T7c."},
+    {"path": "docs/runbooks/real-site-acceptance.md", "trust": "producer-only", "note": "T6 operator-gated; NEVER automated. UC3 command surface now matches final CLI (ask-chatgpt console script) — operator should still re-confirm against §11 before a real run."},
+    {"path": "orchestration/reports/M-003/verify.md", "trust": "verified-independently", "note": "T7e synthesis; VERDICT: PASS; T7-STATUS: PASS."},
+    {"path": "orchestration/reports/M-003/{verify-run,verify-correctness,verify-spec,verify-safety}.md", "trust": "verified-independently", "note": "T7a authoritative run + 3 panel lenses; all PASS."}
+  ],
+
+  "blockers": "NONE for this mock-proven mission. Real-channel halves remain operator-gated: the operator must run docs/runbooks/observe-chatgpt-unknowns.md to populate selector_maps/real.json (currently all-empty / fail-closed by design) before any real chatgpt.com flow works. This is expected posture, not a defect.",
+
+  "mock_proven_vs_real_unproven": "UC1+UC2+UC3 are MOCK-PROVEN end-to-end on the loopback fixture with zero external network contact. NONE of UC1/UC2/UC3 is proven against real chatgpt.com — that proof is operator-run from docs/runbooks/real-site-acceptance.md only, never automated, and depends on the operator first filling selector_maps/real.json.",
+
+  "recommended_next": [
+    {"mission": "M-004", "title": "Independent directive verification of M-003 (fresh non-producer manager re-derives UC2+UC3 from ground truth + re-runs the panel)", "deps": ["M-003 DONE"], "parallelism": "standalone; reads this repo at commit (closeout); no conflict.", "rationale": "Charter requires independent directive verification to close every directive; this handoff + the T7 panel are producer-adjacent to THIS manager and should be re-checked by a fresh node."},
+    {"item": "Operator real-site acceptance", "title": "Operator runs docs/runbooks/real-site-acceptance.md after filling selector_maps/real.json", "deps": ["operator consent + observe-chatgpt-unknowns runbook"], "rationale": "The only remaining gap to full UC1+UC2+UC3 proof; cannot be automated."}
+  ],
+
+  "complexity_or_paradigm_signals": [
+    "The headless-manager death mode is a recurring spec-gap (killed managers #1 and #2). The charter recipe (--wait-seconds 480 foreground loops) held this session with zero recurrence across 6 worker launches (T4, T5, T7a, T7b/c/d parallel, T7e). Keep the recipe; consider lowering pi-worker-watch.sh's DEFAULT --wait-seconds below the 600s Bash cap upstream to remove the trap entirely (would require editing the agent-vault source, out of this repo's scope).",
+    "Best-of-N panel ran fully parallel (T7b/c/d concurrent) over a single authoritative evidence set (T7a) — no workspace contention because the lenses are strictly read-only and do not re-run the heavy suite. This is the correct pattern for verification fan-out and kept panel wall-clock ~= one lens.",
+    "Zero new dependencies across the entire UC2+UC3 surface (stdlib zipfile/argparse/json/hashlib + existing Playwright). The zero-new-deps bias held."
+  ],
+
+  "ESTIMATE": "M-003 120m",
+  "ACTUAL": "M-003 137m"
+}
