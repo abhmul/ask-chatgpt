@@ -49,4 +49,19 @@ Automated proof is mock-only: the clean-clone `uv run pytest -q` plus `scripts/a
 3. UC3 `--session` is implemented but unproven by CLI tests or acceptance artifacts. REWORK-CAUSE: spec-gap. Recommended M-005 fix mission: add a CLI test and `scripts/accept_uc3.sh` step invoking `ask-chatgpt --session <id>` twice against the mock and proving the same conversation/ref and prompt history are reused through the public CLI.
 4. Telemetry literal-line convention is absent from M-002/M-003 handoffs. REWORK-CAUSE: frozen-file. Recommended M-005 fix mission: backfill or formally supersede the handoff telemetry format so exact `ESTIMATE:`, `ACTUAL:`, and `REWORK-CAUSE:` lines are grep-visible, then add a lightweight check over handoffs.
 
-VERDICT: FAIL
+## M-005 re-verification (2026-06-12) — independent non-producer panel
+
+M-005 reconciles the historical M-004 FAIL defects above against the independent panel outputs and authoritative clean-clone artifacts. Ground truth did not contradict the panel: D1/D2/D3 are fixed and non-regressing; D4 is a minor process item resolved forward and is not a README product-directive blocker.
+
+| defect | severity | fix commit | re-check evidence (file:line / artifact line) | verdict |
+|---|---|---|---|---|
+| D1 — real-site acceptance runbook stale vs actual CLI/error surface | major docs/runbook drift | `0179400` | `orchestration/reports/M-005/T4b.md:51` records no stale `--profile`/`--patch-out`/`--bundle`/`apply-patch` or stale patch error tokens; `orchestration/reports/M-005/T4b.md:61` says prerequisites match the real CLI surface; `orchestration/reports/M-005/T4b.md:63` records the D1 pass conclusion. | PASS |
+| D2 — real channel could navigate before selector readiness failed closed | critical safety/spec gap | `2f0b8de` | `orchestration/reports/M-005/T4c.md:10` verifies readiness is checked before Playwright start and before `page.goto`; `orchestration/reports/M-005/T4a.md:18` quotes the targeted D2 artifact with test pass, ordering grep, and all-empty `real.json`; `orchestration/reports/M-005/T4c.md:18` records the D2 pass conclusion. | PASS |
+| D3 — UC3 CLI `--session` continuity was implemented but not accepted/tested | major spec/acceptance gap | `261a16b` | `orchestration/reports/M-005/T4c.md:24` verifies the CLI test/acceptance drives two subprocesses with the same `--session` and exact user turns; `orchestration/reports/M-005/T4a.md:16-17` quotes UC3 `session-continuity` and overall pass artifacts; `orchestration/reports/M-005/T4c.md:26` records the D3 pass conclusion. | PASS |
+| D4 — literal telemetry-line convention absent in frozen M-002/M-003 handoffs | minor process hygiene | n/a — resolved forward; historical handoffs intentionally not edited | `orchestration/tasks/M-005/T4d-synthesis.md:20-23` scopes D4 as fix-forward only, forbids claiming historical edits, and requires recording it as resolved forward; M-005 panel reports carry forward literal telemetry lines at `orchestration/reports/M-005/T4a.md:1-2`, `orchestration/reports/M-005/T4b.md:1-2`, and `orchestration/reports/M-005/T4c.md:1-2`; `orchestration/tasks/MISSION-005.md:18` keeps the manager handoff convention forward-only. | resolved forward (convention adopted in M-004/M-005 manager handoffs; historical handoffs frozen by decision) |
+
+No-regression: the authoritative clean clone is HEAD `261a16b` and contains the D1/D2/D3 fix commits (`orchestration/reports/M-005/T4a.md:8`); the full suite is `121 passed` (`orchestration/reports/M-005/T4a.md:11`); UC1, UC2, and UC3 acceptance artifacts all report `overall=pass`, including UC3 `session-continuity` (`orchestration/reports/M-005/T4a.md:12`, `orchestration/reports/M-005/T4a.md:14`, `orchestration/reports/M-005/T4a.md:16-17`).
+
+Independence: this re-verification uses a fresh non-producer panel, not T1-T3; T4a produced the authoritative evidence once, and T4b/T4c independently reasoned over those artifacts plus committed files without rerunning the heavy suite (`orchestration/reports/M-005/T4b.md:6,8`, `orchestration/reports/M-005/T4c.md:6`).
+
+VERDICT: PASS

@@ -1,0 +1,73 @@
+{
+  "mission": "MISSION-005",
+  "title": "Fix M-004 defects D1-D3 + independent re-verification -> final VERDICT",
+  "status": "DONE",
+  "status_explanation": "All three material/minor code+docs defects (D1, D2, D3) were fixed under single-editor serialized legs (TDD/RED-first for D2), then a fresh INDEPENDENT non-producer panel (T4a authoritative evidence + T4b docs lens + T4c safety+spec lens + T4d synthesis) re-verified the changed surface and re-ran a full clean-clone regression. Every defect verdict is PASS and no regression was found, so the README product directive is now satisfied: VERIFICATION.md final line is VERDICT: PASS. D4 (telemetry literal-line convention) was a process item fixed FORWARD ONLY — this handoff carries the convention; historical M-002/M-003 handoffs were intentionally NOT edited.",
+  "final_verdict": "PASS",
+  "verdict_tokens": {"VERIFICATION.md": "VERDICT: PASS", "orchestration/reports/M-005/verify.md": "M-005-VERDICT: PASS"},
+  "date": "2026-06-12",
+  "base_head_at_start": "cc02fb44ac513c92028a78ade66524a45546648f",
+  "head_after_fixes": "261a16b33e3240b4d629e72c0ae8a1fd318ff538",
+
+  "ESTIMATE": "M-005 110m",
+  "ACTUAL": "M-005 ~52m",
+  "REWORK-CAUSE": "none",
+  "telemetry_lines": [
+    "ESTIMATE: M-005 110m",
+    "ACTUAL: M-005 ~52m",
+    "REWORK-CAUSE: none (all 7 legs green on first dispatch; zero rework legs)"
+  ],
+  "telemetry_detail": {
+    "estimate_basis": "7 serialized legs (pi launches serialize on this harness). Mission nominal 75m; manager estimate 110m for serial execution; 2x flag = 150m.",
+    "actual_basis": "Derived from worker run-dir start/status timestamps (NOT pi self-reports). First leg T1 launched 2026-06-12T06:13:15; final leg T4d ended ~07:03:03; manager pre-launch reading + closeout included -> ~52m wall-clock, far under estimate and nominal.",
+    "per_leg_actual_minutes": {"T1": 7.6, "T2": 4.5, "T3": 5.9, "T4a": 6.7, "T4b": 4.1, "T4c": 3.75, "T4d": 5.0},
+    "rework_legs": 0
+  },
+
+  "rigor_protocol": "Single-editor producer legs (T1/T2/T3 serialized on the shared tree; D2 RED-first). Independent non-producer verification: fresh workers none of whom produced the code (T4a evidence runner -> authoritative output produced ONCE; T4b/T4c distinct lenses reasoned over it without re-running the heavy suite; T4d synthesis). Manager independently re-derived every load-bearing fix from ground truth (D1 stale-token grep-absent; D2 readiness-before-goto in driver.py:101-115; D3 non-vacuous --session assertions in test_cli.py) and spot-verified T4a raw artifacts (121 passed, accept overall=pass x3, session-continuity pass) before adjudicating PASS. Final verdict = ground-truth adjudication corroborated by the N=3 panel, not lens majority.",
+
+  "per_defect": {
+    "D1": {"severity": "material (env-drift)", "fix_commit": "0179400 M-005: fix D1 real-site acceptance runbook", "what": "Regenerated docs/runbooks/real-site-acceptance.md from the committed CLI/error surface: removed nonexistent --profile/--patch-out/--bundle/apply-patch; replaced wrong error names (PatchBundleMalformedError->PatchMalformedError, PatchBundleIntegrityError->BundleIntegrityError, PatchBundleTooLargeError->OversizedPayloadError, PatchPathEscapeError->PathEscapeError); preserved typed-consent gates + mock-vs-real honesty.", "verdict": "PASS", "evidence": "manager grep (stale tokens absent); T4b conformance table all tokens exist in cli.py/errors.py (orchestration/reports/M-005/T4b.md, D1-VERDICT PASS)"},
+    "D2": {"severity": "material safety (spec-gap)", "fix_commit": "2f0b8de M-005: fix D2 real channel fail-closed before navigation", "what": "driver.py start() now calls _ensure_real_selector_map_ready() for channel=real BEFORE sync_playwright().start() and any launch_persistent_context/page.goto. The helper probes required selector+attribute keys via the fail-closed SelectorMap accessors, so the all-empty real.json raises SelectorUnavailableError before any browser/navigation side effect. New RED-first network-free test tests/test_driver_real_failclosed.py proves it (asserts SelectorUnavailableError + no chatgpt.com navigation via a goto-recording fake; socket guard active). real.json unchanged (all-empty template).", "verdict": "PASS", "evidence": "manager re-read driver.py:101-115,295-299; T4a d2_demo (test green + ordering grep); T4c D2-VERDICT PASS"},
+    "D3": {"severity": "minor (spec-gap)", "fix_commit": "261a16b M-005: fix D3 CLI session continuity coverage", "what": "Added a non-vacuous CLI --session continuity test (tests/test_cli.py) isolating the registry via ASK_CHATGPT_STATE_DIR, invoking the CLI twice with the same --session and asserting exactly ONE conversation reused with both user turns (+ a contrasting different-session case). Added a registered session-continuity step to scripts/accept_uc3.py driving the installed CLI twice via subprocess with isolated state, proving the same reuse; recorded in results.json.", "verdict": "PASS", "evidence": "manager re-read test_cli.py asserts; T4a accept_uc3_results session-continuity status pass + user_turns; T4c D3-VERDICT PASS"},
+    "D4": {"severity": "minor process (frozen-file)", "fix": "forward-only", "what": "Telemetry literal-line convention (ESTIMATE:/ACTUAL:/REWORK-CAUSE:) was absent from M-002/M-003 handoffs. Per mission scope, fixed FORWARD ONLY: this handoff carries literal top-level JSON fields AND a telemetry_lines block; M-004 + M-005 manager handoffs adopt the convention; historical handoffs intentionally NOT edited (frozen-file).", "verdict": "resolved-forward (not a README product-directive blocker)"}
+  },
+
+  "what_was_verified": {
+    "automated_functional_core": "PASSES (mock/loopback only). Authoritative clean clone of HEAD 261a16b: full suite 121 passed (was 119 pre-M-005; +2 new tests for D2 and D3), EXIT 0. UC1/UC2/UC3 acceptance overall=pass; UC3 now includes a session-continuity step (status pass, user_turns = the two scripted prompts).",
+    "safety": "D2 real-channel fail-closed-before-navigation enforced + proven network-free. Spot-rechecks PASS on new HEAD: zip-slip 4-vector (patch.py/bundle.py untouched by M-005), autouse loopback-only socket guard + test_network_guard, no credential/cookie/token/profile-content reads (profile_path opaque).",
+    "clean_clone_reproducibility": "PROVEN. tmp/verify-m005/clone == main HEAD 261a16b, porcelain empty, editable install from clone src; no offline-recovery needed this mission (PyPI permitted for the clone venv per corrected network-scope wording).",
+    "real_site": "NOT verified (by design, operator-gated). The real-site runbook is now RUNNABLE as written against the real CLI/error surface (D1 fixed), but real chatgpt.com behavior remains unproven until the operator runs docs/runbooks/real-site-acceptance.md with explicit typed consent."
+  },
+
+  "artifacts": [
+    {"path": "VERIFICATION.md", "desc": "repo-root durable verdict; M-005 re-verification section (per-defect table D1/D2/D3 PASS, D4 resolved-forward, no-regression); FINAL line VERDICT: PASS", "trust": "verified-independently (manager confirmed single final verdict token + edit scope)"},
+    {"path": "orchestration/reports/M-005/verify.md", "desc": "synthesis panel-mechanics summary; ends M-005-VERDICT: PASS", "trust": "verified-independently"},
+    {"path": "orchestration/reports/M-005/T4a.md", "desc": "authoritative evidence index (clone, 121 passed, accept x3, UC3 session-continuity, D2 ordering grep, real.json empty)", "trust": "verified-independently (manager spot-checked raw tmp/verify-m005/ files)"},
+    {"path": "orchestration/reports/M-005/T4b.md", "desc": "docs lens: D1 conformance table; D1-VERDICT PASS", "trust": "verified-independently"},
+    {"path": "orchestration/reports/M-005/T4c.md", "desc": "safety+spec lens: D2/D3 + security/spec spot-rechecks; D2-VERDICT/D3-VERDICT/T4c-VERDICT PASS", "trust": "verified-independently"},
+    {"path": "orchestration/reports/M-005/T1.md|T2.md|T3.md", "desc": "producer leg reports (D1/D2/D3) with RED/GREEN + acceptance evidence", "trust": "producer-only, but each independently re-verified by manager + T4 panel"},
+    {"path": "tmp/verify-m005/", "desc": "raw authoritative evidence (clone, clone_pytest.txt, accept_uc{1,2,3}_results.json, d2_demo.txt, clone_head.txt). NOT committed (git-ignored).", "trust": "verified-independently"}
+  ],
+
+  "commits": [
+    "0179400 M-005: fix D1 real-site acceptance runbook",
+    "2f0b8de M-005: fix D2 real channel fail-closed before navigation",
+    "261a16b M-005: fix D3 CLI session continuity coverage",
+    "<closeout> M-005: close — independent re-verification panel VERDICT PASS + handoff"
+  ],
+
+  "blockers": [],
+
+  "recommended_next_missions": [
+    {"id": "operator-action", "type": "operator-gated, NOT an agent mission", "scope": "The README product directive is verified PASS against the local mock harness. The ONLY remaining proof is real-site: an operator may now run docs/runbooks/real-site-acceptance.md (now runnable as written) with explicit typed consent to exercise real chatgpt.com behavior. No agent performs this; it consumes operator quota and touches the real site.", "depends_on": "M-005 PASS"},
+    {"id": "optional-hardening", "type": "optional", "scope": "If desired, a lightweight CI/handoff-format check that greps handoffs for literal ESTIMATE:/ACTUAL:/REWORK-CAUSE: lines would make the D4 convention self-enforcing going forward. Low priority; not required for the directive."}
+  ],
+
+  "complexity_paradigm_signals": [
+    "Serial pi launches were FASTER than budgeted: each leg was 3.75-7.6m and there were zero rework legs, so wall-clock ~52m vs 110m estimate. The 110m estimate (built on the M-004 ~95m precedent) over-weighted serialization cost; future fix-then-reverify missions of this shape can budget ~60m.",
+    "Occam D2 fix held: a single readiness guard placed before sync_playwright().start() achieved fail-closed-before-navigation with zero driver redesign and no mock-path change (120->still-green). The RED-first test made the safety property executable and non-vacuous.",
+    "D3's load-bearing subtlety was registry persistence: the CLI has no --registry flag, so proving --session continuity required isolating ASK_CHATGPT_STATE_DIR (else the test pollutes ~/.local/state and is non-deterministic). Transcribing this into the contract prevented a vacuous or state-polluting test from pi.",
+    "Convergent verification: the independent N=3 panel verdict (PASS) matched the manager's own ground-truth re-derivations of all three fixes AND the authoritative clean-clone evidence — high confidence in the PASS without any producer self-certification."
+  ]
+}

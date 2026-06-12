@@ -1,0 +1,55 @@
+{
+  "mission": "MISSION-005",
+  "title": "Fix M-004 defects D1-D3 + independent re-verification -> final VERDICT",
+  "mission_status": "DONE",
+  "final_verdict": "PASS",
+  "manager_role": "headless claude -p mission manager",
+  "created": "2026-06-12",
+  "base_head_at_start": "cc02fb44ac513c92028a78ade66524a45546648f",
+  "objective": "Fix the three material/minor M-004 defects (D1 stale runbook, D2 real-channel not fail-closed before navigation, D3 --session unexercised), then run a fresh INDEPENDENT non-producer N=3 verification panel + synthesis that updates VERIFICATION.md to a final PASS/FAIL verdict. D4 (telemetry literal lines) is fixed forward in THIS manager's own handoff only.",
+  "constraints": [
+    "Automated tests + all mission work NEVER contact chatgpt.com/openai or any external network; loopback/local only. Sole exception: T4a clone venv rebuild may fetch packages from the standard Python index IF offline uv sync fails (record it).",
+    "D2 test proves fail-closed WITHOUT real navigation (fake/monkeypatched page; socket guard active). No test/script sets channel=real against real site; selector_maps/real.json stays all-empty fail-closed template.",
+    "Never read/store/log credentials, cookies, session tokens, browser-profile contents. Write ONLY inside /home/abhmul/dev/ask-chatgpt (+ tmp/). weak-simplex-conjecture is READ-ONLY (never archive/ or human/). Never write .claude/ or .agents/. Never touch shared agent venv (~/.local/share/agent-python/.venv).",
+    "uv sync --all-groups ALWAYS. Serialize pytest. Ephemeral ports. Kill only own processes. NEVER git push. ESTIMATE BEFORE EXECUTE.",
+    "T1/T2/T3 edit the shared tree -> SERIALIZE (single editor at a time). Commit per leg, prefix 'M-005:'.",
+    "T4 panel workers are FRESH and INDEPENDENT (none of T1-T3). T4a produces authoritative evidence ONCE; T4b/T4c reason over it (do NOT each re-run the heavy suite). T4d synthesizes after both.",
+    "RIGOR: producer never self-verifies; re-derive every claim from ground truth; verify shipment (durable artifact) not liveness; workers inherit nothing (contracts fully self-contained)."
+  ],
+  "ground_truth_anchors": {
+    "cli_help_captured": "ask-chatgpt flags: prompt, --prompt, --session ID, --model-settings JSON, --files PATH, --dirs PATH, --out FILE, --apply|--dry-run, --root DIR, --channel {real,mock}, --base-url URL, --profile-path PATH, --timeout SECONDS. NO subcommands; NO --profile/--patch-out/--bundle/apply-patch.",
+    "real_error_names": "errors.py: AskChatGPTError, LoginRequiredError, SessionNotFoundError, ModelUnavailableError, ResponseTruncatedError, RateLimitedError, SelectorUnavailableError, UploadUnsupportedError, DownloadUnsupportedError, PatchBundleValidationError, PatchMalformedError, BundleIntegrityError, OversizedPayloadError, PathEscapeError, PatchApplyError. NO PatchBundleMalformedError/PatchBundleIntegrityError/PatchBundleTooLargeError/PatchPathEscapeError.",
+    "d2_site": "driver.py start() lines 75-91: sync_playwright().start() (78) -> branch real -> _start_real_context() launch_persistent_context (83/275) -> page.goto(self._base_url) (90) where _base_url==REAL_BASE_URL==https://chatgpt.com (34,290). NO selector readiness check before nav. selector_map.py SelectorMap.selector() (31-32) already raises SelectorUnavailableError on empty; real.json all-empty.",
+    "d3_site": "cli.py:102 defines --session ID; cli.py:63 passes session_identifier=args.session. No test/script exercises it. Library continuity proof to mirror: tests/test_ask_chatgpt_uc1.py. accept scripts: scripts/accept_uc3.{sh,py}. Console entry: pyproject.toml [project.scripts] ask-chatgpt=ask_chatgpt.cli:main."
+  },
+  "tasks": [
+    {"id": "T1", "type": "implement (single-editor, mechanical regen)", "defect": "D1", "status": "DONE (shipment-verified: commit 0179400, runbook-only, stale tokens grep-absent; deep conformance -> T4b)", "depends_on": [], "editor": true, "file": "docs/runbooks/real-site-acceptance.md", "verify_by": "T4b"},
+    {"id": "T2", "type": "implement (single-editor, RED-first)", "defect": "D2", "status": "DONE (shipment-verified: commit 2f0b8de; start() calls _ensure_real_selector_map_ready() BEFORE sync_playwright().start()/goto; guard probes required selectors+attrs via fail-closed accessors -> empty real.json raises SelectorUnavailableError; new test_driver_real_failclosed.py; full suite 120 passed. RED->GREEN -> T4c/T4a)", "depends_on": ["T1"], "editor": true, "file": "src/ask_chatgpt/driver.py + tests/test_driver_real_failclosed.py", "verify_by": "T4c"},
+    {"id": "T3", "type": "implement (single-editor)", "defect": "D3", "status": "DONE (shipment-verified: commit 261a16b; test_cli.py +80 isolates registry via ASK_CHATGPT_STATE_DIR, 2x --session same id -> len(conversations)==1 + both user turns, contrast case len==2; accept_uc3.py _run_cli(env=) + registered session-continuity step; full suite 121 passed; accept overall=pass. -> T4c)", "depends_on": ["T2"], "editor": true, "file": "tests/test_cli.py + scripts/accept_uc3.py", "verify_by": "T4c"},
+    {"id": "T4a", "type": "verify (evidence runner, fresh clone)", "status": "DONE (shipment spot-verified: clone HEAD 261a16b; 121 passed EXIT 0; accept uc1/2/3 overall=pass; UC3 session-continuity pass; d2_demo readiness@102<goto@115; real.json all-empty. Raw in tmp/verify-m005/)", "depends_on": ["T1", "T2", "T3"], "editor": false},
+    {"id": "T4b", "type": "verify (docs lens, D1)", "status": "DONE (report substantive: D1-VERDICT PASS, T4b-VERDICT PASS, conformance table all-yes w/ cli.py lines)", "depends_on": ["T4a"], "editor": false},
+    {"id": "T4c", "type": "verify (safety+spec lens, D2+D3)", "status": "DONE (report substantive: D2-VERDICT PASS, D3-VERDICT PASS, T4c-VERDICT PASS; zip-slip/netguard/credential/3-spec spot-rechecks PASS w/ file:line)", "depends_on": ["T4a"], "editor": false},
+    {"id": "T4d", "type": "verify (synthesis -> VERIFICATION.md final verdict)", "status": "DONE (manager-adjudicated: VERIFICATION.md has ONE final VERDICT: PASS @line67 + M-005 per-defect section; verify.md M-005-VERDICT: PASS; edit scope = VERIFICATION.md + verify.md only)", "depends_on": ["T4b", "T4c"], "editor": true, "file": "VERIFICATION.md + orchestration/reports/M-005/verify.md"}
+  ],
+  "queue_next": "COMPLETE — all 7 legs DONE; handoff written; closeout commit pending in this manager turn",
+  "head_after_edits": "261a16b33e3240b4d629e72c0ae8a1fd318ff538",
+  "panel_verdicts": {"T4b_D1": "PASS", "T4c_D2": "PASS", "T4c_D3": "PASS", "D4": "resolved-forward (manager handoff convention; historical handoffs frozen)", "regression": "none (clone 121 passed; accept uc1/2/3 overall=pass)"},
+  "artifacts": [
+    {"path": "orchestration/reports/M-005/T1.md", "trust": "producer-only (T1-STATUS DONE); deep verify deferred to T4b"},
+    {"path": "docs/runbooks/real-site-acceptance.md", "trust": "shipment-verified by manager (commit 0179400 runbook-only; stale tokens grep-absent); conformance -> T4b"},
+    {"path": "orchestration/reports/M-005/T2.md", "trust": "producer-only (T2-STATUS DONE, RED+GREEN+120 passed shown); deep verify deferred to T4c/T4a"},
+    {"path": "src/ask_chatgpt/driver.py + tests/test_driver_real_failclosed.py", "trust": "shipment-verified by manager (commit 2f0b8de; guard precedes sync_playwright/goto; re-derived from code); deep verify -> T4c"},
+    {"path": "orchestration/reports/M-005/T3.md", "trust": "producer-only (T3-STATUS DONE); deep verify deferred to T4c"},
+    {"path": "tests/test_cli.py + scripts/accept_uc3.py", "trust": "shipment-verified by manager (commit 261a16b; non-vacuous continuity asserts re-derived from committed test); deep verify -> T4c"}
+  ],
+  "blockers": [],
+  "commits": ["0179400 M-005: fix D1 real-site acceptance runbook", "2f0b8de M-005: fix D2 real channel fail-closed before navigation", "261a16b M-005: fix D3 CLI session continuity coverage"],
+  "telemetry": {
+    "ESTIMATE": "M-005 110m",
+    "ESTIMATE_basis": "7 serialized legs (pi launches serialize on this harness per M-004 signal). Mission nominal 75m is optimistic for serial execution; M-004 (7-leg N=5 panel) actually ran ~95m. Flag at 2x mission nominal = 150m.",
+    "ACTUAL": "M-005 ~52m",
+    "ACTUAL_basis": "From worker run-dir timestamps (not pi self-reports): T1 launched 06:13:15, T4d ended ~07:03:03; +manager pre-launch reading & closeout ~= 52m wall-clock. Far under 110m estimate and 75m nominal.",
+    "REWORK_CAUSE": "none (all 7 legs green on first dispatch; zero rework legs)",
+    "telemetry_lines": ["ESTIMATE: M-005 110m", "ACTUAL: M-005 ~52m", "REWORK-CAUSE: none"]
+  }
+}
