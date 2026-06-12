@@ -45,6 +45,13 @@ class ResponseTruncatedError(AskChatGPTError):
     )
 
 
+class RateLimitedError(AskChatGPTError):
+    default_message = (
+        "ChatGPT reported a rate limit or backoff condition. Operator action: "
+        "wait for the indicated retry window, reduce request rate, then retry."
+    )
+
+
 class SelectorUnavailableError(AskChatGPTError):
     default_message = (
         "Required selector-map key is missing or stale. Operator action: "
@@ -75,6 +82,7 @@ __all__ = [
     "SessionNotFoundError",
     "ModelUnavailableError",
     "ResponseTruncatedError",
+    "RateLimitedError",
     "SelectorUnavailableError",
     "UploadUnsupportedError",
     "DownloadUnsupportedError",
