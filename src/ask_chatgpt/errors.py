@@ -76,6 +76,49 @@ class DownloadUnsupportedError(AskChatGPTError):
     )
 
 
+class PatchBundleValidationError(AskChatGPTError):
+    default_message = (
+        "Patch or upload bundle validation failed. Operator action: request a "
+        "fresh changed-files-only bundle, reduce payload size, or inspect the "
+        "safe detail; no local files were changed."
+    )
+
+
+class PatchMalformedError(PatchBundleValidationError):
+    default_message = (
+        "Patch bundle is malformed or is not a changed-files-only patch. "
+        "Operator action: request a fresh patch bundle; no local files were changed."
+    )
+
+
+class BundleIntegrityError(PatchBundleValidationError):
+    default_message = (
+        "Bundle transfer integrity failed. Operator action: retry transfer, "
+        "use an alternate return channel, or reduce the bundle; no local files were changed."
+    )
+
+
+class OversizedPayloadError(PatchBundleValidationError):
+    default_message = (
+        "Bundle payload exceeds a configured size/type guard. Operator action: "
+        "reduce selected files, split the patch, or raise an explicit limit; no local files were changed."
+    )
+
+
+class PathEscapeError(PatchBundleValidationError):
+    default_message = (
+        "Bundle path is unsafe or escapes the project root. Operator action: "
+        "use repo-root-relative file paths without traversal, symlinks, or special files; no local files were changed."
+    )
+
+
+class PatchApplyError(AskChatGPTError):
+    default_message = (
+        "Patch application failed after validation. Operator action: inspect "
+        "the local filesystem and transaction journal; local mutation may need recovery."
+    )
+
+
 __all__ = [
     "AskChatGPTError",
     "LoginRequiredError",
@@ -86,4 +129,10 @@ __all__ = [
     "SelectorUnavailableError",
     "UploadUnsupportedError",
     "DownloadUnsupportedError",
+    "PatchBundleValidationError",
+    "PatchMalformedError",
+    "BundleIntegrityError",
+    "OversizedPayloadError",
+    "PathEscapeError",
+    "PatchApplyError",
 ]

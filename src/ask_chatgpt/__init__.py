@@ -3,9 +3,15 @@
 from ask_chatgpt.api import ask_chatgpt
 from ask_chatgpt.errors import (
     AskChatGPTError,
+    BundleIntegrityError,
     DownloadUnsupportedError,
     LoginRequiredError,
     ModelUnavailableError,
+    OversizedPayloadError,
+    PatchApplyError,
+    PatchBundleValidationError,
+    PatchMalformedError,
+    PathEscapeError,
     RateLimitedError,
     ResponseTruncatedError,
     SelectorUnavailableError,
@@ -27,4 +33,10 @@ __all__ = [
     "SelectorUnavailableError",
     "UploadUnsupportedError",
     "DownloadUnsupportedError",
+    "PatchBundleValidationError",
+    "PatchMalformedError",
+    "BundleIntegrityError",
+    "OversizedPayloadError",
+    "PathEscapeError",
+    "PatchApplyError",
 ]
