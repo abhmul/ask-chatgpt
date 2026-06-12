@@ -63,6 +63,14 @@ def _validated_bundle_path(path: str) -> str:
     return "/".join(parts)
 
 
+def _as_path_tuple(value: list[str] | tuple[str, ...] | str | None) -> tuple[str, ...]:
+    if value in (None, ""):
+        return ()
+    if isinstance(value, str):
+        return (value,)
+    return tuple(str(item) for item in value)
+
+
 def _zip_info(path: str) -> zipfile.ZipInfo:
     info = zipfile.ZipInfo(path, date_time=_FIXED_ZIP_DATE_TIME)
     info.compress_type = zipfile.ZIP_STORED
@@ -74,22 +82,31 @@ def build_mock_patch_zip(
     changed_files: dict[str, str | bytes] | None = None,
     *,
     unchanged_files: dict[str, str | bytes] | None = None,
+    deleted_files: list[str] | tuple[str, ...] | str | None = None,
+    operations: dict[str, str] | None = None,
 ) -> tuple[bytes, dict[str, Any]]:
     """Build a deterministic synthetic patch zip and its manifest."""
     raw_changed = _DEFAULT_PATCH_FILES if changed_files is None else changed_files
     raw_unchanged = {} if unchanged_files is None else unchanged_files
+    raw_deleted = _as_path_tuple(deleted_files)
+    raw_operations = {} if operations is None else operations
     changed = [(_validated_bundle_path(path), _bundle_file_bytes(data)) for path, data in raw_changed.items()]
     unchanged = [(_validated_bundle_path(path), _bundle_file_bytes(data)) for path, data in raw_unchanged.items()]
+    deleted = [_validated_bundle_path(path) for path in raw_deleted]
     changed.sort(key=lambda item: item[0])
     unchanged.sort(key=lambda item: item[0])
-    files = [
-        {"path": path, "size": len(data), "sha256": sha256(data).hexdigest(), "status": "changed"}
-        for path, data in changed
-    ]
-    files.extend(
-        {"path": path, "size": len(data), "sha256": sha256(data).hexdigest(), "status": "unchanged"}
-        for path, data in unchanged
-    )
+    deleted.sort()
+    files: list[dict[str, Any]] = []
+    for path, data in changed:
+        entry: dict[str, Any] = {"path": path, "size": len(data), "sha256": sha256(data).hexdigest(), "status": "changed"}
+        operation = raw_operations.get(path)
+        if operation is not None:
+            entry["operation"] = str(operation)
+        files.append(entry)
+    for path, data in unchanged:
+        files.append({"path": path, "size": len(data), "sha256": sha256(data).hexdigest(), "status": "unchanged"})
+    for path in deleted:
+        files.append({"path": path, "size": 0, "sha256": None, "status": "deleted", "operation": "deleted"})
     manifest: dict[str, Any] = {
         "version": 1,
         "files": files,
@@ -104,11 +121,22 @@ def build_mock_patch_zip(
     return buffer.getvalue(), manifest
 
 
-def build_mock_fenced_patch_bundle(mode: str = "ok") -> tuple[str, bytes, dict[str, Any]]:
+def build_mock_fenced_patch_bundle(
+    mode: str = "ok",
+    *,
+    changed_files: dict[str, str | bytes] | None = None,
+    deleted_files: list[str] | tuple[str, ...] | str | None = None,
+    operations: dict[str, str] | None = None,
+) -> tuple[str, bytes, dict[str, Any]]:
     """Build the fenced base64url patch-bundle payload used by the fixture."""
     fenced_mode = _validated_fenced_mode(mode)
     unchanged_files = _DEFAULT_UNCHANGED_FILES if fenced_mode == "changed_and_unchanged" else None
-    zip_bytes, zip_manifest = build_mock_patch_zip(unchanged_files=unchanged_files)
+    zip_bytes, zip_manifest = build_mock_patch_zip(
+        changed_files=changed_files,
+        unchanged_files=unchanged_files,
+        deleted_files=deleted_files,
+        operations=operations,
+    )
     actual_zip_sha = sha256(zip_bytes).hexdigest()
     manifest = dict(zip_manifest)
     manifest["zip_byte_count"] = len(zip_bytes)
@@ -383,7 +411,7 @@ class MockChatGPTState:
                     conversation.copy_mode = _validated_copy_mode(script.extra.get("copy_mode"))
                 assistant_text = script.text
                 if "fenced_mode" in script.extra:
-                    assistant_text = _text_with_fenced_bundle(assistant_text, script.extra.get("fenced_mode"))
+                    assistant_text = _text_with_fenced_bundle(assistant_text, script.extra.get("fenced_mode"), script.extra)
                 assistant_turn = Turn(
                     "assistant",
                     assistant_text,
@@ -394,7 +422,7 @@ class MockChatGPTState:
                     stream_reads_remaining=stream_reads_remaining,
                 )
                 if "download_mode" in script.extra:
-                    self._attach_download_artifacts_unlocked(conversation, assistant_turn, script.extra.get("download_mode"))
+                    self._attach_download_artifacts_unlocked(conversation, assistant_turn, script.extra.get("download_mode"), script.extra)
 
             conversation.turns.append(assistant_turn)
             return conversation_ref
@@ -447,12 +475,16 @@ class MockChatGPTState:
                 if fenced_mode is None and index == latest_assistant_index and "fenced_mode" in payload:
                     fenced_mode = payload.get("fenced_mode")
                 if fenced_mode is not None:
-                    turn.text = _text_with_fenced_bundle(turn.text, fenced_mode)
+                    fenced_extra = turn_payload if "fenced_mode" in turn_payload else payload
+                    turn.text = _text_with_fenced_bundle(turn.text, fenced_mode, fenced_extra)
                 download_mode = turn_payload.get("download_mode") if "download_mode" in turn_payload else None
                 if download_mode is None and index == latest_assistant_index and "download_mode" in payload:
                     download_mode = payload.get("download_mode")
+                    download_extra = payload
+                else:
+                    download_extra = turn_payload
                 if download_mode is not None:
-                    self._attach_download_artifacts_unlocked(conversation, turn, download_mode)
+                    self._attach_download_artifacts_unlocked(conversation, turn, download_mode, download_extra)
             conversation.turns.append(turn)
         return conversation_ref
 
@@ -511,8 +543,15 @@ class MockChatGPTState:
             stream_reads_remaining=stream_reads_remaining,
         )
 
-    def _attach_download_artifacts_unlocked(self, conversation: Conversation, turn: Turn, mode_value: Any) -> None:
+    def _attach_download_artifacts_unlocked(
+        self,
+        conversation: Conversation,
+        turn: Turn,
+        mode_value: Any,
+        extra: dict[str, Any] | None = None,
+    ) -> None:
         mode = _validated_download_mode(mode_value)
+        patch_kwargs = _patch_kwargs_from_extra(extra)
         turn.download_mode = mode
         if mode in {"missing", "unsupported"}:
             return
@@ -522,7 +561,12 @@ class MockChatGPTState:
                     turn.download_artifact_ids = [previous.download_artifact_ids[0]]
                     return
             turn.download_artifact_ids = [
-                self._create_artifact_unlocked(source_turn_id="older-turn", mode=mode, filename="patch-bundle-older.zip")
+                self._create_artifact_unlocked(
+                    source_turn_id="older-turn",
+                    mode=mode,
+                    filename="patch-bundle-older.zip",
+                    **patch_kwargs,
+                )
             ]
             return
         if mode == "collision":
@@ -537,7 +581,7 @@ class MockChatGPTState:
                 ),
             ]
             return
-        turn.download_artifact_ids = [self._create_artifact_unlocked(source_turn_id=turn.turn_id, mode=mode)]
+        turn.download_artifact_ids = [self._create_artifact_unlocked(source_turn_id=turn.turn_id, mode=mode, **patch_kwargs)]
         if mode == "delayed":
             turn.download_delay_reads_remaining = 2
 
@@ -548,10 +592,16 @@ class MockChatGPTState:
         mode: str,
         filename: str | None = None,
         changed_files: dict[str, str | bytes] | None = None,
+        deleted_files: list[str] | tuple[str, ...] | str | None = None,
+        operations: dict[str, str] | None = None,
     ) -> str:
         self._artifact_counter += 1
         artifact_id = f"artifact-{self._artifact_counter}"
-        zip_bytes, manifest = build_mock_patch_zip(changed_files=changed_files)
+        zip_bytes, manifest = build_mock_patch_zip(
+            changed_files=changed_files,
+            deleted_files=deleted_files,
+            operations=operations,
+        )
         body = zip_bytes
         if mode == "corrupt":
             body = b"not a valid zip artifact\n"
@@ -739,8 +789,31 @@ def _validated_upload_mode(value: Any) -> str:
     return mode
 
 
-def _text_with_fenced_bundle(prefix: str, mode_value: Any) -> str:
-    fenced_text, _zip_bytes, _manifest = build_mock_fenced_patch_bundle(_validated_fenced_mode(mode_value))
+def _patch_kwargs_from_extra(extra: dict[str, Any] | None) -> dict[str, Any]:
+    if not extra:
+        return {}
+    kwargs: dict[str, Any] = {}
+    changed_files = extra.get("patch_changed_files")
+    if changed_files not in (None, ""):
+        if not isinstance(changed_files, dict):
+            raise ValueError("patch_changed_files must be an object mapping paths to text")
+        kwargs["changed_files"] = {str(path): data for path, data in changed_files.items()}
+    deleted_files = extra.get("patch_deleted_files")
+    if deleted_files not in (None, ""):
+        kwargs["deleted_files"] = _as_path_tuple(deleted_files)
+    operations = extra.get("patch_operations")
+    if operations not in (None, ""):
+        if not isinstance(operations, dict):
+            raise ValueError("patch_operations must be an object mapping paths to operations")
+        kwargs["operations"] = {str(path): str(operation) for path, operation in operations.items()}
+    return kwargs
+
+
+def _text_with_fenced_bundle(prefix: str, mode_value: Any, extra: dict[str, Any] | None = None) -> str:
+    fenced_text, _zip_bytes, _manifest = build_mock_fenced_patch_bundle(
+        _validated_fenced_mode(mode_value),
+        **_patch_kwargs_from_extra(extra),
+    )
     clean_prefix = str(prefix).rstrip()
     return fenced_text if not clean_prefix else clean_prefix + "\n\n" + fenced_text
 
