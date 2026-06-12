@@ -22,6 +22,14 @@ class LoginRequiredError(AskChatGPTError):
     )
 
 
+class ProfileLockedError(AskChatGPTError):
+    default_message = (
+        "ChatGPT browser profile appears to be in use by a running browser "
+        "(profile lock held). Operator action: close the running Chromium using "
+        "this profile, then re-run; this tool never deletes lock files or kills your browser."
+    )
+
+
 class SessionNotFoundError(AskChatGPTError):
     default_message = (
         "Stored conversation reference no longer opens a reachable ChatGPT "
@@ -122,6 +130,7 @@ class PatchApplyError(AskChatGPTError):
 __all__ = [
     "AskChatGPTError",
     "LoginRequiredError",
+    "ProfileLockedError",
     "SessionNotFoundError",
     "ModelUnavailableError",
     "ResponseTruncatedError",

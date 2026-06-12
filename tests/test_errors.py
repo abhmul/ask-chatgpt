@@ -4,6 +4,7 @@ from ask_chatgpt.errors import (
     AskChatGPTError,
     DownloadUnsupportedError,
     LoginRequiredError,
+    ProfileLockedError,
     ModelUnavailableError,
     RateLimitedError,
     ResponseTruncatedError,
@@ -16,6 +17,7 @@ from ask_chatgpt.errors import (
 ERROR_CLASSES = (
     AskChatGPTError,
     LoginRequiredError,
+    ProfileLockedError,
     SessionNotFoundError,
     ModelUnavailableError,
     RateLimitedError,

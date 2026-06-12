@@ -1,5 +1,6 @@
 """Autouse socket guard: tests may connect only to loopback or AF_UNIX."""
 import ipaddress
+import os
 import socket
 
 import pytest
@@ -8,6 +9,15 @@ from tests.fixtures.mock_chatgpt import MockChatGPTServer
 
 _ALLOWED_HOSTS = {"localhost", "127.0.0.1", "::1"}
 _GUARD_ACTIVE = False
+
+
+def pytest_collection_modifyitems(config, items):
+    if os.environ.get("ASK_CHATGPT_REAL") == "1":
+        return
+    skip_real_site = pytest.mark.skip(reason="real_site requires ASK_CHATGPT_REAL=1 (opt-in real tier, D-002)")
+    for item in items:
+        if item.get_closest_marker("real_site") is not None:
+            item.add_marker(skip_real_site)
 
 
 def _allowed(address):

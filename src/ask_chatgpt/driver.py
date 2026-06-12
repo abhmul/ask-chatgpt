@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ipaddress
+import os
 from pathlib import Path
 import time
 from typing import Any
@@ -23,11 +24,13 @@ from ask_chatgpt.errors import (
     AskChatGPTError,
     LoginRequiredError,
     ModelUnavailableError,
+    ProfileLockedError,
     RateLimitedError,
     ResponseTruncatedError,
     SelectorUnavailableError,
     SessionNotFoundError,
 )
+from ask_chatgpt.real_allowlist import install_real_allowlist
 from ask_chatgpt.selector_map import SelectorMap, load_selector_map
 
 
@@ -71,6 +74,7 @@ class BrowserSession:
         channel: str = "mock",
         base_url: str | None = None,
         profile_path: str | Path | None = None,
+        executable_path: str | Path | None = None,
         maps_dir: Path | None = None,
         grant_clipboard: bool = True,
     ) -> None:
@@ -78,12 +82,14 @@ class BrowserSession:
         self.selectors: SelectorMap = load_selector_map(channel, maps_dir=maps_dir)
         self._base_url = self._resolve_base_url(channel=channel, base_url=base_url)
         self._profile_path = Path(profile_path) if profile_path is not None else None
+        self._executable_path = Path(executable_path) if executable_path is not None else None
         self._grant_clipboard = bool(grant_clipboard)
         self._playwright: Playwright | None = None
         self._browser: Browser | None = None
         self._context: BrowserContext | None = None
         self.page: Page | None = None
         self._active_conversation_ref: str | None = None
+        self.aborted_off_domain_hosts: list[str] = []
 
     @property
     def active_conversation_ref(self) -> str | None:
@@ -100,6 +106,7 @@ class BrowserSession:
             return self
         if self.channel == "real":
             self._ensure_real_selector_map_ready()
+            self._preflight_profile_lock()
         self._playwright = sync_playwright().start()
         try:
             if self.channel == "mock":
@@ -113,6 +120,8 @@ class BrowserSession:
             page = self._new_or_existing_page()
             self.page = page
             page.goto(self._base_url, wait_until="load", timeout=_DEFAULT_NAVIGATION_TIMEOUT_MS)
+            if self.channel == "real":
+                self._raise_login_required_for_auth_redirect(page.url)
             return self
         except Exception:
             self.close()
@@ -298,15 +307,44 @@ class BrowserSession:
         for key in _REAL_REQUIRED_ATTRIBUTE_KEYS:
             self.selectors.attribute(key)
 
+    def _preflight_profile_lock(self) -> None:
+        if self._profile_path is None:
+            return
+        if os.path.lexists(self._profile_path / "SingletonLock"):
+            raise ProfileLockedError()
+
+    def _raise_login_required_for_auth_redirect(self, url: str) -> None:
+        parsed = urlparse(url)
+        host = (parsed.hostname or "").lower()
+        path = (parsed.path or "").lower()
+        if (
+            "auth.openai.com" in host
+            or "auth0" in host
+            or "accounts." in host
+            or path.startswith("/auth/login")
+            or path.startswith("/auth")
+            or path.startswith("/login")
+            or "/api/auth/" in path
+        ):
+            raise LoginRequiredError("browser redirected to a login/auth URL shape")
+
     def _start_real_context(self) -> None:
         if self._profile_path is None:
             raise AskChatGPTError("Real channel requires an opaque profile_path directory. Operator action: pass the operator-owned profile path and retry.")
         assert self._playwright is not None
         try:
-            self._context = self._playwright.chromium.launch_persistent_context(
-                user_data_dir=str(self._profile_path), headless=False, accept_downloads=True
-            )
-        except Exception:
+            launch_kwargs: dict[str, Any] = {
+                "user_data_dir": str(self._profile_path),
+                "headless": False,
+                "accept_downloads": True,
+            }
+            if self._executable_path is not None:
+                launch_kwargs["executable_path"] = str(self._executable_path)
+            self._context = self._playwright.chromium.launch_persistent_context(**launch_kwargs)
+            install_real_allowlist(self._context, on_abort=self.aborted_off_domain_hosts.append)
+        except Exception as exc:
+            if _is_profile_lock_launch_error(exc):
+                raise ProfileLockedError("browser launch reported an existing profile lock") from exc
             raise AskChatGPTError(
                 "Real browser launch failed. Operator action: check the opaque profile directory and browser availability, then retry."
             ) from None
@@ -414,6 +452,15 @@ class BrowserSession:
         except PlaywrightTimeoutError:
             if not ignore_timeout:
                 raise AskChatGPTError("Browser load did not finish before timeout. Operator action: inspect the UI and retry.") from None
+
+
+def _is_profile_lock_launch_error(exc: BaseException) -> bool:
+    message = str(exc).lower()
+    return (
+        "singleton" in message
+        or "already in use" in message
+        or ("profile" in message and "lock" in message)
+    )
 
 
 def _is_loopback_http_url(url: str) -> bool:
