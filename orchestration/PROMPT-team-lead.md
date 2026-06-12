@@ -1,0 +1,7 @@
+# Operator prompt for the new team-lead session (run `claude` in /home/abhmul/dev/ask-chatgpt, then paste as /team-lead arguments)
+
+See the specification in @README.md . Build it for me and fully verify that it works: (1) `ask_chatgpt(prompt, session_identifier, model_settings...) -> text` against chatgpt.com, (2) local file read-write via zip bundles out / patch bundles back as specified, (3) a CLI entry point.
+
+Before anything else, read `orchestration/handoffs/SEED-from-control-plane.md` — it carries the read-only archive pointers (the predecessor control-plane system and its verified browser-automation layer), environment gotchas, safety rules, and the one design decision you must make deliberately and record FIRST: how responses/files come back from the chat UI, against the archive's Level B no-DOM-extraction rationale.
+
+Operating constraints: be token-efficient — delegate token-heavy low-level work to pi (GPT 5.5 xhigh) workers as focused, self-contained, single-problem contracts (pi errs on broad problems); use Sonnet ops-runners with long-blocking watches for mechanical launch/monitoring; keep your own context lean; have every worker and orchestrator estimate wall-clock before executing major commands or tests. Adopt the telemetry conventions in the charter (ESTIMATE/ACTUAL machine-readable lines, end timestamps, REWORK-CAUSE codes) from day one. Automated tests must never contact chatgpt.com; real-site proof is operator-gated runbook work I will run myself. Never git push — I push.

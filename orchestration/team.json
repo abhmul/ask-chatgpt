@@ -1,0 +1,21 @@
+{
+  "name": "ask-chatgpt",
+  "status": "active",
+  "worktree": "/home/abhmul/dev/ask-chatgpt",
+  "branch": "main",
+  "owns": ["<this entire repo>: src/ (or package dir), tests/, scripts/, docs/, orchestration/, tmp/, README.md, pyproject.toml"],
+  "role_file": "orchestration/roles/manager-role.md",
+  "mesh_path": "/home/abhmul/dev/wsc-mesh",
+  "peers": ["control-plane (dormant — read-only archive at /home/abhmul/Documents/weak-simplex-conjecture)"],
+  "ledger": {
+    "resume": "orchestration/RESUME-team-lead.json",
+    "state": "orchestration/state/lead.state.json"
+  },
+  "ground_truth": "README.md spec acceptance executed green end-to-end via reproducible commands (uv run pytest + scripted acceptance against the local mock-ChatGPT fixture), verified from inspected command output and produced artifacts — never from log claims or exit codes alone; real-chatgpt.com halves are operator-run from runbooks",
+  "shared_resources": {
+    "chatgpt_account_and_quota": "operator-owned; ZERO automated consumption by tests — all real chatgpt.com interaction is operator-consented and operator-gated",
+    "max_concurrent_pi_workers": 3,
+    "shared_agent_venv": "~/.local/share/agent-python/.venv is READ-ONLY infra; this repo's deps live in its own uv project",
+    "archive_read_only": "/home/abhmul/Documents/weak-simplex-conjecture — NEVER write; read control-plane/ + orchestration/ for prior art"
+  }
+}

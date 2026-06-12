@@ -1,0 +1,25 @@
+tmp/
+.scratch/
+
+# Agent-harness runtime and tooling (.claude/ and .agents/ are deployed skill
+# copies whose source of truth is the agent-vault; the others are detached
+# agent-session run dirs)
+.agents/
+.claude/
+.claude-orchestrators/
+.pi-workers/
+
+# Python
+__pycache__/
+*.py[codz]
+*.egg-info/
+.venv
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+build/
+dist/
+
+# Env
+.env
+.envrc

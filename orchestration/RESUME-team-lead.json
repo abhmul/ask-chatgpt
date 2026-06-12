@@ -1,0 +1,18 @@
+{
+  "handoff_type": "team-lead-resume",
+  "as_of": "2026-06-11 (spawn; no missions run)",
+  "team": "ask-chatgpt",
+  "branch": "main",
+  "note": "Resume protocol: read THIS, then orchestration/team.json (identity), then state/lead.state.json (current ledger), then orchestration/handoffs/SEED-from-control-plane.md (pre-loaded predecessor context), then README.md (the product spec). Re-verify every live claim from ground truth (git log, tmux ls, run dirs) before building on it.",
+  "OBJECTIVE": "NOT STARTED: build + fully verify the ask_chatgpt tool (README.md spec: function -> text, zip-bundle file read-write with patch-bundle returns, CLI). Every directive ends with independent non-producer verification per agent-rigor.md.",
+  "first_actions": [
+    "Read SEED handoff + spec; internalize charter (orchestration/roles/manager-role.md) and safety rules.",
+    "Make/record DESIGN DECISION #1 (response extraction posture vs archive Level B rationale) via a design mission before any implementation slice.",
+    "Author MISSION-001 contract in orchestration/tasks/; dispatch via pi workers + Sonnet ops-runner pattern (see SEED §apparatus)."
+  ],
+  "launchers": {
+    "pi_worker": ".claude/skills/orchestration/references/pi-worker-watch.sh (max 3 concurrent; long-blocking --wait-seconds watches only)",
+    "claude_manager_optional": "orchestration/bin/claude-orchestrator-watch.sh"
+  },
+  "archive_read_only": "/home/abhmul/Documents/weak-simplex-conjecture (control-plane/ + orchestration/) — prior art only; never write; never read its archive/ or human/"
+}

@@ -1,0 +1,9 @@
+{
+  "team_lead": "claude (interactive)",
+  "updated": "2026-06-11 — TEAM SPAWNED by predecessor control-plane team lead. No missions run yet. Incoming directive recorded below; first lead actions: read orchestration/handoffs/SEED-from-control-plane.md + README.md (the spec), then author M-001.",
+  "incoming_directive": "Build and fully verify the ask-chatgpt tool per README.md: (1) ask_chatgpt(prompt, session_identifier, model_settings...) -> text against chatgpt.com; (2) local-filesystem read-write via zip bundles out (files/dirs + catalogue README) and patch bundles back (changed files only); (3) CLI entry point. Design decision #1 (response extraction vs predecessor's Level B no-DOM rule) must be made deliberately and recorded before implementation. Mock-ChatGPT acceptance automated; real-site proof operator-gated.",
+  "mission_queue": [],
+  "findings_from_operator_use": [],
+  "operator_action_items": [],
+  "notes": "Telemetry conventions (ESTIMATE/ACTUAL lines, end timestamps, REWORK-CAUSE codes, profile_extract at mission close) are charter requirements from day one. Worker economics: pi (GPT 5.5) for token-heavy slices, Sonnet ops-runners for watch, lead context lean."
+}
