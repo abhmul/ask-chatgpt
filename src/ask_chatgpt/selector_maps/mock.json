@@ -10,10 +10,16 @@
     "send_button": "[data-testid=\"mock-send-button\"]",
     "model_menu": "[data-testid=\"mock-model-menu\"]",
     "model_option": "[data-testid=\"mock-model-option\"]",
+    "model_option_disabled": "[data-testid=\"mock-model-option\"][data-disabled=\"true\"]",
     "assistant_message": "[data-message-author-role=\"assistant\"]",
-    "message_body": "[data-testid=\"mock-message-body\"]",
+    "message_body": "[data-testid=\"mock-message-body\"], [data-testid=\"mock-message-content\"]",
     "streaming_marker": "[data-testid=\"assistant-streaming\"]",
-    "completion_marker": "[data-testid=\"assistant-turn-complete\"]"
+    "completion_marker": "[data-testid=\"assistant-turn-complete\"]",
+    "copy_button": "[data-testid=\"mock-copy-button\"]",
+    "login_wall": "[data-testid=\"login-wall\"]",
+    "conversation_not_found": "[data-testid=\"conversation-not-found\"]",
+    "truncation_marker": "[data-testid=\"assistant-truncated\"]",
+    "rate_limit_marker": "[data-testid=\"rate-limit\"]"
   },
   "attributes": {
     "conversation_ref": "data-conversation-ref",
