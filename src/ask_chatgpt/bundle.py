@@ -344,7 +344,7 @@ def upload_bundle(
         )
     if status == "rejected":
         detail = f"reason={reason or 'file size/type rejected by UI'}; upload basename={upload_name}"
-        raise OversizedPayloadError(detail)
+        raise UploadUnsupportedError(detail)
     if status == "corrupt":
         detail = f"upload SHA-256 mismatch for upload basename={upload_name}; expected_sha256={expected_sha}"
         raise BundleIntegrityError(detail)
@@ -404,7 +404,17 @@ def _select_regular_files(root_real: Path, files: tuple[Pathish, ...], dirs: tup
     return dict(sorted(selected.items()))
 
 
-def _validate_input_path(value: Pathish) -> str:
+def validate_posix_relative_path(
+    value: Pathish,
+    *,
+    reserved_paths: Iterable[str] = (),
+    reserved_prefixes: Iterable[str] = (),
+) -> str:
+    """Validate and normalize one repo-root-relative POSIX path.
+
+    This is the single lexical path-safety helper shared by outgoing bundles and incoming patch bundles. It intentionally performs only lexical checks; callers that touch the filesystem must additionally enforce realpath containment and no-follow symlink rules for their root.
+    """
+
     try:
         raw = os.fspath(value)
     except TypeError as exc:
@@ -419,20 +429,29 @@ def _validate_input_path(value: Pathish) -> str:
     if "\\" in text:
         raise PathEscapeError("backslashes are rejected in bundle paths")
     if Path(text).is_absolute() or PureWindowsPath(text).drive:
-        raise PathEscapeError("absolute paths and drive-letter paths are rejected")
+        raise PathEscapeError("absolute paths and drive/UNC paths are rejected")
     parts = text.split("/")
     if any(part == "" or part == "." for part in parts):
         raise PathEscapeError("empty or '.' path segments are rejected")
     if any(part == ".." for part in parts):
         raise PathEscapeError("path traversal '..' is rejected")
-    return "/".join(parts)
+    normalized = "/".join(parts)
+    reserved_path_set = {str(path) for path in reserved_paths}
+    if normalized in reserved_path_set:
+        raise PathEscapeError(f"reserved metadata path collision: {normalized}")
+    for prefix in reserved_prefixes:
+        clean_prefix = str(prefix).rstrip("/")
+        if normalized == clean_prefix or normalized.startswith(clean_prefix + "/"):
+            raise PathEscapeError(f"reserved metadata path collision: {normalized}")
+    return normalized
+
+
+def _validate_input_path(value: Pathish) -> str:
+    return validate_posix_relative_path(value)
 
 
 def _validate_archive_path(rel: str) -> str:
-    text = str(rel)
-    if text == ASK_CHATGPT_BUNDLE_README:
-        raise PathEscapeError(f"reserved metadata path collision: {ASK_CHATGPT_BUNDLE_README}")
-    return _validate_input_path(text)
+    return validate_posix_relative_path(rel, reserved_paths=(ASK_CHATGPT_BUNDLE_README,))
 
 
 def _resolve_existing_under_root(root_real: Path, rel: str) -> tuple[Path, int]:
@@ -655,4 +674,5 @@ __all__ = [
     "generate_catalogue_readme",
     "generate_prompt_instructions",
     "upload_bundle",
+    "validate_posix_relative_path",
 ]

@@ -1,6 +1,7 @@
 """ask-chatgpt: programmatic interaction with ChatGPT.com."""
 
 from ask_chatgpt.api import ask_chatgpt
+from ask_chatgpt.patch import DiffSummary, FileDiff, PatchBundle, apply_patch
 from ask_chatgpt.errors import (
     AskChatGPTError,
     BundleIntegrityError,
@@ -24,6 +25,10 @@ __version__ = "0.0.1"
 __all__ = [
     "__version__",
     "ask_chatgpt",
+    "PatchBundle",
+    "apply_patch",
+    "DiffSummary",
+    "FileDiff",
     "AskChatGPTError",
     "LoginRequiredError",
     "SessionNotFoundError",

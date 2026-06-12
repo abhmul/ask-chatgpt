@@ -151,7 +151,7 @@ def test_upload_happy_path_records_bundle_metadata(mock_chatgpt, tmp_path):
     ("mode", "expected_error"),
     [
         ("unsupported", UploadUnsupportedError),
-        ("reject_size_type", OversizedPayloadError),
+        ("reject_size_type", UploadUnsupportedError),
         ("corrupt", BundleIntegrityError),
     ],
 )
@@ -170,3 +170,10 @@ def test_upload_failures_map_to_named_errors(mock_chatgpt, tmp_path, mode, expec
 
     if mode != "unsupported":
         assert mock_chatgpt.inspect()["last_upload"]["status"] in {"rejected", "corrupt"}
+
+
+def test_upload_local_preflight_cap_rejects_before_ui_interaction():
+    caps = UploadBundleCaps(max_file_bytes=10, max_total_file_bytes=10, max_zip_bytes=1, max_file_count=10)
+
+    with pytest.raises(OversizedPayloadError, match="UPLOAD_BUNDLE_MAX_ZIP_BYTES"):
+        upload_bundle(object(), b"oversized", caps=caps)

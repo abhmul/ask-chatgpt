@@ -250,7 +250,7 @@ class BrowserSession:
             raise AskChatGPTError("Mock channel base_url must be loopback. Operator action: pass the loopback mock fixture URL and retry.")
         assert self._playwright is not None
         self._browser = self._playwright.chromium.launch(headless=True)
-        self._context = self._browser.new_context()
+        self._context = self._browser.new_context(accept_downloads=True)
         self._install_mock_route_guard()
         if self._grant_clipboard:
             self._context.grant_permissions(["clipboard-read", "clipboard-write"], origin=self._base_url)
@@ -273,7 +273,7 @@ class BrowserSession:
         assert self._playwright is not None
         try:
             self._context = self._playwright.chromium.launch_persistent_context(
-                user_data_dir=str(self._profile_path), headless=False
+                user_data_dir=str(self._profile_path), headless=False, accept_downloads=True
             )
         except Exception:
             raise AskChatGPTError(
