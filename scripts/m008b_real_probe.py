@@ -14,6 +14,7 @@ import json
 from pathlib import Path
 import re
 import sys
+import tempfile
 import time
 from typing import Any
 from urllib.parse import urlparse
@@ -26,6 +27,7 @@ for path in (SRC, ROOT):
 
 from playwright.sync_api import Error as PlaywrightError  # noqa: E402
 
+from ask_chatgpt.bundle import build_bundle, generate_prompt_instructions  # noqa: E402
 from ask_chatgpt.driver import BrowserSession  # noqa: E402
 from ask_chatgpt.errors import (  # noqa: E402
     AskChatGPTError,
@@ -67,8 +69,20 @@ T2_OBSERVATIONS = REPORT_DIR / "T2-completion-observations.json"
 T5_TEMP_RECALL = REPORT_DIR / "T5-temp-recall.txt"
 T5_TEMP_CONTROL = REPORT_DIR / "T5-temp-control.txt"
 T5_TEMP_CONTINUITY = REPORT_DIR / "T5-temp-continuity.json"
+T4_DOWNLOAD_DISCOVERY = REPORT_DIR / "T4-download-discovery.json"
+
+DOWNLOAD_DISCOVERY_USER_TASK = "In example.txt, change favorite_color from red to blue."
+DOWNLOAD_DISCOVERY_EXAMPLE = 'favorite_color = "red"\n'
 
 REDACT_C_RE = re.compile(r"/c/[^/?#\s]+")
+URLISH_RE = re.compile(r"\b(?:https?|blob|sandbox):[^\s<>)\"']+", re.IGNORECASE)
+SECRET_PARAM_RE = re.compile(
+    r"\b(access_token|token|sig|signature|x-amz-signature|key|jwt|session|cookie)=[^&\s)\"']+",
+    re.IGNORECASE,
+)
+BASE64_TOKEN_RE = re.compile(r"(?<![A-Za-z0-9+/=])(?:[A-Za-z0-9+/]{160,}={0,2})(?![A-Za-z0-9+/=])")
+BASE64_LINE_RE = re.compile(r"[A-Za-z0-9+/]{40,}={0,2}")
+FENCED_BLOCK_RE = re.compile(r"```(?:[^\n`]*)\n(.*?)```", re.DOTALL)
 AUDIT_DATA_ROW_RE = re.compile(r"^\|\s*\d+\s*\|")
 AUDIT_HEADER = """# M-008b — Real-site per-message audit log (transparency, not rationing)
 
@@ -119,7 +133,7 @@ def _redact_jsonable(value: Any) -> Any:
 
 
 def _emit(message: str) -> None:
-    print(redact(message), flush=True)
+    print(_redact_urlish_text(message), flush=True)
 
 
 def _human_label(exc: BaseException) -> str:
@@ -134,7 +148,7 @@ def _emit_human_action_needed(exc_or_label: BaseException | str) -> None:
 
 
 def _md_cell(value: object) -> str:
-    text = redact("n/a" if value is None else value)
+    text = _redact_urlish_text("n/a" if value is None else value)
     return text.replace("\r", " ").replace("\n", "\\n").replace("|", "\\|")
 
 
@@ -219,6 +233,177 @@ def recheck_safe(session: BrowserSession) -> bool:
 def _redacted_path_shape(url: str) -> str:
     path = urlparse(str(url)).path or "/"
     return redact(path)
+
+
+def _first_path_segment(path: str) -> str:
+    clean = str(path or "").split("?", 1)[0].split("#", 1)[0]
+    for segment in clean.split("/"):
+        if segment:
+            return segment[:80]
+    return ""
+
+
+def _href_public_shape(value: object) -> str | None:
+    text = redact(value).strip()
+    if not text:
+        return None
+    parsed = urlparse(text)
+    scheme = parsed.scheme.lower()
+    if not scheme:
+        if text.startswith("/"):
+            first = _first_path_segment(text)
+            return f"relative:/{first}" if first else "relative:/"
+        return None
+    if scheme == "blob":
+        return "blob:"
+    if scheme == "sandbox":
+        first = _first_path_segment(parsed.path)
+        return f"sandbox:/{first}" if first else "sandbox:"
+    first = _first_path_segment(parsed.path)
+    if scheme in {"http", "https"}:
+        return f"{scheme}:/{first}" if first else f"{scheme}:/"
+    return f"{scheme}:/{first}" if first else f"{scheme}:"
+
+
+def _redact_urlish_text(value: object, *, limit: int | None = None) -> str:
+    text = redact(value)
+    text = URLISH_RE.sub(lambda match: _href_public_shape(match.group(0)) or "<url>", text)
+    text = SECRET_PARAM_RE.sub(lambda match: match.group(0).split("=", 1)[0] + "=<redacted>", text)
+    if limit is not None and len(text) > limit:
+        return text[:limit]
+    return text
+
+
+_DOWNLOAD_DISCOVERY_EVALUATE_JS = r"""
+(arg) => {
+  const assistantSelector = arg && arg.assistantSelector;
+  const found = new Map();
+
+  function firstPathSegment(pathname) {
+    const pieces = String(pathname || '').split(/[?#]/, 1)[0].split('/').filter(Boolean);
+    return pieces.length ? pieces[0].slice(0, 80) : '';
+  }
+
+  function hrefShape(raw) {
+    if (!raw) return null;
+    try {
+      const url = new URL(String(raw), window.location.href);
+      const scheme = url.protocol.replace(/:$/, '').toLowerCase();
+      if (!scheme) return null;
+      if (scheme === 'blob') return 'blob:';
+      if (scheme === 'sandbox') {
+        const first = firstPathSegment(url.pathname);
+        return first ? `sandbox:/${first}` : 'sandbox:';
+      }
+      const first = firstPathSegment(url.pathname);
+      if (scheme === 'http' || scheme === 'https') return first ? `${scheme}:/${first}` : `${scheme}:/`;
+      return first ? `${scheme}:/${first}` : `${scheme}:`;
+    } catch (_error) {
+      const text = String(raw);
+      if (text.startsWith('/')) {
+        const first = firstPathSegment(text);
+        return first ? `relative:/${first}` : 'relative:/';
+      }
+      return null;
+    }
+  }
+
+  function safeText(value) {
+    let text = String(value || '').replace(/\s+/g, ' ').trim();
+    text = text.replace(/\b(?:https?|blob|sandbox):[^\s<>)"']+/gi, (match) => hrefShape(match) || '<url>');
+    text = text.replace(/\b(access_token|token|sig|signature|x-amz-signature|key|jwt|session|cookie)=[^&\s)"']+/gi, (match) => `${match.split('=')[0]}=<redacted>`);
+    return text.length > 80 ? `${text.slice(0, 77)}...` : text;
+  }
+
+  function selectorGuess(element) {
+    const tag = String(element.tagName || '').toLowerCase() || 'element';
+    const dataTestId = element.getAttribute('data-testid');
+    if (dataTestId) return `[data-testid=${JSON.stringify(safeText(dataTestId))}]`;
+    const aria = element.getAttribute('aria-label') || element.getAttribute('title');
+    if (aria) return `${tag}[aria-label=${JSON.stringify(safeText(aria))}]`;
+    const role = element.getAttribute('role');
+    const text = safeText(element.innerText || element.textContent || '');
+    if (role && text) return `[role=${JSON.stringify(safeText(role))}]:has-text(${JSON.stringify(text)})`;
+    if (role) return `[role=${JSON.stringify(safeText(role))}]`;
+    if (/download/i.test(text)) return `${tag}:has-text(${JSON.stringify(text)})`;
+    const className = typeof element.className === 'string' ? element.className : '';
+    if (/download/i.test(className)) return `${tag}[class*="download" i]`;
+    return tag;
+  }
+
+  function candidateHref(element) {
+    if (element instanceof HTMLAnchorElement && element.href) return element.href;
+    const anchor = element.querySelector && element.querySelector('a[href]');
+    return anchor ? anchor.href : null;
+  }
+
+  function add(element, scope, reason) {
+    if (!element || !(element instanceof Element)) return;
+    if (element.matches('input[type="file"]')) return;
+    let meta = found.get(element);
+    if (!meta) {
+      meta = {scopes: new Set(), reasons: new Set()};
+      found.set(element, meta);
+    }
+    meta.scopes.add(scope);
+    meta.reasons.add(reason);
+  }
+
+  function query(root, scope, selector, reason) {
+    try {
+      root.querySelectorAll(selector).forEach((element) => add(element, scope, reason));
+    } catch (_error) {
+      // Ignore selector support drift; discovery is best-effort and read-only.
+    }
+  }
+
+  const specs = [
+    ['a[download]', 'a_download'],
+    ['a[href^="blob:"]', 'blob_href'],
+    ['a[href^="sandbox:"]', 'sandbox_href'],
+    ['a[href*="/backend-api/"][href*="download"]', 'backend_api_download_href'],
+    ['a[href*="files"]', 'files_href'],
+    ['[data-testid*="file" i]', 'file_data_testid'],
+    ['[class*="download" i]', 'download_class'],
+  ];
+
+  let latestAssistant = null;
+  if (assistantSelector) {
+    try {
+      const turns = document.querySelectorAll(assistantSelector);
+      latestAssistant = turns.length ? turns[turns.length - 1] : null;
+    } catch (_error) {
+      latestAssistant = null;
+    }
+  }
+
+  for (const [selector, reason] of specs) {
+    query(document, 'page', selector, reason);
+    if (latestAssistant) query(latestAssistant, 'latest_assistant', selector, reason);
+  }
+
+  function queryDownloadText(root, scope) {
+    try {
+      root.querySelectorAll('a, button, [role="button"], [role="link"]').forEach((element) => {
+        const text = safeText(element.innerText || element.textContent || element.getAttribute('aria-label') || '');
+        if (/download/i.test(text)) add(element, scope, 'download_text');
+      });
+    } catch (_error) {
+      // Ignore transient DOM churn.
+    }
+  }
+  queryDownloadText(document, 'page');
+  if (latestAssistant) queryDownloadText(latestAssistant, 'latest_assistant');
+
+  return Array.from(found.entries()).slice(0, 100).map(([element, meta]) => ({
+    tagName: String(element.tagName || '').toUpperCase(),
+    selector_guess: selectorGuess(element),
+    href_shape: hrefShape(candidateHref(element)),
+    scope: Array.from(meta.scopes).sort().join('+'),
+    reasons: Array.from(meta.reasons).sort(),
+  }));
+}
+"""
 
 
 def _round_s(value: float | None) -> float | None:
@@ -654,6 +839,213 @@ def _write_redacted_text(path: Path, text: str) -> None:
     path.write_text(redact(text).rstrip("\n") + "\n", encoding="utf-8")
 
 
+def _build_download_discovery_bundle(temp_root: Path) -> tuple[Path, str, int, str]:
+    project_root = temp_root / "tiny-project"
+    project_root.mkdir(parents=True, exist_ok=False)
+    (project_root / "example.txt").write_text(DOWNLOAD_DISCOVERY_EXAMPLE, encoding="utf-8")
+    bundle = build_bundle(files=("example.txt",), root=project_root)
+    zip_path = temp_root / bundle.filename
+    zip_path.write_bytes(bundle.content)
+    prompt = generate_prompt_instructions(DOWNLOAD_DISCOVERY_USER_TASK, bundle_filename=bundle.filename)
+    return zip_path, bundle.filename, bundle.byte_count, prompt
+
+
+def _upload_bundle_zip_path(session: BrowserSession, zip_path: Path) -> str:
+    page = session.page
+    if page is None:
+        raise AskChatGPTError("browser page is unavailable during upload")
+    selector = session.selectors.selector("upload_input")
+    try:
+        upload_input = page.locator(selector)
+        if upload_input.count() < 1:
+            raise AskChatGPTError(f"upload input absent; upload basename={zip_path.name}")
+        upload_input.first.set_input_files(str(zip_path), timeout=90000)
+    except AskChatGPTError:
+        raise
+    except PlaywrightError as exc:
+        raise AskChatGPTError(f"upload input rejected file; upload basename={zip_path.name}") from exc
+    return selector
+
+
+def _sanitize_download_candidates(raw_candidates: Any) -> list[dict[str, object]]:
+    if not isinstance(raw_candidates, list):
+        return []
+    sanitized: list[dict[str, object]] = []
+    seen: set[str] = set()
+    for item in raw_candidates[:100]:
+        if not isinstance(item, dict):
+            continue
+        raw_reasons = item.get("reasons", [])
+        if isinstance(raw_reasons, list):
+            reasons = sorted({_redact_urlish_text(reason, limit=80) for reason in raw_reasons if reason is not None})
+        elif raw_reasons is None:
+            reasons = []
+        else:
+            reasons = [_redact_urlish_text(raw_reasons, limit=80)]
+        candidate: dict[str, object] = {
+            "tagName": _redact_urlish_text(item.get("tagName", ""), limit=40),
+            "selector_guess": _redact_urlish_text(item.get("selector_guess", ""), limit=180),
+            "href_shape": _href_public_shape(item.get("href_shape")),
+            "scope": _redact_urlish_text(item.get("scope", ""), limit=80),
+            "reasons": reasons[:8],
+        }
+        key = json.dumps(candidate, sort_keys=True)
+        if key in seen:
+            continue
+        seen.add(key)
+        sanitized.append(candidate)
+    return sanitized
+
+
+def _inspect_download_affordances(session: BrowserSession) -> list[dict[str, object]]:
+    page = session.page
+    if page is None:
+        raise AskChatGPTError("browser page is unavailable during download discovery")
+    assistant_selector = session.selectors.selector("assistant_message")
+    raw_candidates = page.evaluate(_DOWNLOAD_DISCOVERY_EVALUATE_JS, {"assistantSelector": assistant_selector})
+    return _sanitize_download_candidates(raw_candidates)
+
+
+def _candidate_indicates_download_affordance(candidate: dict[str, object]) -> bool:
+    raw_reasons = candidate.get("reasons", [])
+    reasons = set(raw_reasons if isinstance(raw_reasons, list) else [])
+    href_shape = candidate.get("href_shape")
+    if isinstance(href_shape, str) and href_shape:
+        return True
+    if reasons.intersection({"a_download", "blob_href", "sandbox_href", "backend_api_download_href", "files_href"}):
+        return True
+    selector_guess = str(candidate.get("selector_guess", "")).lower()
+    if "download_text" in reasons or "download_class" in reasons or "download" in selector_guess:
+        return True
+    scope = str(candidate.get("scope", ""))
+    return "latest_assistant" in scope and "file_data_testid" in reasons
+
+
+def _has_base64_lines(text: str) -> bool:
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    matching = [line for line in lines if BASE64_LINE_RE.fullmatch(line)]
+    return len(matching) >= 2 and sum(len(line) for line in matching) >= 160
+
+
+def _looks_like_base64_text(text: str) -> bool:
+    if BASE64_TOKEN_RE.search(text):
+        return True
+    if _has_base64_lines(text):
+        return True
+    return any(_has_base64_lines(block) for block in FENCED_BLOCK_RE.findall(text))
+
+
+def _classify_download_discovery_response(*, download_affordance_found: bool, response_text: str) -> str:
+    if download_affordance_found:
+        return "file_link"
+    if _looks_like_base64_text(response_text):
+        return "base64_text"
+    return "prose_only"
+
+
+def _write_download_discovery_report(payload: dict[str, object]) -> None:
+    REPORT_DIR.mkdir(parents=True, exist_ok=True)
+    text = json.dumps(_redact_jsonable(payload), indent=2, sort_keys=True)
+    T4_DOWNLOAD_DISCOVERY.write_text(redact(text) + "\n", encoding="utf-8")
+
+
+def run_download_discovery(_args: argparse.Namespace) -> int:
+    session: BrowserSession | None = None
+    close_on_exit = True
+    try:
+        with tempfile.TemporaryDirectory(prefix="m008b-download-discovery-") as tmp_text:
+            zip_path, bundle_filename, bundle_size, prompt = _build_download_discovery_bundle(Path(tmp_text))
+            session = connect()
+            try:
+                session.open_or_create_conversation(None)
+            except HUMAN_ERRORS as exc:
+                close_on_exit = False
+                _emit_human_action_needed(exc)
+                return 5
+            if not recheck_safe(session):
+                close_on_exit = False
+                return 5
+
+            _upload_bundle_zip_path(session, zip_path)
+            audit(
+                {
+                    "leg": "T4-download-discovery",
+                    "action": "upload-bundle",
+                    "prompt-label": "tiny-one-file-bundle",
+                    "observation": f"uploaded basename={bundle_filename},bytes={bundle_size}",
+                    "markers": "n/a",
+                    "result": "OK",
+                }
+            )
+            time.sleep(HUMAN_PACE_S)
+            if not recheck_safe(session):
+                close_on_exit = False
+                return 5
+
+            _send_prompt_or_human_stop(session, prompt)
+            audit(
+                {
+                    "leg": "T4-download-discovery",
+                    "action": "send-rewritten-bundle-prompt",
+                    "prompt-label": "download-discovery-task",
+                    "observation": f"sent; prompt_chars={len(prompt)}; bundle={bundle_filename}",
+                    "markers": "n/a",
+                    "result": "OK",
+                }
+            )
+            _wait_for_completion_or_human_stop(session)
+            if not recheck_safe(session):
+                close_on_exit = False
+                return 5
+
+            response_text = _latest_assistant_text(session)
+            candidates = _inspect_download_affordances(session)
+            download_affordance_found = any(_candidate_indicates_download_affordance(candidate) for candidate in candidates)
+            response_kind = _classify_download_discovery_response(
+                download_affordance_found=download_affordance_found,
+                response_text=response_text,
+            )
+            payload: dict[str, object] = {
+                "download_affordance_found": download_affordance_found,
+                "candidates": candidates,
+                "response_kind": response_kind,
+                "response_excerpt": _redact_urlish_text(response_text, limit=400),
+            }
+            _write_download_discovery_report(payload)
+            audit(
+                {
+                    "leg": "T4-download-discovery",
+                    "action": "summary",
+                    "prompt-label": "download-discovery-task",
+                    "observation": (
+                        f"found={download_affordance_found},kind={response_kind},"
+                        f"candidates={len(candidates)},response_chars={len(response_text)}"
+                    ),
+                    "markers": "n/a",
+                    "result": "OK",
+                }
+            )
+            _emit(
+                "DOWNLOAD-DISCOVERY: "
+                f"found={download_affordance_found} kind={response_kind} candidates={len(candidates)}"
+            )
+            return 0
+    except SystemExit as exc:
+        if exc.code == 4:
+            return 5
+        raise
+    except HumanActionStop as exc:
+        close_on_exit = False
+        _emit_human_action_needed(exc.label)
+        return 5
+    except Exception as exc:  # noqa: BLE001 - top-level CLI must fail closed and surface safe detail.
+        _emit(f"ERROR: {exc.__class__.__name__}: {exc}")
+        return 1
+    finally:
+        if session is not None and close_on_exit:
+            session.close()
+
+
 def run_continuity_temp(_args: argparse.Namespace) -> int:
     session_a: BrowserSession | None = None
     session_b: BrowserSession | None = None
@@ -815,6 +1207,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="plant and recall a nonce in one Temporary Chat, with a fresh Temporary Chat control",
     )
     continuity_temp.set_defaults(func=run_continuity_temp)
+
+    download_discovery = subparsers.add_parser(
+        "download-discovery",
+        help="upload a tiny bundle and discover whether the real surface exposes a download affordance",
+    )
+    download_discovery.set_defaults(func=run_download_discovery)
     return parser
 
 
