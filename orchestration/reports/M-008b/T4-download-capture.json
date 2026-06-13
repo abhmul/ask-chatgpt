@@ -1,0 +1,26 @@
+{
+  "candidate_attrs": {
+    "aria_label": null,
+    "data-testid": null,
+    "download_attr": null,
+    "href_shape": null,
+    "outerHTML_snippet": "<button class=\"behavior-btn hover:entity-accent focus-visible:focus-ring entity-underline inline cursor-pointer appearance-none border-\" type=\"button\">Download the patch bundle</button>",
+    "proposed_selector": "latest assistant turn >> button:has-text(\"Download the patch bundle\")",
+    "reasons": [
+      "download_text_patch_context"
+    ],
+    "role": null,
+    "scope": "latest_assistant",
+    "tagName": "BUTTON",
+    "text_snippet": "Download the patch bundle",
+    "title": null
+  },
+  "captured": true,
+  "entry_names": [
+    "example.txt"
+  ],
+  "failure_reason": null,
+  "is_zip": true,
+  "nbytes": 146,
+  "proposed_selector": "latest assistant turn >> button:has-text(\"Download the patch bundle\")"
+}

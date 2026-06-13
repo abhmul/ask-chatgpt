@@ -1,0 +1,34 @@
+{
+  "candidates": [
+    {
+      "href_shape": null,
+      "reasons": [
+        "file_data_testid"
+      ],
+      "scope": "page",
+      "selector_guess": "[data-testid=\"accounts-profile-button\"]",
+      "tagName": "DIV"
+    },
+    {
+      "href_shape": null,
+      "reasons": [
+        "download_text"
+      ],
+      "scope": "page",
+      "selector_guess": "button[aria-label=\"Download apps\"]",
+      "tagName": "BUTTON"
+    },
+    {
+      "href_shape": null,
+      "reasons": [
+        "download_text"
+      ],
+      "scope": "latest_assistant+page",
+      "selector_guess": "button:has-text(\"Download the patch bundle\")",
+      "tagName": "BUTTON"
+    }
+  ],
+  "download_affordance_found": true,
+  "response_excerpt": "Download the patch bundle",
+  "response_kind": "file_link"
+}

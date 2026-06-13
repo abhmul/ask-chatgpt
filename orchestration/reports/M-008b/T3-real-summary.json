@@ -1,0 +1,15 @@
+{
+  "attempts": [
+    {
+      "artifact": "/home/abhmul/dev/ask-chatgpt/orchestration/reports/M-008b/T3-real-response-1.txt",
+      "attempt": 1,
+      "has_sentinel": true,
+      "max_k": 180,
+      "nbytes": 7296,
+      "verdict": "COMPLETE"
+    }
+  ],
+  "chosen_attempt": 1,
+  "final_outcome": "PASS_COMPLETE",
+  "strict_exact_match": true
+}

@@ -155,3 +155,29 @@ Operator waived manual prompt sign-off; the gate is adversarial verifiers + a te
 Non-blocking: the M-008a handoff mis-attributes the (pre-existing M-003/M-007) download-capture retrieve path to M-008a; that code is unchanged and safe — provenance note only.
 
 GATE: **PASSED** — prompts independently verified; the completion concerns are real-site-validation items, appropriately M-008b's job. Proceeding to M-008b (real legs over CDP), no operator halt per the waiver.
+
+---
+
+# M-008b (2026-06-13) — Real-site corrected verification over CDP — PASS (honest per-UC scope)
+
+Real-site proof over **CDP attach** to the operator's signed-in Chromium (preflight `127.0.0.1:9222` PASS; never launched a browser). This **replaces the retracted M-006/M-007 real claims** (CORRECTION above) with honest, falsifiable real evidence. Full synthesis + 3-lens verification: `orchestration/reports/M-008b/verify.md`; per-message audit: `orchestration/reports/M-008b/real-audit-log.md`. Manager independently re-derived every result from inspected artifacts (non-producer).
+
+## Honest per-UC / per-concern status
+| item | status | evidence |
+|---|---|---|
+| **UC1 — real truncation / completeness** (`ask_chatgpt()->text`) | **real-PROVEN** | `orchestration/reports/M-008b/T3-real-summary.json`: 180-line elicitation returned COMPLETE over CDP — all ordered lines + terminal sentinel + 7296 bytes, `strict_exact_match=true`. M-007 `…1F3845_` clip does NOT recur. (Fixed a markdown-bold sentinel that caused a false clip flag; `c9ae7b2`.) |
+| **Continuity — semantic, falsifiable, conversation-scoped** | **real-PROVEN (memory-immune)** | Temporary-Chat probe **3/3** `FALSIFIABLE_CONTINUITY_PROVEN`: recall returns the exact planted nonce (nonce ABSENT from the recall prompt — non-circular) while a fresh temp-chat control returns `UNKNOWN` (genuinely-failing control). `T5-temp-continuity.json`. |
+| **Continuity — cross-process registry mechanism** | **real-PROVEN** | a recall CLI process recovered the nonce from a conversation planted by a separate CLI process (registry-carried `conversation_ref`). |
+| **UC2 — real downloadable-file CAPTURE** | **real-PROVEN** | `T4-download-capture.json`: real surface emits a `Download the patch bundle` button; click fired a real Playwright Download event → valid 146-byte zip, entries=[`example.txt`] (changed-files-only). Resolves the M-007 base64-text retraction (real file, not base64). |
+| **UC2 — full validate→apply→diff round-trip on real** | **mock-proven; real CAPTURE proven, real apply+diff NOT yet run** | validate/apply/diff reuse the source-agnostic gauntlet (patch.py; M-004/M-007). Follow-up: populate `real.json:download_artifact` (verified selector recorded) + run real apply+diff. |
+| **Completion concern #1 — absolute wall-clock ceiling** (M-008a gate) | **RESOLVED (unit-proven)** | `_REAL_COMPLETION_CEILING_S=600` + `max_total_wait_s`, fails closed; RED-proven; dead `_REAL_COMPLETION_STABLE_S` removed. |
+| **Completion concern #2 — completion_marker reliability** (M-008a gate, GATING) | **RESOLVED (real-validated + hardened)** | single-turn looked reliable, but a multi-turn temp-chat stress exposed an **intermittent short-response premature clip** (`ASKC`). Hardened: complete only on streaming-seen → sustained stop-absence ≥3.0s AND text-stable ≥3.0s (`_REAL_COMPLETION_STABILITY_S`), keeping the global marker fallback (copy button is OUTSIDE the turn element — DOM-verified). RED-proven; re-verified real 3/3 + T3 COMPLETE. Commits `a058237`, `734e288`. |
+
+## Findings (honest, non-blocking)
+- **Account cross-chat Memory is ON** — a fresh NORMAL conversation recalls a nonce from another conversation, so a normal-chat "fresh conversation" control cannot be a clean negative. Conversation-scoping was proven via memory-immune Temporary Chats; a normal-chat clean control would need the operator to disable Memory/Reference-chat-history.
+- **Code-interpreter-turn completion** intermittently times out (1/2 capture runs) — follow-up to harden completion for code-execution turns.
+
+## Conformance (independently re-derived) — PASS
+No stealth (grep clean in `src/`); CDP attach-only + detach-not-quit (only owned-tab `close()`); login never automated; challenge/logout fail-closed; **no leakage** (no unredacted `/c/<id>`, credentials, cookies, tokens, or signed URLs in artifacts); **tier purity** preserved (`real_site`+`ASK_CHATGPT_REAL=1` double-gate; default `uv run pytest` = 209 passed / 4 deselected / **0 real_site**). Human-paced, audited, no message cap; never pushed.
+
+VERDICT: **PASS** — UC1 truncation, falsifiable continuity (incl. cross-process), and UC2 real-file CAPTURE are real-PROVEN over CDP; both M-008a completion concerns resolved; full UC2 real apply+diff is the one scoped follow-up.

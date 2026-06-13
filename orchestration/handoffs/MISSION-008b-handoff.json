@@ -1,0 +1,91 @@
+{
+  "mission": "MISSION-008b",
+  "title": "Real-site corrected verification over CDP (the real half of M-008) — replaces retracted M-006/M-007 real claims",
+  "status": "DONE",
+  "verdict": "PASS",
+  "manager": "headless Opus claude -p (single editor: pi GPT-5.5 xhigh)",
+  "preflight": "CDP 127.0.0.1:9222 reachable (Chrome/149); connect_over_cdp attach only; browser never launched.",
+  "start_timestamp": "2026-06-13T11:26:29-05:00",
+  "end_timestamp": "2026-06-13T14:21:31-05:00",
+
+  "summary": "Proved M-008a's corrected behavior on the real chatgpt.com site over CDP, honestly and falsifiably, and resolved the two M-008a gate completion concerns. UC1 real truncation/completeness PROVEN; falsifiable conversation-scoped continuity PROVEN (memory-immune Temporary Chat, clean failing control, 3/3) + cross-process registry mechanism PROVEN; UC2 real downloadable-file CAPTURE PROVEN (real Playwright Download event -> valid changed-files-only zip), resolving the M-007 base64-text retraction. The GATING T2 work uncovered (via a multi-turn temp-chat stress) an INTERMITTENT premature short-response clip in the affordance-only completion logic; a hardened stability fallback was shipped (streaming-seen -> sustained stop-absence >=3s AND text-stable >=3s, global marker fallback kept because the copy button is outside the assistant turn element) and re-verified reliable on real. Tier-purity, no-stealth, CDP attach/detach-not-quit, login-never-automated, no-leakage all PASS.",
+
+  "per_leg_status": {
+    "T1_completion_ceiling": "DONE (unit-proven): _REAL_COMPLETION_CEILING_S=600 + max_total_wait_s, fails closed; dead _REAL_COMPLETION_STABLE_S removed; RED genuine.",
+    "T2_completion_marker_reliability_GATING": "RESOLVED: single-turn reliable, but multi-turn short-response INTERMITTENT premature clip found -> hardened stability fallback (E6+E6b) shipped + re-verified real 3/3.",
+    "T3_real_truncation_UC1": "real-PROVEN: COMPLETE, max_k=180, nbytes=7296, strict_exact_match=true.",
+    "T4_uc2_real_downloadable_file": "real CAPTURE PROVEN (Download event -> 146-byte zip, entries=[example.txt], changed-files-only). Full validate+apply+diff reuses mock-proven gauntlet (NOT yet run end-to-end on real).",
+    "T5_falsifiable_continuity": "real-PROVEN (memory-immune temp-chat 3/3 FALSIFIABLE_CONTINUITY_PROVEN; non-circular; clean failing control) + cross-process registry mechanism PROVEN.",
+    "T6_verdict": "DONE: verify.md (PASS, 3 lenses) + honest VERIFICATION.md update + this handoff + redacted audit log."
+  },
+
+  "what_was_verified": {
+    "method": "Manager independently re-derived every result from inspected artifacts (T3-real-summary.json, T5-temp-continuity.json, T4-download-capture.json, T2-completion-observations.json, RED/pytest artifacts, driver diffs) — NOT from worker claims or exit codes. Manager is non-producer (pi produced code/prompts). Three mandatory lenses A/B/C all PASS (verify.md).",
+    "lensA_correctness_real_repro": "PASS — T3 COMPLETE; completion clip root-caused (global/prior-turn marker + early copy button) and fixed; UC2 real Download event captured a valid changed-files-only zip; offline suite 209 passed / 0 real_site.",
+    "lensB_prompt_quality_falsifiability": "PASS — every real test could fail and several DID before honest resolution (T3 CLIP_SUSPECT on the markdown-bold sentinel; continuity control leaked on normal chats -> surfaced account memory). Non-circular continuity; three-way honest truncation classifier; no assertion weakened (scripted-state timing updated instead).",
+    "lensC_safety_conformance": "PASS — no stealth (grep clean src/); CDP attach-only + detach-not-quit; login never automated; challenge/logout fail-closed; no unredacted /c/<id> / credential / token / signed-URL leakage; real_site+ASK_CHATGPT_REAL double-gate intact (default 0 real_site)."
+  },
+
+  "key_findings": [
+    "Account cross-chat Memory is ON: a fresh NORMAL conversation recalls a nonce from another conversation, defeating a normal-chat 'fresh conversation' falsifiability control. Clean conversation-scoping proven via memory-immune Temporary Chats. A normal-chat clean control requires the operator to disable Memory/Reference-chat-history.",
+    "The real copy-turn-action button is OUTSIDE the assistant turn element (DOM-verified copiesInsideLastAssistant=0); the global completion_marker presence check is therefore required. Premature completion is prevented by streaming-seen + sustained stop-absence + text-stability, NOT by scoping (over-scoping in E6 caused a real timeout regression, reverted in E6b).",
+    "The real surface IS file-capable: it emits a 'Download the patch bundle' button and a click fires a real Playwright Download event -> a valid zip. This CONTRADICTS the M-006 'no Download event' finding and resolves the M-007 base64-text retraction.",
+    "The deterministic truncation sentinel must be markdown-inert: __ELICIT_COMPLETE__ rendered as markdown bold and the .markdown DOM read stripped the __; changed to ELICIT-COMPLETE-SENTINEL."
+  ],
+
+  "artifacts_and_trust": {
+    "code_real_PROVEN": [
+      "src/ask_chatgpt/driver.py (T1 ceiling + E6/E6b hardened real completion: streaming-seen + sustained stop-absence>=3s + text-stable>=3s, _REAL_COMPLETION_STABILITY_S=3.0, global marker fallback kept)",
+      "tests/test_continuity_mock.py (markdown-inert LONG_SENTINEL)",
+      "tests/test_truncation_real.py, tests/test_continuity_real.py (real_site harnesses)",
+      "tests/test_driver.py (RED + regression-guard scripted completion tests)",
+      "scripts/m008b_real_probe.py (attach-only real probe toolkit: connectivity, completion-reliability, continuity-temp, download-discovery, download-capture)"
+    ],
+    "reports": [
+      "orchestration/reports/M-008b/verify.md (VERDICT PASS, 3 lenses)",
+      "orchestration/reports/M-008b/real-audit-log.md (per-message, redacted)",
+      "orchestration/reports/M-008b/T3-real-summary.json, T5-temp-continuity.json, T4-download-discovery.json, T4-download-capture.json, T2-completion-observations.json",
+      "orchestration/reports/M-008b/{T1,E2,E3,E4,E5,E6,E6b,E7,E8}-worker-report.md + RED/pytest artifacts"
+    ],
+    "trust": "All independently re-derived by the manager from inspected artifacts/ground truth (non-producer). Team-lead independent best-of-N panel + spot check is the final gate per the mission."
+  },
+
+  "telemetry": {
+    "ESTIMATE": "120m",
+    "ACTUAL": "175m (END 14:21:31 - START 11:26:29; derived from host timestamps, not pi self-reports which are HALLUCINATED)",
+    "flag_threshold": "240m (not exceeded)",
+    "REWORK-CAUSE": {
+      "T3_sentinel": "spec-gap (M-008a sentinel was markdown-sensitive)",
+      "T2_completion": "spec-gap (M-008a affordance-only design insufficient for real multi-turn short responses)",
+      "E6_over_scoping": "spec-gap (scoped the marker to the turn; real copy button is outside the turn element -> reverted in E6b)",
+      "composer_click": "env-drift (transient SPA race, self-resolved)",
+      "code_interpreter_timeout": "env-drift (code-execution turn completion pattern; 1/2 capture runs)"
+    },
+    "END": "2026-06-13T14:21:31-05:00"
+  },
+
+  "commits_no_push": [
+    "7a051a5 T1 ceiling + dead-const removal",
+    "c9d63f9 E2 real probe toolkit",
+    "4779089 E3 real_site harnesses (truncation + continuity)",
+    "c9ae7b2 E4 markdown-inert sentinel",
+    "0f8b03e E5 temp-chat continuity probe",
+    "a058237 E6 hardened real completion (RED-first)",
+    "734e288 E6b restore global marker fallback + regression guard",
+    "22feeca E7 download-discovery probe",
+    "a22ebf8 E8 download-capture probe",
+    "(+ orchestration report/sha commits) — NEVER pushed (operator pushes)"
+  ],
+
+  "blockers": "none blocking. NOTE: orchestration/state/lead.state.json carries a pre-existing team-lead modification (untouched). scripts/_m008b_diagnose.py and scripts/_m008b_copybtn_check.py are manager read-only diagnostics (uncommitted; safe to keep or delete).",
+
+  "recommended_next": [
+    "Operator: optionally disable ChatGPT Memory/Reference-chat-history to enable a clean NORMAL-chat continuity control (the registry-based test then passes its control); temp-chat already proves it memory-immune.",
+    "Close UC2 full real round-trip: populate real.json:download_artifact with the verified selector ('latest assistant turn >> button:has-text(\"Download the patch bundle\")' or a more stable structural selector) and run the full real apply->diff (reusing the source-agnostic gauntlet).",
+    "Harden completion for code-interpreter/file-producing turns (analysis->run->result pattern) or use a longer bundle-turn window; resolves the intermittent download-capture timeout.",
+    "Workstream B (tool enablement) input: the surface DOES support downloadable files via this conversation flow.",
+    "Team-lead: run the independent best-of-N panel + spot check over verify.md + the real artifacts to close the gate."
+  ],
+
+  "resume_state": "Mission COMPLETE; nothing in-flight; no pi workers running. All deliverables on disk at the commits above. If reopened: T1/T2/T3/T5 real-PROVEN and reliable; UC2 real CAPTURE proven; the single follow-up is the full UC2 real apply+diff round-trip (capture + validation/apply code both exist and are proven). CDP preflight before any real leg; STOP + HUMAN-ACTION-NEEDED on any challenge/logout."
+}

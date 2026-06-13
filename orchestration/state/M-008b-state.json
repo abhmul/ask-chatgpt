@@ -1,0 +1,38 @@
+{
+  "mission": "MISSION-008b",
+  "title": "Real-site corrected verification over CDP (the real half of M-008)",
+  "manager": "headless Opus claude -p",
+  "editor": "pi (GPT-5.5 xhigh), single editor",
+  "start_timestamp": "2026-06-13T11:26:29-05:00",
+  "estimate_minutes": 120,
+  "flag_threshold_minutes": 240,
+  "preflight": {
+    "cdp_endpoint": "http://127.0.0.1:9222",
+    "result": "PASS",
+    "browser": "Chrome/149.0.7827.53",
+    "checked_at": "2026-06-13T11:26:00-05:00",
+    "note": "connect_over_cdp to operator's signed-in browser; NEVER launch."
+  },
+  "objective": "Prove M-008a's corrected behavior on the REAL chatgpt.com site over CDP, honestly and falsifiably. Resolve the 2 completion concerns the M-008a gate flagged. REPLACES retracted M-006/M-007 real-site claims.",
+  "constraints": [
+    "CDP attach ONLY (connect_over_cdp); NEVER launch a browser.",
+    "NO stealth / anti-detection ever (independent grep must stay clean).",
+    "Login NEVER automated. Logout/profile-lock/Cloudflare/human-verification challenge -> STOP, write HUMAN-ACTION-NEEDED, poll READ-ONLY ~10min, never click through.",
+    "Tab hygiene: work ONLY in tabs the tool opens; never touch operator tabs; close()=detach, never quit the browser.",
+    "Human-paced, NO message cap; never programmatic spam; small waits between sends; per-message audit log.",
+    "Never read/store/log credentials, cookies, session tokens, profile contents. NO account identifiers or literal /c/<id> in any artifact/commit/log/report (redact).",
+    "Default tier loopback-mock-only; real tests behind real_site marker + ASK_CHATGPT_REAL=1. uv sync --all-groups. Commit working slices; NEVER git push.",
+    "Telemetry v2: real START/END timestamps; pi self-reported minutes are HALLUCINATED -> derive ACTUAL from run-dir mtimes."
+  ],
+  "queue": [
+    {"id": "T1", "type": "implement", "status": "DONE", "trust": "verified-independently (manager re-derived from commit 7a051a5 diff + T1-RED.txt + T1-pytest.txt: ceiling caps progress deadline at start+600s real/cdp-only, fails closed, RED genuine, 207 passed/1 deselected/0 real_site)", "desc": "Offline: absolute wall-clock completion ceiling (RED-first) + remove dead _REAL_COMPLETION_STABLE_S; suite green.", "editing": true, "commit": "7a051a5 (impl) + bdd90e0 (report)"},
+    {"id": "T2", "type": "verify-real", "status": "RESOLVED-hardened-fallback", "trust": "GATING resolved. Single-turn probe clean; multi-turn temp-chat stress exposed an intermittent short-response premature clip (ASKC). Root cause: completion fired on stop-absent while a global/prior-turn copy button kept completion_visible true, before streaming registered. FIX (E6 a058237 + E6b 734e288): complete only on streaming_seen AND sustained stop-absence>=3.0s AND text-stable>=3.0s (_REAL_COMPLETION_STABILITY_S), KEEPING the global completion_marker fallback (copy button is OUTSIDE the assistant turn element - DOM-verified copiesInsideLastAssistant=0; E6's latest-turn scoping caused a timeout regression, reverted in E6b). RED-proven (old code returned 4-char 'M008' partial). Re-verified REAL: T3 PASS_COMPLETE + temp-chat continuity 3/3 clean (no clips). Micro-pause no-clip + ceiling no-fail-open preserved (209 passed).", "desc": "GATING resolved: hardened stability fallback (E6+E6b) fixes intermittent short-response clip; re-verified reliable on real.", "editing": "DONE (E6+E6b)", "artifact": "orchestration/reports/M-008b/T2-completion-observations.json"},
+    {"id": "T3", "type": "verify-real", "status": "PROVEN-real", "trust": "verified-independently from T3-real-summary.json + T3-real-response-1.txt: verdict COMPLETE, max_k=180, has_sentinel=true, nbytes=7296, strict_exact_match=true, PASS_COMPLETE in 36.26s. UC1 real truncation/completeness PROVEN; M-007 ...1F3845_ clip does NOT recur. Root-caused & fixed a markdown-bold sentinel (E4-fix c9ae7b2). T1 ceiling + affordance-only completion validated end-to-end on real.", "desc": "Real truncation/completeness for ask_chatgpt()->text (UC1) -> PROVEN.", "editing": true, "note": "Transient SPA composer-click race seen once on a fresh send (self-resolved on retry); not hardened (single occurrence); watch in T5."}
+    {"id": "T4", "type": "verify-real", "status": "CAPTURE-PROVEN-real (round-trip reuses mock-proven gauntlet)", "trust": "DISCOVERY: real surface produces a 'Download the patch bundle' button in the assistant turn (T4-download-discovery.json: download_affordance_found=true, kind=file_link) -> file-capable, CONTRADICTS M-006 'no Download event'. CAPTURE (T4-download-capture.json): clicking it fired a real Playwright Download event -> captured=true, is_zip=true, nbytes=146, entry_names=[example.txt] (CHANGED-FILES-ONLY). This RESOLVES the M-007 base64-text retraction: the surface returns a REAL downloadable .zip, NOT base64. Verified selector: 'latest assistant turn >> button:has-text(\"Download the patch bundle\")'. Validate+apply+diff reuse the mock-proven source-agnostic gauntlet (patch.py; M-004/M-007). HONEST caveat: bundle-turn completion timed out on 1 of 2 capture runs (code-interpreter turns have a different completion pattern) -> follow-up: harden completion for code-execution turns / bump bundle-turn timeout, then populate real.json:download_artifact + run full apply+diff round-trip.", "desc": "UC2 real downloadable-file CAPTURE proven (real Download event, valid changed-files-only zip); full apply+diff round-trip reuses mock-proven gauntlet; intermittent code-interpreter-turn completion timeout noted.", "editing": true}
+    {"id": "T5", "type": "verify-real", "status": "PROVEN-real (falsifiable, memory-immune)", "trust": "Semantic conversation-scoped continuity PROVEN: memory-immune Temporary-Chat probe 3/3 FALSIFIABLE_CONTINUITY_PROVEN post-E6b (recall=FULL nonce from same temp chat; control=UNKNOWN in a fresh temp chat -> clean failing control). Non-circular (nonce ABSENT from recall prompt; _assert_recall_prompt_does_not_leak_nonce). In-process registry recall returned full nonce; CROSS-PROCESS registry recall (separate CLI process) returned the nonce -> registry-carried cross-process continuity PROVEN. FINDING: account cross-chat Memory is ON -> the NORMAL-chat fresh-conversation control LEAKS the nonce (in-process run2 + cross-process control) -> a clean control on normal chats requires Memory disabled; temp-chat (memory-off) gives the clean control without changing operator settings. Artifacts: T5-temp-recall/control.txt, T5-temp-continuity.json, T5-recall.txt.", "desc": "Real falsifiable continuity PROVEN via memory-immune temp-chat (3/3) + cross-process registry mechanism; account-memory finding documented.", "editing": true}
+    {"id": "T6", "type": "verify", "status": "pending", "desc": "Honest best-of-N verdict; verify.md + audit log + VERIFICATION.md update + handoff.", "editing": true}
+  ],
+  "artifacts_trust": {},
+  "blockers": [],
+  "real_legs_log": []
+}
