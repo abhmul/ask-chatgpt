@@ -1,0 +1,8 @@
+{
+  "download_selector_injected": "button:has-text(\"Download the patch bundle\")",
+  "first_wait": "returned",
+  "retrieve_detail": "download artifact metadata is missing data-source-turn-id",
+  "retrieve_outcome": "PatchMalformedError",
+  "retrieve_seconds": 37.78,
+  "stage": "done"
+}

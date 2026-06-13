@@ -543,6 +543,26 @@ class _GlobalOnlyMarkerCompletionState(_MicroPauseCompletionState):
         return super().selector_count(selector)
 
 
+class _NeverSawStreamingCompleteState(_MicroPauseCompletionState):
+    sentinel = "__TURN_COMPLETE_M009_NEVER_SAW_STREAMING__"
+
+    def text(self) -> str:
+        return self.complete_text  # stable, non-empty from t=0
+
+    def streaming_visible(self) -> bool:
+        return False  # the stop control was never caught by any poll
+
+    def completion_marker_visible(self) -> bool:
+        return True  # copy-turn marker present: the turn is already complete
+
+
+class _ShortReplyNeverStreamedState(_NeverSawStreamingCompleteState):
+    sentinel = "PING"
+
+    def text(self) -> str:
+        return "PING"  # one-word reply, stable, non-empty
+
+
 class _ImmediateAffordanceCompletionState(_MicroPauseCompletionState):
     sentinel = "__TURN_COMPLETE_M008A_AFFORDANCE__"
 
@@ -895,6 +915,32 @@ def test_real_wait_for_completion_returns_after_completion_marker_visible(monkey
     assert state.sentinel in latest.inner_text()
     assert clock.now >= 3.0
     assert page.wait_timeouts
+
+
+def test_real_wait_for_completion_returns_when_never_saw_streaming_marker_and_text_stable(monkeypatch):
+    clock = _ScriptedClock()
+    page = _ScriptedCompletionPage(clock)
+    state = _NeverSawStreamingCompleteState(clock)
+    session = _scripted_real_completion_session(monkeypatch, state, page)
+
+    latest = session.wait_for_completion(timeout_s=30.0, max_total_wait_s=60.0)
+
+    assert latest is state.turn
+    assert state.sentinel in latest.inner_text()
+    assert clock.now >= 3.0   # waited the stability window
+    assert clock.now < 30.0   # did NOT run to the truncation deadline
+
+
+def test_real_wait_for_completion_returns_short_reply_that_never_streamed(monkeypatch):
+    clock = _ScriptedClock()
+    page = _ScriptedCompletionPage(clock)
+    state = _ShortReplyNeverStreamedState(clock)
+    session = _scripted_real_completion_session(monkeypatch, state, page)
+
+    latest = session.wait_for_completion(timeout_s=30.0, max_total_wait_s=60.0)
+
+    assert latest.inner_text() == "PING"
+    assert clock.now < 30.0
 
 
 def test_real_wait_for_completion_times_out_when_stop_gone_and_body_stable_without_completion_evidence(monkeypatch):

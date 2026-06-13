@@ -387,14 +387,22 @@ class BrowserSession:
                             or latest_assistant.locator(completion_affordance_selector).count() > 0
                             or self._present("completion_affordance")
                         )
-                    if (
-                        streaming_seen
-                        and not streaming_visible
+                    stop_absent_stable = (
+                        not streaming_visible
                         and completion_visible
                         and not_streaming_since is not None
                         and (now - not_streaming_since) >= _REAL_COMPLETION_STABILITY_S
                         and (now - stable_since) >= _REAL_COMPLETION_STABILITY_S
-                    ):
+                    )
+                    # streaming_seen path: streaming was observed, then stopped with completion evidence.
+                    # never-saw-streaming path (M-009): the response completed before any 0.1s poll caught
+                    # the stop control — an ultra-fast reply, or a SECOND wait_for_completion run on an
+                    # already-finished turn (retrieve_patch_bundle re-waits after streaming has ended).
+                    # bool(last_text) requires a non-empty latest-turn body so an empty/not-yet-started
+                    # turn is never returned; the shared >= _REAL_COMPLETION_STABILITY_S windows above keep
+                    # this from firing during a micro-pause or on a stale global marker, because in those
+                    # cases the stop control reappears within the window (so streaming_seen becomes True).
+                    if stop_absent_stable and (streaming_seen or bool(last_text)):
                         return latest_assistant
             elif self.channel in {"real", "cdp"}:
                 now = time.monotonic()

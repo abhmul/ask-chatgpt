@@ -1,0 +1,27 @@
+{
+  "mission": "M-009",
+  "objective": "Harden ask-chatgpt for agent use: real UC2 closeout + real model-selection + short-response completion edge + consumer usage guide. REAL SITE over CDP.",
+  "constraints": [
+    "CDP attach ONLY (preflight passed); never launch a browser",
+    "No stealth; login never automated; challenge/logout -> STOP HUMAN-ACTION-NEEDED, poll read-only ~10min",
+    "Own tabs only; close()=detach never quit",
+    "Human-paced, no message cap, no spam; per-message audit log; redact /c/<id>; never log creds/cookies/tokens",
+    "Default tier mock-only; uv sync --all-groups; RED-first behavior changes; keep 209 mock tests green",
+    "Single pi editor for package-source edits; manager authors probe scripts + reports; NEVER git push"
+  ],
+  "queue": [
+    {"id": "T1", "title": "Real UC2 round-trip closeout", "status": "in_progress", "blocker": "production download path is mock-shaped (requires data-* integrity metadata real <button> lacks); needs opaque-real mode OR honest fail"},
+    {"id": "T2", "title": "Short-response completion edge", "status": "pending", "note": "M-008b shows stop-button visible ~7s; edge likely theoretical; probe via production path; fix RED-first only if it bites"},
+    {"id": "T3", "title": "Real model-selection wiring", "status": "pending", "note": "model_menu/model_option empty -> fail-closed; need CDP discovery + populate + prove via UI state"},
+    {"id": "T4", "title": "docs/USAGE.md consumer guide", "status": "pending", "note": "offline; AFTER T1-T3; reflect real-proven state; no overclaim"},
+    {"id": "T5", "title": "Verify + handoff", "status": "pending", "note": "honest verify.md; handoff GATE AWAITING-TEAM-LEAD-SPOTCHECK"}
+  ],
+  "artifacts": {
+    "discovery.md": "produced (manager); trust: ground-truth from source read",
+    "real-audit-log.md": "pending (per-message, redacted)",
+    "verify.md": "pending",
+    "MISSION-009-handoff.json": "pending"
+  },
+  "blockers": [],
+  "cdp_preflight": "PASS Chrome/149.0.7827.53 @ 127.0.0.1:9222"
+}

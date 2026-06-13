@@ -1,0 +1,35 @@
+warning: `VIRTUAL_ENV=/home/abhmul/.local/share/agent-python/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead
+Timeout (0:00:10)!
+Thread 0x00007f813c604780 (most recent call first):
+  File "/home/abhmul/dev/ask-chatgpt/src/ask_chatgpt/driver.py", line 409 in wait_for_completion
+  File "/home/abhmul/dev/ask-chatgpt/tests/test_driver.py", line 926 in test_real_wait_for_completion_returns_when_never_saw_streaming_marker_and_text_stable
+  File "/home/abhmul/dev/ask-chatgpt/.venv/lib/python3.13/site-packages/_pytest/python.py", line 166 in pytest_pyfunc_call
+  File "/home/abhmul/dev/ask-chatgpt/.venv/lib/python3.13/site-packages/pluggy/_callers.py", line 121 in _multicall
+  File "/home/abhmul/dev/ask-chatgpt/.venv/lib/python3.13/site-packages/pluggy/_manager.py", line 120 in _hookexec
+  File "/home/abhmul/dev/ask-chatgpt/.venv/lib/python3.13/site-packages/pluggy/_hooks.py", line 512 in __call__
+  File "/home/abhmul/dev/ask-chatgpt/.venv/lib/python3.13/site-packages/_pytest/python.py", line 1720 in runtest
+  File "/home/abhmul/dev/ask-chatgpt/.venv/lib/python3.13/site-packages/_pytest/runner.py", line 179 in pytest_runtest_call
+  File "/home/abhmul/dev/ask-chatgpt/.venv/lib/python3.13/site-packages/pluggy/_callers.py", line 121 in _multicall
+  File "/home/abhmul/dev/ask-chatgpt/.venv/lib/python3.13/site-packages/pluggy/_manager.py", line 120 in _hookexec
+  File "/home/abhmul/dev/ask-chatgpt/.venv/lib/python3.13/site-packages/pluggy/_hooks.py", line 512 in __call__
+  File "/home/abhmul/dev/ask-chatgpt/.venv/lib/python3.13/site-packages/_pytest/runner.py", line 245 in <lambda>
+  File "/home/abhmul/dev/ask-chatgpt/.venv/lib/python3.13/site-packages/_pytest/runner.py", line 353 in from_call
+  File "/home/abhmul/dev/ask-chatgpt/.venv/lib/python3.13/site-packages/_pytest/runner.py", line 244 in call_and_report
+  File "/home/abhmul/dev/ask-chatgpt/.venv/lib/python3.13/site-packages/_pytest/runner.py", line 137 in runtestprotocol
+  File "/home/abhmul/dev/ask-chatgpt/.venv/lib/python3.13/site-packages/_pytest/runner.py", line 118 in pytest_runtest_protocol
+  File "/home/abhmul/dev/ask-chatgpt/.venv/lib/python3.13/site-packages/pluggy/_callers.py", line 121 in _multicall
+  File "/home/abhmul/dev/ask-chatgpt/.venv/lib/python3.13/site-packages/pluggy/_manager.py", line 120 in _hookexec
+  File "/home/abhmul/dev/ask-chatgpt/.venv/lib/python3.13/site-packages/pluggy/_hooks.py", line 512 in __call__
+  File "/home/abhmul/dev/ask-chatgpt/.venv/lib/python3.13/site-packages/_pytest/main.py", line 396 in pytest_runtestloop
+  File "/home/abhmul/dev/ask-chatgpt/.venv/lib/python3.13/site-packages/pluggy/_callers.py", line 121 in _multicall
+  File "/home/abhmul/dev/ask-chatgpt/.venv/lib/python3.13/site-packages/pluggy/_manager.py", line 120 in _hookexec
+  File "/home/abhmul/dev/ask-chatgpt/.venv/lib/python3.13/site-packages/pluggy/_hooks.py", line 512 in __call__
+  File "/home/abhmul/dev/ask-chatgpt/.venv/lib/python3.13/site-packages/_pytest/main.py", line 372 in _main
+  File "/home/abhmul/dev/ask-chatgpt/.venv/lib/python3.13/site-packages/_pytest/main.py", line 318 in wrap_session
+  File "/home/abhmul/dev/ask-chatgpt/.venv/lib/python3.13/site-packages/_pytest/main.py", line 365 in pytest_cmdline_main
+  File "/home/abhmul/dev/ask-chatgpt/.venv/lib/python3.13/site-packages/pluggy/_callers.py", line 121 in _multicall
+  File "/home/abhmul/dev/ask-chatgpt/.venv/lib/python3.13/site-packages/pluggy/_manager.py", line 120 in _hookexec
+  File "/home/abhmul/dev/ask-chatgpt/.venv/lib/python3.13/site-packages/pluggy/_hooks.py", line 512 in __call__
+  File "/home/abhmul/dev/ask-chatgpt/.venv/lib/python3.13/site-packages/_pytest/config/__init__.py", line 199 in main
+  File "/home/abhmul/dev/ask-chatgpt/.venv/lib/python3.13/site-packages/_pytest/config/__init__.py", line 223 in console_main
+  File "/home/abhmul/dev/ask-chatgpt/.venv/bin/pytest", line 10 in <module>
