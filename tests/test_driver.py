@@ -53,6 +53,102 @@ class _FakePage:
         self.wait_count += 1
 
 
+class _RadixModelKeyboard:
+    def __init__(self, page: "_RadixModelPage") -> None:
+        self._page = page
+
+    def press(self, key: str) -> None:
+        self._page.events.append(("press", key))
+        if key == "Escape":
+            self._page.menu_open = False
+
+
+class _RadixModelMenuLocator:
+    def __init__(self, page: "_RadixModelPage") -> None:
+        self._page = page
+
+    def count(self) -> int:
+        return 1
+
+    @property
+    def first(self):
+        return self
+
+    def evaluate(self, _expression: str):
+        return "BUTTON"
+
+    def click(self, **_kwargs) -> None:
+        self._page.events.append(("click", "model_menu"))
+        self._page.menu_open = True
+
+
+class _RadixModelOptionsLocator:
+    def __init__(self, page: "_RadixModelPage") -> None:
+        self._page = page
+
+    def count(self) -> int:
+        self._page.events.append(("count", "model_option", self._page.menu_open))
+        return len(self._page.labels) if self._page.menu_open else 0
+
+    def nth(self, index: int):
+        return _RadixModelOptionLocator(self._page, self._page.labels[index])
+
+
+class _RadixModelOptionLocator:
+    def __init__(self, page: "_RadixModelPage", label: str) -> None:
+        self._page = page
+        self._label = label
+
+    def get_attribute(self, attr: str) -> str | None:
+        if attr == "value":
+            return None
+        return None
+
+    def inner_text(self) -> str:
+        return self._label
+
+    def evaluate(self, _expression: str, _selector: str) -> bool:
+        return False
+
+    def click(self, **_kwargs) -> None:
+        self._page.events.append(("click", "model_option", self._label))
+        self._page.selected_labels.append(self._label)
+        self._page.menu_open = False
+
+
+class _ZeroLocator:
+    def count(self) -> int:
+        return 0
+
+
+class _RadixModelPage:
+    def __init__(self, labels: list[str]) -> None:
+        self.url = "https://chatgpt.com/c/unit-radix"
+        self.labels = labels
+        self.menu_open = False
+        self.keyboard = _RadixModelKeyboard(self)
+        self.events: list[tuple] = []
+        self.selected_labels: list[str] = []
+        self.send_click_count = 0
+
+    def locator(self, selector: str):
+        if selector == "#model-menu":
+            return _RadixModelMenuLocator(self)
+        if selector == "#model-option":
+            return _RadixModelOptionsLocator(self)
+        if selector in {"#not-found", "#login"}:
+            return _ZeroLocator()
+        if selector == "#send":
+            return _ZeroLocator()
+        raise AssertionError(f"unexpected selector: {selector}")
+
+    def wait_for_selector(self, selector: str, **kwargs) -> None:
+        self.events.append(("wait_for_selector", selector, kwargs.get("state"), self.menu_open))
+        if selector == "#model-option" and self.menu_open and self.labels:
+            return
+        raise PlaywrightTimeoutError("model options did not attach")
+
+
 class _CallbackLocator:
     def __init__(
         self,
@@ -394,6 +490,23 @@ def _real_completion_session(page: _CompletionPollingPage) -> BrowserSession:
     return session
 
 
+def _radix_model_session(page: _RadixModelPage) -> BrowserSession:
+    session = BrowserSession(channel="real", base_url=REAL_BASE_URL)
+    session.selectors = SelectorMap(
+        channel="unit",
+        selectors={
+            "model_menu": "#model-menu",
+            "model_option": "#model-option",
+            "model_option_disabled": "#model-option[aria-disabled='true']",
+            "conversation_not_found": "#not-found",
+            "login_wall": "#login",
+        },
+        attributes={},
+    )
+    session.page = page
+    return session
+
+
 class _ScriptedClock:
     def __init__(self) -> None:
         self.now = 0.0
@@ -651,6 +764,34 @@ def _scripted_real_completion_session(
     monkeypatch.setattr(session, "_raise_open_failures", lambda: None)
     monkeypatch.setattr(session, "_rate_limit_visible", lambda: False)
     return session
+
+
+def test_select_model_radix_opens_menu_before_enumerating_options_and_absent_fails_closed():
+    page = _RadixModelPage(labels=["Instant", "High"])
+    session = _radix_model_session(page)
+
+    session.select_model({"model": "High"})
+
+    assert page.selected_labels == ["High"]
+    assert page.send_click_count == 0
+    assert ("wait_for_selector", "#model-option", "attached", True) in page.events
+    assert page.events.index(("click", "model_menu")) < page.events.index(
+        ("count", "model_option", True)
+    )
+
+    absent_page = _RadixModelPage(labels=["Instant", "High"])
+    absent_session = _radix_model_session(absent_page)
+
+    with pytest.raises(ModelUnavailableError, match="model option 'Extra High' is absent"):
+        absent_session.select_model({"model": "Extra High"})
+
+    assert absent_page.selected_labels == []
+    assert absent_page.send_click_count == 0
+    assert ("wait_for_selector", "#model-option", "attached", True) in absent_page.events
+    assert ("press", "Escape") in absent_page.events
+    assert absent_page.events.index(("click", "model_menu")) < absent_page.events.index(
+        ("count", "model_option", True)
+    )
 
 
 def test_driver_happy_path_returns_latest_completed_turn(mock_chatgpt):

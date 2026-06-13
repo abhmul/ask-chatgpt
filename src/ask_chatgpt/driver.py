@@ -41,6 +41,7 @@ _DEFAULT_CDP_ENDPOINT = "http://127.0.0.1:9222"
 _DEFAULT_NAVIGATION_TIMEOUT_MS = 5_000
 _REAL_NAV_TIMEOUT_MS = 60_000
 _READY_ROOT_TIMEOUT_MS = 30_000
+_MODEL_OPTION_ATTACH_TIMEOUT_MS = 1_000
 _POLL_INTERVAL_S = 0.1
 _REAL_COMPLETION_CEILING_S = 600.0
 _REAL_COMPLETION_STABILITY_S = 3.0
@@ -234,28 +235,56 @@ class BrowserSession:
         requested = str(requested)
         self._raise_open_failures()
         menu = self._require_present("model_menu")
+        try:
+            is_select = str(menu.evaluate("el => el.tagName")).lower() == "select"
+        except PlaywrightError as exc:
+            raise SelectorUnavailableError(f"selector 'model_menu' unavailable for channel '{self.channel}'") from exc
+
+        opened_radix = False
+        if not is_select:
+            try:
+                menu.click(timeout=_DEFAULT_NAVIGATION_TIMEOUT_MS)
+                opened_radix = True
+            except PlaywrightError as exc:
+                raise ModelUnavailableError(f"model menu could not be opened for requested model '{requested}'") from exc
+            try:
+                self._wait_for_model_options(requested)
+            except ModelUnavailableError:
+                self._dismiss_model_menu()
+                raise
+
         option = self._find_model_option(requested)
         if option is None:
+            if opened_radix:
+                self._dismiss_model_menu()
             raise ModelUnavailableError(f"model option '{requested}' is absent")
         disabled_selector = self.selectors.selector("model_option_disabled")
         try:
             disabled = bool(option.evaluate("(element, selector) => element.matches(selector)", disabled_selector))
         except PlaywrightError as exc:
+            if opened_radix:
+                self._dismiss_model_menu()
             raise SelectorUnavailableError(
                 f"selector 'model_option_disabled' unavailable for channel '{self.channel}'"
             ) from exc
         if disabled:
+            if opened_radix:
+                self._dismiss_model_menu()
             raise ModelUnavailableError(f"model option '{requested}' is disabled")
 
         try:
-            menu.click(timeout=_DEFAULT_NAVIGATION_TIMEOUT_MS)
-            tag_name = str(menu.evaluate("element => element.tagName")).lower()
-            option_value = option.get_attribute("value")
-            if tag_name == "select" and option_value:
-                menu.select_option(value=option_value, timeout=_DEFAULT_NAVIGATION_TIMEOUT_MS)
+            if is_select:
+                menu.click(timeout=_DEFAULT_NAVIGATION_TIMEOUT_MS)
+                option_value = option.get_attribute("value")
+                if option_value:
+                    menu.select_option(value=option_value, timeout=_DEFAULT_NAVIGATION_TIMEOUT_MS)
+                else:
+                    option.click(timeout=_DEFAULT_NAVIGATION_TIMEOUT_MS)
             else:
                 option.click(timeout=_DEFAULT_NAVIGATION_TIMEOUT_MS)
         except PlaywrightError as exc:
+            if opened_radix:
+                self._dismiss_model_menu()
             raise ModelUnavailableError(f"model option '{requested}' could not be selected") from exc
 
     def send_prompt(self, text: str) -> None:
@@ -651,6 +680,25 @@ class BrowserSession:
             return self._read_active_conversation_ref()
         except (SelectorUnavailableError, SessionNotFoundError, PlaywrightError):
             return None
+
+    def _wait_for_model_options(self, requested: str) -> None:
+        selector = self.selectors.selector("model_option")
+        try:
+            self._require_page().wait_for_selector(
+                selector,
+                timeout=_MODEL_OPTION_ATTACH_TIMEOUT_MS,
+                state="attached",
+            )
+        except PlaywrightError as exc:
+            raise ModelUnavailableError(
+                f"model options did not render after opening the model menu for '{requested}'"
+            ) from exc
+
+    def _dismiss_model_menu(self) -> None:
+        try:
+            self._require_page().keyboard.press("Escape")
+        except PlaywrightError:
+            pass
 
     def _find_model_option(self, requested: str) -> Locator | None:
         options = self._locator("model_option")

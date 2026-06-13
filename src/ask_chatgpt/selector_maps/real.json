@@ -1,7 +1,7 @@
 {
   "channel": "real",
   "version": 1,
-  "note": "Populated from M-006 T2 CDP discovery (verified selectors only); empty values intentionally fail closed.",
+  "note": "Populated from M-006 T2 CDP discovery plus M-010 model-picker discovery (verified selectors only); empty values intentionally fail closed.",
   "selectors": {
     "ready_root": "main:has(#prompt-textarea)",
     "chat_list": "nav:has(a[href^=\"/c/\"])",
@@ -9,9 +9,9 @@
     "new_chat_button": "a[aria-label=\"New chat\"]",
     "composer": "#prompt-textarea",
     "send_button": "button[data-testid=\"send-button\"]",
-    "model_menu": "",
-    "model_option": "",
-    "model_option_disabled": "",
+    "model_menu": "form:has(#prompt-textarea) button[aria-haspopup=\"menu\"]:not([data-testid])",
+    "model_option": "[data-radix-popper-content-wrapper] [role=\"menuitemradio\"]",
+    "model_option_disabled": "[data-radix-popper-content-wrapper] [role=\"menuitemradio\"][aria-disabled=\"true\"], [data-radix-popper-content-wrapper] [role=\"menuitemradio\"][data-disabled=\"true\"], [data-radix-popper-content-wrapper] [role=\"menuitemradio\"][disabled]",
     "assistant_message": "[data-message-author-role=\"assistant\"]",
     "message_body": ".markdown",
     "streaming_marker": "button[data-testid=\"stop-button\"]",

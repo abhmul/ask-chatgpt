@@ -11,7 +11,7 @@ REAL_SELECTOR_MAP = Path(__file__).resolve().parents[1] / "src" / "ask_chatgpt" 
 EMPTY_REAL_SELECTOR_MAPS_DIR = Path(__file__).parent / "fixtures" / "selector_maps" / "empty"
 
 
-def test_real_download_artifact_selector_is_the_verified_opaque_real_button():
+def test_real_selector_map_pins_verified_opaque_download_and_model_picker_selectors():
     payload = json.loads(REAL_SELECTOR_MAP.read_text(encoding="utf-8"))
 
     # M-009: the real download affordance is a bare <button>Download the patch bundle</button> carrying
@@ -19,6 +19,18 @@ def test_real_download_artifact_selector_is_the_verified_opaque_real_button():
     # opaque-real download path. This selector was verified against the real site (M-008b T4 capture +
     # M-009 CDP probe). It is text-dependent and fails closed if ChatGPT's button text drifts.
     assert payload["selectors"]["download_artifact"] == 'button:has-text("Download the patch bundle")'
+    # M-010: the real model picker is a composer-toolbar Radix dropdown whose options render in a
+    # portal only after opening the trigger. These selectors are intentionally narrow and fail closed
+    # if the picker moves or changes semantics.
+    assert payload["selectors"]["model_menu"] == (
+        'form:has(#prompt-textarea) button[aria-haspopup="menu"]:not([data-testid])'
+    )
+    assert payload["selectors"]["model_option"] == '[data-radix-popper-content-wrapper] [role="menuitemradio"]'
+    assert payload["selectors"]["model_option_disabled"] == (
+        '[data-radix-popper-content-wrapper] [role="menuitemradio"][aria-disabled="true"], '
+        '[data-radix-popper-content-wrapper] [role="menuitemradio"][data-disabled="true"], '
+        '[data-radix-popper-content-wrapper] [role="menuitemradio"][disabled]'
+    )
     assert len(payload["selectors"]) == 20
     assert len(payload["attributes"]) == 2
 
