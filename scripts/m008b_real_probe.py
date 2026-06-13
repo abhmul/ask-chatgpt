@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 from datetime import datetime
+import importlib.util
 import json
 from pathlib import Path
 import re
@@ -19,8 +20,9 @@ from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
-if str(SRC) not in sys.path:
-    sys.path.insert(0, str(SRC))
+for path in (SRC, ROOT):
+    if str(path) not in sys.path:
+        sys.path.insert(0, str(path))
 
 from playwright.sync_api import Error as PlaywrightError  # noqa: E402
 
@@ -35,10 +37,36 @@ from ask_chatgpt.errors import (  # noqa: E402
     ResponseTruncatedError,
 )
 
+try:
+    from tests.test_continuity_mock import (  # noqa: E402
+        RECALL_PROMPT,
+        _assert_recall_prompt_does_not_leak_nonce,
+        _new_nonce,
+        _plant_prompt,
+    )
+except ModuleNotFoundError as exc:
+    _continuity_mock_path = ROOT / "tests" / "test_continuity_mock.py"
+    if exc.name not in {"tests", "tests.test_continuity_mock"} or not _continuity_mock_path.exists():
+        raise
+    _spec = importlib.util.spec_from_file_location("_m008b_continuity_mock", _continuity_mock_path)
+    if _spec is None or _spec.loader is None:
+        raise
+    _continuity_mock = importlib.util.module_from_spec(_spec)
+    sys.modules[_spec.name] = _continuity_mock
+    _spec.loader.exec_module(_continuity_mock)
+    RECALL_PROMPT = _continuity_mock.RECALL_PROMPT
+    _assert_recall_prompt_does_not_leak_nonce = _continuity_mock._assert_recall_prompt_does_not_leak_nonce
+    _new_nonce = _continuity_mock._new_nonce
+    _plant_prompt = _continuity_mock._plant_prompt
+
 BASE_URL = "https://chatgpt.com"
+TEMP_URL = "https://chatgpt.com/?temporary-chat=true"
 REPORT_DIR = ROOT / "orchestration" / "reports" / "M-008b"
 AUDIT_LOG = REPORT_DIR / "real-audit-log.md"
 T2_OBSERVATIONS = REPORT_DIR / "T2-completion-observations.json"
+T5_TEMP_RECALL = REPORT_DIR / "T5-temp-recall.txt"
+T5_TEMP_CONTROL = REPORT_DIR / "T5-temp-control.txt"
+T5_TEMP_CONTINUITY = REPORT_DIR / "T5-temp-continuity.json"
 
 REDACT_C_RE = re.compile(r"/c/[^/?#\s]+")
 AUDIT_DATA_ROW_RE = re.compile(r"^\|\s*\d+\s*\|")
@@ -232,6 +260,22 @@ def _latest_assistant_text_len(session: BrowserSession, assistant_locator: Any |
         return 0
 
 
+def _latest_assistant_text(session: BrowserSession) -> str:
+    """Return the latest assistant turn's full Markdown body text."""
+
+    try:
+        latest = session._latest_assistant_turn()
+        if latest is None:
+            return ""
+        body_selector = session.selectors.selector("message_body")
+        bodies = latest.locator(body_selector)
+        if bodies.count() > 0:
+            return bodies.last.inner_text(timeout=1000)
+        return session._latest_assistant_body_text(latest)
+    except (AskChatGPTError, PlaywrightError):
+        return ""
+
+
 def _sample_markers(session: BrowserSession, started_at: float) -> dict[str, object]:
     page = session.page
     if page is None:
@@ -281,6 +325,28 @@ def _baseline_marker_counts(session: BrowserSession) -> dict[str, int]:
         "copy_count": page.locator(copy_selector).count(),
         "text_len": _latest_assistant_text_len(session),
     }
+
+
+def _open_temp_chat(session: BrowserSession) -> None:
+    page = session.page
+    if page is None:
+        raise AskChatGPTError("browser page is unavailable while opening temporary chat")
+    page.goto(TEMP_URL, wait_until="load", timeout=60000)
+    page.wait_for_selector('main:has(#prompt-textarea)', timeout=30000, state="attached")
+
+
+def _send_prompt_or_human_stop(session: BrowserSession, prompt: str) -> None:
+    try:
+        session.send_prompt(prompt)
+    except HUMAN_ERRORS as exc:
+        raise HumanActionStop(_human_label(exc)) from exc
+
+
+def _wait_for_completion_or_human_stop(session: BrowserSession) -> None:
+    try:
+        session.wait_for_completion(timeout_s=120, max_total_wait_s=300)
+    except HUMAN_ERRORS as exc:
+        raise HumanActionStop(_human_label(exc)) from exc
 
 
 def capture_marker_timeline(session: BrowserSession, *, baseline: dict[str, int]) -> dict[str, object]:
@@ -583,6 +649,154 @@ def run_completion_reliability(_args: argparse.Namespace) -> int:
             session.close()
 
 
+def _write_redacted_text(path: Path, text: str) -> None:
+    REPORT_DIR.mkdir(parents=True, exist_ok=True)
+    path.write_text(redact(text).rstrip("\n") + "\n", encoding="utf-8")
+
+
+def run_continuity_temp(_args: argparse.Namespace) -> int:
+    session_a: BrowserSession | None = None
+    session_b: BrowserSession | None = None
+    close_a = True
+    close_b = True
+    try:
+        nonce = _new_nonce()
+        _assert_recall_prompt_does_not_leak_nonce(RECALL_PROMPT, nonce)
+        plant_prompt = _plant_prompt(nonce)
+
+        session_a = connect()
+        _open_temp_chat(session_a)
+        if not recheck_safe(session_a):
+            close_a = False
+            return 5
+
+        _send_prompt_or_human_stop(session_a, plant_prompt)
+        audit(
+            {
+                "leg": "T5-temp-A",
+                "action": "send-plant",
+                "prompt-label": "plant-nonce",
+                "observation": f"sent; prompt_chars={len(plant_prompt)}",
+                "markers": "n/a",
+                "result": "OK",
+            }
+        )
+        _wait_for_completion_or_human_stop(session_a)
+        plant_text = _latest_assistant_text(session_a)
+        audit(
+            {
+                "leg": "T5-temp-A",
+                "action": "observe-plant",
+                "prompt-label": "plant-nonce",
+                "observation": f"plant_reply={plant_text}",
+                "markers": "n/a",
+                "result": "OK",
+            }
+        )
+
+        time.sleep(HUMAN_PACE_S)
+        if not recheck_safe(session_a):
+            close_a = False
+            return 5
+
+        _send_prompt_or_human_stop(session_a, RECALL_PROMPT)
+        audit(
+            {
+                "leg": "T5-temp-A",
+                "action": "send-recall",
+                "prompt-label": "recall-same-temp-chat",
+                "observation": f"sent; prompt_chars={len(RECALL_PROMPT)}",
+                "markers": "n/a",
+                "result": "OK",
+            }
+        )
+        _wait_for_completion_or_human_stop(session_a)
+        recall_text = _latest_assistant_text(session_a)
+        recall_ok = nonce in recall_text
+        _write_redacted_text(T5_TEMP_RECALL, recall_text)
+        session_a.close()
+        session_a = None
+
+        time.sleep(HUMAN_PACE_S)
+
+        session_b = connect()
+        _open_temp_chat(session_b)
+        if not recheck_safe(session_b):
+            close_b = False
+            return 5
+
+        _send_prompt_or_human_stop(session_b, RECALL_PROMPT)
+        audit(
+            {
+                "leg": "T5-temp-B",
+                "action": "send-control",
+                "prompt-label": "recall-fresh-temp-control",
+                "observation": f"sent; prompt_chars={len(RECALL_PROMPT)}",
+                "markers": "n/a",
+                "result": "OK",
+            }
+        )
+        _wait_for_completion_or_human_stop(session_b)
+        control_text = _latest_assistant_text(session_b)
+        control_clean = nonce not in control_text
+        _write_redacted_text(T5_TEMP_CONTROL, control_text)
+        session_b.close()
+        session_b = None
+
+        recall_len = len(recall_text)
+        control_len = len(control_text)
+        if recall_ok and control_clean:
+            verdict = "FALSIFIABLE_CONTINUITY_PROVEN"
+        elif not recall_ok:
+            verdict = "RECALL_FAILED"
+        else:
+            verdict = "CONTROL_LEAKED"
+        payload = {
+            "nonce_recalled_in_conversation": recall_ok,
+            "control_is_clean": control_clean,
+            "recall_len": recall_len,
+            "control_len": control_len,
+            "verdict": verdict,
+        }
+        REPORT_DIR.mkdir(parents=True, exist_ok=True)
+        T5_TEMP_CONTINUITY.write_text(
+            redact(json.dumps(_redact_jsonable(payload), indent=2, sort_keys=True)) + "\n",
+            encoding="utf-8",
+        )
+        audit(
+            {
+                "leg": "T5-temp",
+                "action": "summary",
+                "prompt-label": "temp-continuity",
+                "observation": (
+                    f"recall_ok={recall_ok},control_clean={control_clean},"
+                    f"recall_len={recall_len},control_len={control_len}"
+                ),
+                "markers": "n/a",
+                "result": verdict,
+            }
+        )
+        _emit(f"TEMP-CONTINUITY: recall_ok={recall_ok} control_clean={control_clean} verdict={verdict}")
+        return 0
+    except SystemExit:
+        raise
+    except HumanActionStop as exc:
+        if session_b is not None:
+            close_b = False
+        elif session_a is not None:
+            close_a = False
+        _emit_human_action_needed(exc.label)
+        return 5
+    except Exception as exc:  # noqa: BLE001 - top-level CLI must fail closed and surface safe detail.
+        _emit(f"ERROR: {exc.__class__.__name__}: {exc}")
+        return 1
+    finally:
+        if session_b is not None and close_b:
+            session_b.close()
+        if session_a is not None and close_a:
+            session_a.close()
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="M-008b attach-only real ChatGPT probe toolkit")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -595,6 +809,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="measure completion-marker reliability for a small varied prompt set",
     )
     completion.set_defaults(func=run_completion_reliability)
+
+    continuity_temp = subparsers.add_parser(
+        "continuity-temp",
+        help="plant and recall a nonce in one Temporary Chat, with a fresh Temporary Chat control",
+    )
+    continuity_temp.set_defaults(func=run_continuity_temp)
     return parser
 
 
