@@ -21,6 +21,7 @@ from ask_chatgpt.errors import (
     ResponseTruncatedError,
 )
 from ask_chatgpt.patch import PatchBundleCaps, apply_patch, retrieve_patch_bundle
+from ask_chatgpt.selector_map import SelectorMap
 
 
 _ZIP_DATE_TIME = (2024, 1, 1, 0, 0, 0)
@@ -123,6 +124,17 @@ def _snapshot_tree(root: Path):
     return snapshot
 
 
+def _download_unavailable_map(selectors: SelectorMap) -> SelectorMap:
+    real_like_selectors = dict(selectors.selectors)
+    real_like_selectors["download_artifact"] = ""
+    return SelectorMap(
+        channel="mock-download-unavailable",
+        selectors=real_like_selectors,
+        attributes=dict(selectors.attributes),
+        version=selectors.version,
+    )
+
+
 def _retrieve_scripted(
     mock_chatgpt,
     *,
@@ -148,6 +160,25 @@ def _retrieve_scripted(
 
 def test_download_missing_falls_back_to_valid_fenced_bundle(mock_chatgpt):
     result = _retrieve_scripted(mock_chatgpt, download_mode="missing", fenced_mode="ok")
+
+    assert result is not None
+    zip_bytes, bundle = result
+    assert bundle.source == "fenced"
+    assert bundle.content == zip_bytes
+    assert bundle.byte_count == len(zip_bytes)
+    assert bundle.sha256 == hashlib.sha256(zip_bytes).hexdigest()
+
+
+def test_unmapped_download_artifact_selector_falls_back_to_valid_fenced_bundle(mock_chatgpt):
+    mock_chatgpt.reset()
+    mock_chatgpt.script_next_response("patch response", download_mode="missing", fenced_mode="ok")
+    with BrowserSession(channel="mock", base_url=mock_chatgpt.base_url) as session:
+        session.open_or_create_conversation(None)
+        session.send_prompt("return a patch bundle")
+        session.wait_for_completion(timeout_s=3)
+        session.selectors = _download_unavailable_map(session.selectors)
+
+        result = retrieve_patch_bundle(session, timeout_s=3, download_wait_s=1.0)
 
     assert result is not None
     zip_bytes, bundle = result

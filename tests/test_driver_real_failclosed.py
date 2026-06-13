@@ -8,6 +8,7 @@ from ask_chatgpt.errors import SelectorUnavailableError
 
 
 REAL_SELECTOR_MAP = Path(__file__).resolve().parents[1] / "src" / "ask_chatgpt" / "selector_maps" / "real.json"
+EMPTY_REAL_SELECTOR_MAPS_DIR = Path(__file__).parent / "fixtures" / "selector_maps" / "empty"
 
 
 def test_real_download_artifact_selector_is_fail_closed_to_force_fenced_fallback():
@@ -18,7 +19,7 @@ def test_real_download_artifact_selector_is_fail_closed_to_force_fenced_fallback
     assert len(payload["attributes"]) == 2
 
 
-def test_real_start_fails_closed_before_playwright_start_and_navigation(tmp_path, monkeypatch):
+def test_real_start_fails_closed_on_missing_required_selector_before_playwright_start_and_navigation(tmp_path, monkeypatch):
     navigations: list[str] = []
     playwright_starts: list[bool] = []
 
@@ -63,7 +64,11 @@ def test_real_start_fails_closed_before_playwright_start_and_navigation(tmp_path
 
     monkeypatch.setattr(driver, "sync_playwright", fake_sync_playwright)
 
-    session = driver.BrowserSession(channel="real", profile_path=tmp_path / "profile")
+    session = driver.BrowserSession(
+        channel="real",
+        profile_path=tmp_path / "profile",
+        maps_dir=EMPTY_REAL_SELECTOR_MAPS_DIR,
+    )
     try:
         with pytest.raises(SelectorUnavailableError):
             session.start()

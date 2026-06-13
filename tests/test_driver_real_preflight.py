@@ -1,9 +1,13 @@
 import json
+from pathlib import Path
 
 import pytest
 
 import ask_chatgpt.driver as driver
 from ask_chatgpt.errors import LoginRequiredError, ProfileLockedError, SelectorUnavailableError
+
+
+EMPTY_REAL_SELECTOR_MAPS_DIR = Path(__file__).parent / "fixtures" / "selector_maps" / "empty"
 
 
 def write_populated_real_map(maps_dir):
@@ -74,6 +78,12 @@ def install_fake_real_playwright(monkeypatch, redirected_url, launch_kwargs_log=
     return goto_calls
 
 
+def test_sparse_real_selector_map_preflight_tolerates_unmapped_optional_keys(tmp_path):
+    session = driver.BrowserSession(channel="real", profile_path=tmp_path / "profile")
+
+    session._ensure_real_selector_map_ready()
+
+
 def test_profile_lock_preflight_raises_named_error_without_deleting_lock(tmp_path):
     profile = tmp_path / "profile"
     profile.mkdir()
@@ -123,7 +133,7 @@ def test_empty_real_selector_map_still_fails_before_profile_lock_and_launch(tmp_
 
     monkeypatch.setattr(driver, "sync_playwright", lambda: FakePlaywrightStarter())
 
-    session = driver.BrowserSession(channel="real", profile_path=profile)
+    session = driver.BrowserSession(channel="real", profile_path=profile, maps_dir=EMPTY_REAL_SELECTOR_MAPS_DIR)
     with pytest.raises(SelectorUnavailableError):
         session.start()
     assert playwright_starts == []

@@ -47,22 +47,14 @@ _REAL_REQUIRED_SELECTOR_KEYS = (
     "new_chat_button",
     "composer",
     "send_button",
-    "model_menu",
-    "model_option",
-    "model_option_disabled",
     "assistant_message",
     "message_body",
     "streaming_marker",
     "completion_marker",
     "copy_button",
-    "download_artifact",
     "upload_input",
-    "login_wall",
-    "conversation_not_found",
-    "truncation_marker",
-    "rate_limit_marker",
 )
-_REAL_REQUIRED_ATTRIBUTE_KEYS = ("conversation_ref", "turn_id")
+_REAL_REQUIRED_ATTRIBUTE_KEYS = ("turn_id",)
 
 
 class BrowserSession:

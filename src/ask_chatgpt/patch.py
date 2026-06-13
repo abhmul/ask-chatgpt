@@ -304,11 +304,20 @@ def _scan_download_artifacts(turn: Locator, selectors: Any) -> _DownloadScan:
         latest_turn_id = turn.get_attribute(turn_id_attr)
         if not latest_turn_id:
             raise PatchMalformedError("latest assistant turn is missing a turn id")
-        links = turn.locator(selectors.selector("download_artifact"))
-        count = links.count()
     except PatchMalformedError:
         raise
     except (PlaywrightError, SelectorUnavailableError) as exc:
+        raise DownloadUnsupportedError("download artifact selector unavailable for latest assistant turn") from exc
+
+    try:
+        download_selector = selectors.selector("download_artifact")
+    except SelectorUnavailableError:
+        return _DownloadScan(candidate=None, stale_artifact_seen=False, delayed=False, unsupported=False)
+
+    try:
+        links = turn.locator(download_selector)
+        count = links.count()
+    except PlaywrightError as exc:
         raise DownloadUnsupportedError("download artifact selector unavailable for latest assistant turn") from exc
 
     stale_artifact_seen = False

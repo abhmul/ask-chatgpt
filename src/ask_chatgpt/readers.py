@@ -31,7 +31,10 @@ class DomReader(ResponseReader):
     def read(self, turn_locator: Locator, page: Page, selectors: SelectorMap) -> str:  # noqa: ARG002 - interface parity
         assistant_selector = selectors.selector("assistant_message")
         body_selector = selectors.selector("message_body")
-        truncation_selector = selectors.selector("truncation_marker")
+        try:
+            truncation_selector = selectors.selector("truncation_marker")
+        except SelectorUnavailableError:
+            truncation_selector = None
         try:
             _require_turn_locator(turn_locator, self.name)
             is_assistant = bool(
@@ -39,7 +42,7 @@ class DomReader(ResponseReader):
             )
             if not is_assistant:
                 raise SelectorUnavailableError("DOM reader received a turn that does not match selector 'assistant_message'")
-            if turn_locator.locator(truncation_selector).count() > 0:
+            if truncation_selector is not None and turn_locator.locator(truncation_selector).count() > 0:
                 raise ResponseTruncatedError("latest assistant turn has a truncation marker")
 
             body = turn_locator.locator(body_selector)

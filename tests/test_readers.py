@@ -44,6 +44,17 @@ def _body_unavailable_map(selectors: SelectorMap) -> SelectorMap:
     )
 
 
+def _truncation_unavailable_map(selectors: SelectorMap) -> SelectorMap:
+    real_like_selectors = dict(selectors.selectors)
+    real_like_selectors["truncation_marker"] = ""
+    return SelectorMap(
+        channel="mock-truncation-unavailable",
+        selectors=real_like_selectors,
+        attributes=dict(selectors.attributes),
+        version=selectors.version,
+    )
+
+
 def test_dom_reader_happy_path_returns_latest_completed_text(mock_chatgpt):
     ref = "reader-dom-happy"
     latest_text = "DOM reader happy path answer 4b3db1"
@@ -83,6 +94,19 @@ def test_dom_reader_is_bounded_to_latest_turn_under_adversarial_layouts(mock_cha
 
         assert result == latest_text
         assert sentinel not in result
+
+
+def test_dom_reader_reads_body_when_truncation_marker_is_unmapped(mock_chatgpt):
+    ref = "reader-dom-truncation-unmapped"
+    latest_text = "DOM reader tolerates unmapped truncation marker answer d1e312"
+    _seed_turns(mock_chatgpt, ref=ref, latest_text=latest_text)
+
+    with BrowserSession(channel="mock", base_url=mock_chatgpt.base_url, grant_clipboard=False) as session:
+        session.open_or_create_conversation(ref)
+        turn = session.wait_for_completion(timeout_s=3)
+        real_like_selectors = _truncation_unavailable_map(session.selectors)
+
+        assert DomReader().read(turn, session.page, real_like_selectors) == latest_text
 
 
 def test_dom_reader_truncation_marker_raises_response_truncated(mock_chatgpt):
