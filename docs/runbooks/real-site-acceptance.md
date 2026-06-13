@@ -20,7 +20,7 @@ Automated tests and mock acceptance prove behavior only against a local loopback
 
 Every real-site behavior below is expected but unproven until the operator executes this runbook: real selectors, completion signals, DOM text extraction, copy fallback behavior, upload/download affordances, file size limits, session pinning, model selection, artifact-to-turn identity, and failure-message detectability.
 
-D-001 is the binding design posture for these observations: UC1 text reading is DOM-primary with copy-button fallback; UC2 bundle retrieval is download-capture-primary with a checksummed fenced-base64url fallback; selector maps are operator-versioned data and stale/missing selectors fail closed; no transcript-wide scraping is allowed.
+D-001 is the binding design posture for these observations: UC1 text reading is DOM-primary with copy-button fallback; UC2 real-site bundle retrieval uses the checksummed fenced-base64url zip block as the canonical channel (download affordances, if any, are optional observations); selector maps are operator-versioned data and stale/missing selectors fail closed; no transcript-wide scraping is allowed.
 
 ## Prerequisite — resolve real-site unknowns and fill `real.json` first
 
@@ -69,7 +69,7 @@ For patch workflows, the current CLI retrieves a returned patch bundle inside th
 
 ## Acceptance record template
 
-Record only nonsecret facts. Keep raw browser details local unless redacted. A minimal acceptance note should include: date/time, operator consent typed locally yes/no, browser/profile owned by operator yes/no, `real.json` populated yes/no, `ask-chatgpt --help` command shape confirmed yes/no, UC1 result PASS/FAIL/BLOCKED, UC2 result PASS/FAIL/BLOCKED, UC3 result PASS/FAIL/BLOCKED, observed named errors, whether DOM-primary was materially flakier than copy fallback, whether bundle retrieval used download capture or fenced fallback, and any selector/protocol updates needed.
+Record only nonsecret facts. Keep raw browser details local unless redacted. A minimal acceptance note should include: date/time, operator consent typed locally yes/no, browser/profile owned by operator yes/no, `real.json` populated yes/no, `ask-chatgpt --help` command shape confirmed yes/no, UC1 result PASS/FAIL/BLOCKED, UC2 result PASS/FAIL/BLOCKED, UC3 result PASS/FAIL/BLOCKED, observed named errors, whether DOM-primary was materially flakier than copy fallback, whether UC2 retrieved and validated the canonical fenced base64url zip block, and any selector/protocol updates needed.
 
 ## NEVER AUTOMATED BANNER FOR ALL RUN STEPS
 
@@ -164,7 +164,7 @@ uv run ask-chatgpt \
   --channel real \
   --profile-path "$ASK_CHATGPT_PROFILE_PATH" \
   --session real-site-acceptance-uc2-dry-run \
-  --prompt 'Real-site acceptance UC2 dry-run. You are editing a synthetic file. Change favorite_color from "red" to "blue" in example.txt. Return a patch bundle containing ONLY changed files, with repo-root-relative forward-slash paths, no absolute paths, no .. traversal, and no unchanged files. Prefer a downloadable .zip; if no download artifact is available, use the exact fenced patch-bundle fallback required by the bundle protocol.' \
+  --prompt 'Real-site acceptance UC2 dry-run. You are editing a synthetic file. Change favorite_color from "red" to "blue" in example.txt. Return a patch bundle containing ONLY changed files, with repo-root-relative forward-slash paths, no absolute paths, no .. traversal, and no unchanged files. Use the canonical 5-line fenced format: BEGIN_PATCH_BUNDLE; ZIP_BYTE_COUNT <decimal>; ZIP_SHA256 <lowercase 64-hex>; BASE64URL <unpadded-base64url-on-this-same-line>; END_PATCH_BUNDLE. Use single spaces after keys, no colons, no triple backticks, and no manifest.json unless deletions are required.' \
   --files example.txt \
   --root tmp/real-site-acceptance/uc2/root \
   --dry-run \
@@ -195,7 +195,7 @@ uv run ask-chatgpt \
   --channel real \
   --profile-path "$ASK_CHATGPT_PROFILE_PATH" \
   --session real-site-acceptance-uc2-apply \
-  --prompt 'Real-site acceptance UC2 apply. You are editing a synthetic file. Change favorite_color from "red" to "blue" in example.txt. Return a patch bundle containing ONLY changed files, with repo-root-relative forward-slash paths, no absolute paths, no .. traversal, and no unchanged files. Prefer a downloadable .zip; if no download artifact is available, use the exact fenced patch-bundle fallback required by the bundle protocol.' \
+  --prompt 'Real-site acceptance UC2 apply. You are editing a synthetic file. Change favorite_color from "red" to "blue" in example.txt. Return a patch bundle containing ONLY changed files, with repo-root-relative forward-slash paths, no absolute paths, no .. traversal, and no unchanged files. Use the canonical 5-line fenced format: BEGIN_PATCH_BUNDLE; ZIP_BYTE_COUNT <decimal>; ZIP_SHA256 <lowercase 64-hex>; BASE64URL <unpadded-base64url-on-this-same-line>; END_PATCH_BUNDLE. Use single spaces after keys, no colons, no triple backticks, and no manifest.json unless deletions are required.' \
   --files example.txt \
   --root tmp/real-site-acceptance/uc2/root \
   --apply \
@@ -207,13 +207,13 @@ grep -Fx 'favorite_color = "blue"' tmp/real-site-acceptance/uc2/root/example.txt
 
 ### UC2 expected observations
 
-Expected, to be confirmed on the real site: the real UI accepts the synthetic uploaded bundle, ChatGPT reads the catalogue/file, returns a patch bundle containing only the changed `example.txt`, and the tool retrieves that patch bundle either via Playwright download capture or via the checksummed fenced base64url fallback.
+Expected, to be confirmed on the real site: the real UI accepts the synthetic uploaded bundle, ChatGPT reads the catalogue/file, returns a canonical fenced patch bundle containing only the changed `example.txt`, and the tool retrieves and validates that checksummed base64url zip block.
 
 A PASS requires all of the following: the dry-run command exits zero, writes `assistant-response-dry-run.txt`, prints a dry-run JSON summary showing only `example.txt`, and leaves the scratch file red; the apply command exits zero after both consent tokens, writes `assistant-response-apply.txt`, prints an apply JSON summary showing only `example.txt`, and changes only `tmp/real-site-acceptance/uc2/root/example.txt`; the final file contains exactly `favorite_color = "blue"`; no absolute path, `..`, symlink escape, unchanged-file overwrite, or out-of-root write occurs.
 
-If download capture succeeds, record that the real site offered a usable download affordance for this prompt/model/account and note suggested filename/MIME if visible. If download capture is absent but fenced fallback succeeds and validates, UC2 can still pass via D-001 fallback, but record that real-site download support was absent or inconclusive. If both paths fail, UC2 real-site acceptance fails or blocks depending on the named error.
+The canonical real-site path is the fenced base64url zip block. If an optional download affordance also appears, record it as an observation only; UC2 PASS does not require a download. If the fenced block is absent, malformed, truncated, or fails integrity validation, UC2 real-site acceptance fails or blocks depending on the named error.
 
-Watch D-001 revisit triggers: if real artifacts are not scoped to the latest assistant turn, if the latest visible download retrieves an older file, if the real site provides downloads only under model/account conditions not captured by `real.json`, or if fenced payloads are truncated near observed limits, record this and update the observation results/protocol before claiming broad support.
+Watch D-001 revisit triggers: if real artifacts are not scoped to the latest assistant turn, if the latest visible download retrieves an older file, if the real site provides downloads only under model/account conditions not captured by `real.json`, or if canonical fenced payloads are truncated near observed limits, record this and update the observation results/protocol before claiming broad support.
 
 ### UC2 honest-failure interpretations
 
@@ -222,15 +222,15 @@ Watch D-001 revisit triggers: if real artifacts are not scoped to the latest ass
 | Browser shows login wall or CLI exits with login-required text. | `LoginRequiredError` | The real profile is not authenticated. Sign in manually in the visible browser if you consent; do not expose credentials to the tool or logs. |
 | The stored UC2 session URL/ref no longer opens the intended disposable chat. | `SessionNotFoundError` | The local session registry has a stale or deleted conversation ref. Delete/recreate the disposable session or choose a new session identifier. |
 | Upload control is absent, rejects `.zip`, rejects size/type, scanning fails, or the tool cannot attach the outgoing bundle. | `UploadUnsupportedError` | Real upload support is absent, disabled, over limit, or selector/config is stale. Stop UC2; update observation limits/selectors or reduce synthetic payload if the UI says size/type is the issue. |
-| No downloadable artifact appears, Playwright download capture does not fire, or the artifact is unavailable; fenced fallback then succeeds. | `DownloadUnsupportedError` may be logged/handled internally before fallback, final command may still pass | Download-capture primary is unsupported or inconclusive for this real run; acceptance may pass via fenced fallback, but record the real download behavior. |
-| No downloadable artifact appears and the fenced fallback also cannot be parsed. | `DownloadUnsupportedError` or `ResponseTruncatedError` depending on visible/fenced symptoms | Retrieval failed. Record whether the model never produced a bundle, produced text only, or truncated; revise prompt/protocol or real capability config before retry. |
+| Optional downloadable artifact is absent but the canonical fenced block succeeds. | Final command may still pass | This is acceptable for the aligned real channel; record download absence only as an observation. |
+| Canonical fenced block is absent or cannot be parsed. | `DownloadUnsupportedError` or `ResponseTruncatedError` depending on visible/fenced symptoms | Retrieval failed. Record whether the model never produced a bundle, produced text only, or truncated; revise prompt/protocol or real capability config before retry. |
 | Patch zip is corrupt, manifest missing/invalid, required fields missing, multiple bundles are returned, unchanged files are included when forbidden, or fence markers are malformed/missing. | `PatchMalformedError` | The bundle is not structurally valid. No apply may mutate anything; save only nonsecret diagnostics and update prompt/protocol. |
 | Whole-zip byte count, whole-zip SHA-256, per-file byte count, or per-file SHA-256 does not match. | `BundleIntegrityError` | The retrieved bytes are incomplete, altered, or not the declared bundle. No apply; retry with smaller payload or alternate retrieval path after recording the mismatch. |
 | Upload or returned fenced payload exceeds configured caps, UI reports size limit, or parser rejects payload as too large. | `OversizedPayloadError` for retrieved patch payload, or `UploadUnsupportedError` for outgoing upload rejection | Payload is over safe/observed limits. Reduce bundle size, split files, or update observed limits only after rerunning the observation runbook. |
 | Manifest or zip entry uses an absolute path, contains `..`, targets outside `--root`, or would follow/write through a symlink escape. | `PathEscapeError` | Treat as unsafe or adversarial output. No file may be written; report the prompt/model behavior and preserve only redacted diagnostics. |
 | A patch validates but local write, rollback, filesystem, or transaction-journal handling fails. | `PatchApplyError` | Local mutation failed after validation. Stop, inspect only the synthetic scratch root and transaction detail, and do not retry on private data. |
 | Generic patch or upload validation fails without a more specific subclass. | `PatchBundleValidationError` | The bundle was rejected before any write. Treat the detail as safe diagnostic input and rerun only after reducing payload or fixing the prompt/protocol. |
-| Assistant response visibly stops early, asks to continue, lacks `END_PATCH_BUNDLE`, lacks final markers, or times out. | `ResponseTruncatedError` | The text channel or completion signal was insufficient. Prefer download capture, reduce payload, or update real truncation limits before retry. |
+| Assistant response visibly stops early, asks to continue, lacks `END_PATCH_BUNDLE`, lacks final markers, or times out. | `ResponseTruncatedError` | The text channel or completion signal was insufficient. Reduce payload, retry with renewed consent, or update real truncation/completion handling before retry. |
 | Model option unavailable, rate limit banner, or selector unavailable appears. | `ModelUnavailableError`, `RateLimitedError`, or `SelectorUnavailableError` | Not a bundle-format failure. Resolve account/model/quota/selector condition first, then rerun UC2 only with renewed consent. |
 
 ## UC3 — `ask-chatgpt` CLI wrapping the function
@@ -319,6 +319,6 @@ Watch D-001 revisit triggers from the CLI surface too: if CLI output differs fro
 
 Stop immediately if any command would contact the real site without a freshly typed consent token, if any output contains credentials/cookies/tokens/profile contents/private refs/private transcripts, if `real.json` is unpopulated, if the visible browser shows an unexpected account/workspace/private conversation, if a patch bundle fails validation, or if an apply would write outside the explicit root.
 
-When reporting results, separate facts from interpretations: fact = exact nonsecret named error/output/visible behavior; interpretation = likely stale selector, unsupported upload, quota, etc.; speculation = account/model/rollout-dependent until repeated. Include whether the run used download capture or fenced fallback, whether DOM-primary matched the visible latest turn, and whether any D-001 revisit trigger fired.
+When reporting results, separate facts from interpretations: fact = exact nonsecret named error/output/visible behavior; interpretation = likely stale selector, unsupported upload, quota, etc.; speculation = account/model/rollout-dependent until repeated. Include whether the canonical fenced base64url zip block validated, whether DOM-primary matched the visible latest turn, and whether any D-001 revisit trigger fired.
 
 Do not commit raw acceptance artifacts if they contain account-private details. Synthetic files under `tmp/real-site-acceptance/` are disposable; review before sharing. The profile path and local session registry may reveal private conversation refs; keep them local or redact them.
