@@ -200,3 +200,20 @@ GATE: **PASSED.** Workstream A (M-008a prompt fixes + M-008b real verification) 
 3. Completion FAIL-CLOSED liveness edge: a genuinely-complete FAST short response whose stop-button lifetime is < one 0.1s poll spuriously raises `ResponseTruncatedError`; real-validated only 3/3 on short recalls — widen the short-response sample / consider faster early polling. (Safe, not a clip.)
 4. Code-interpreter-turn completion intermittently times out (1/2 capture runs).
 5. Account cross-chat Memory is ON — a clean normal-chat continuity control needs Memory disabled (optional, operator).
+
+---
+
+# M-009 INDEPENDENT GATE (2026-06-13, team-lead non-producer panel) — PASS (after one USAGE.md overclaim fix)
+
+Independent N=3 read-only panel + a team-lead leak forensic over head `1ae96f4` (USAGE.md fix committed on top). Mission goal: harden the tool for use by other agents.
+- **Safety / leak (PASS):** the account identifier that surfaced mid-run was scrubbed PRE-COMMIT — independently confirmed NO real identifier (email beyond git-author metadata, `/c/<id>` conversation ref, account/org/user UUID, display name, session token, cookie) in committed history (`082b11d..HEAD`) OR the working tree; the only id-shaped strings are synthetic fixture hashes. No stealth in `src/`; CDP `close()`=detach (never quits the attached browser); login detection-only; `real_site`+`ASK_CHATGPT_REAL` double-gate intact.
+- **Completion + UC2 soundness (PASS):** the never-saw-streaming short-response fix (`eb26c9a`) does NOT reopen the micro-pause/premature clip — the gate is `stop_absent_stable AND (streaming_seen OR bool(last_text))` where `stop_absent_stable` still requires `completion_visible` + ≥3s stop-absence + ≥3s text-stability (both windows reset on any streaming flicker / text change); `_MicroPauseCompletionState` and `_PrematureGlobalMarkerState` pins stay green. The opaque-real download mode (`e386bc4`) preserves the full source-agnostic zip-slip + caps + structural gauntlet (strict opaque trigger; no `extractall`; dry-run writes nothing; corrupt/truncated still fail closed). 212 passed / 4 deselected.
+- **USAGE.md honesty (CONCERNS → FIXED):** the guide labeled the whole UC2 round-trip "real-PROVEN" when only a SINGLE modified-file bundle is (added/deleted/multi-file are mock-only). FIXED — scoped + the mock-only note added. All other USAGE claims verified accurate (attended-honesty, `model_settings` fail-closed, the exit-code table vs `cli.py`, runnable code examples, the `--channel real` footgun warning).
+
+GATE: **PASSED.** Agent-readiness substantially closed: real UC1 text + continuity, real UC2 single modified-file round-trip, short-response edge fixed, honest consumer guide (`docs/USAGE.md`).
+
+**Remaining for full agent-readiness (honest):**
+1. **Real model-selection NOT wired** — T3 left `model_settings` fail-closed (`SelectorUnavailableError` on real). The picker was judged unmappable, but flagged retryable (the model dropdown is a Radix component that must be OPENED before its options enumerate). Omit `model_settings` for real use today.
+2. **Real UC2 matrix breadth** — added/deleted/multi-file bundles are mock-only on real.
+3. **Inherent ATTENDED constraint** — real use needs the operator's signed-in CDP browser; no headless/unattended mode (by design, D-002).
+4. Minor: `CDPUnreachableError`/`ChallengePresentError`/`ProfileLockedError` are not re-exported from top-level `ask_chatgpt` (importable from `ask_chatgpt.errors`; now doc-noted).

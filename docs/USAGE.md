@@ -84,7 +84,7 @@ has selected). See `orchestration/reports/M-009/T3-model-findings.md`.
 ## Named error modes (all subclass `AskChatGPTError`)
 Each is actionable and fails closed. The CLI maps the exit codes shown in parentheses below; errors
 with no code shown fall through to the generic `AskChatGPTError` exit code `1`, and the bundle-
-validation group intentionally shares code `11`.
+validation group intentionally shares code `11`. All error classes are importable from `ask_chatgpt.errors` (e.g. `from ask_chatgpt.errors import DownloadUnsupportedError`); the common ones are also re-exported from the top-level `ask_chatgpt`.
 
 | Error | Means | Operator action |
 |---|---|---|
@@ -106,11 +106,7 @@ validation group intentionally shares code `11`.
 - **UC1 text (`-> str`): real-PROVEN.** Completeness on long replies (M-008b: 180-line elicitation returned
   exact + complete) and short replies (M-009 T2: `PING`/`hi`/`7`/`OK` each returned, **0 spurious
   truncations**, `orchestration/reports/M-009/T2-short-response.json`).
-- **UC2 round-trip (`files=` → capture → apply + diff + content): real-PROVEN.** M-009 T1 closed the last
-  gap end-to-end over CDP with the shipped config: upload → real `.zip` captured via the production path
-  (`source=download`, 161 bytes) → applied → `favorite_color` red→blue with the sibling line unchanged
-  (`content_correct=true`, `orchestration/reports/M-009/T1-uc2-roundtrip.json`). The real ChatGPT download
-  control carries no integrity metadata, so the captured zip is validated **structurally**.
+- **UC2 round-trip (`files=` → capture → apply + diff + content): real-PROVEN for a SINGLE modified-file bundle.** M-009 T1 closed this end-to-end over CDP: upload → real `.zip` captured via the production path (`source=download`, 161 bytes) → applied → `favorite_color` red→blue with the sibling line unchanged (`content_correct=true`, `orchestration/reports/M-009/T1-uc2-roundtrip.json`). **Scope:** only the single modified-file round-trip is real-proven; **added, deleted, and multi-file bundles are mock-proven only** (`VERIFICATION.md` M-007 scope), not yet validated against the real download path. The real ChatGPT download control carries no integrity metadata, so the captured zip is validated **structurally** (zip-slip + caps + structure), not against a model-declared SHA.
 - **Continuity: real-PROVEN (conversation-scoped, memory-immune).** M-008b temp-chat probe 3/3.
 - **Real model selection: NOT wired (fails closed).** M-009 T3 — see `model_settings` above.
 
