@@ -22,7 +22,7 @@ warning: `VIRTUAL_ENV=/home/abhmul/.local/share/agent-python/.venv` does not mat
 IMPORT_OK ok
 ```
 
-COMMIT SHA: pending until after this report is committed; final response records the actual no-push commit SHA.
+COMMIT SHA: c9d63f945c3f195022d685e132deda1edbffa59a (implementation/report commit before this SHA-recording update; final HEAD is reported in the worker final response).
 
 ESTIMATE: E2 45m
 ACTUAL: E2 27m
