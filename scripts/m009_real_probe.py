@@ -370,6 +370,170 @@ def leg_short(args: argparse.Namespace) -> int:
     return 0
 
 
+_MODEL_ENUMERATE_JS = r"""
+() => {
+  // Privacy: never emit the operator's identity. Skip the account/profile control entirely and
+  // drop any aria-label that mentions a profile/account so personal names never reach an artifact.
+  function isAccount(el) {
+    const t = (el.getAttribute('data-testid') || '').toLowerCase();
+    const a = (el.getAttribute('aria-label') || '').toLowerCase();
+    return t.includes('account') || t.includes('profile') || a.includes('profile menu')
+        || a.includes('open profile') || a.includes('account');
+  }
+  function safeAria(el) {
+    const a = el.getAttribute('aria-label');
+    if (!a) return null;
+    const low = a.toLowerCase();
+    if (low.includes('profile') || low.includes('account') || low.includes('open project options')
+        || low.includes('conversation options')) return '<omitted>';
+    return a.slice(0, 60);
+  }
+  function shape(el) {
+    return {
+      tag: (el.tagName || '').toLowerCase(),
+      testid: el.getAttribute('data-testid'),
+      aria_label: safeAria(el),
+      aria_haspopup: el.getAttribute('aria-haspopup'),
+      aria_expanded: el.getAttribute('aria-expanded'),
+      aria_checked: el.getAttribute('aria-checked'),
+      role: el.getAttribute('role'),
+      disabled: !!el.disabled || el.getAttribute('aria-disabled') === 'true',
+      text: String(el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 60),
+    };
+  }
+  const MODEL_RE = /gpt|chatgpt|thinking|legacy|^auto$|\bauto\b|o[1-9]|[45]\.\d/i;
+  const out = { triggers: [], menuitems: [], testid_inventory: [], main_buttons: [] };
+  // Model-switcher candidates (uncapped, scrubbed): testid/aria mention model, or a button whose
+  // short text looks like a model name. Exclude account controls.
+  document.querySelectorAll('button, [role="button"], [role="combobox"]').forEach((el) => {
+    if (isAccount(el)) return;
+    const t = (el.getAttribute('data-testid') || '').toLowerCase();
+    const a = (el.getAttribute('aria-label') || '').toLowerCase();
+    const txt = String(el.innerText || '').replace(/\s+/g, ' ').trim();
+    if (t.includes('model') || a.includes('model') || t.includes('switcher')
+        || (txt.length <= 24 && MODEL_RE.test(txt) && el.getAttribute('aria-haspopup'))) {
+      out.triggers.push(shape(el));
+    }
+  });
+  // Doc-wide model-name candidates (privacy-safe: only emit when the element's OWN short text
+  // matches a model-name pattern, so personal names / chat titles are never emitted). Captures a
+  // clickable ancestor hint so we can target the switcher even if it has no testid.
+  function ownText(el) {
+    let s = '';
+    for (const n of el.childNodes) if (n.nodeType === 3) s += n.textContent;
+    return s.replace(/\s+/g, ' ').trim();
+  }
+  document.querySelectorAll('button, [role="button"], [role="combobox"], a, span, div').forEach((el) => {
+    if (isAccount(el)) return;
+    const txt = ownText(el).slice(0, 24);
+    if (!txt || !MODEL_RE.test(txt)) return;
+    const clickable = el.closest('button, [role="button"], [role="combobox"], [aria-haspopup]');
+    out.main_buttons.push({
+      text: txt,
+      tag: (el.tagName || '').toLowerCase(),
+      testid: el.getAttribute('data-testid'),
+      role: el.getAttribute('role'),
+      clickable_tag: clickable ? (clickable.tagName || '').toLowerCase() : null,
+      clickable_testid: clickable ? clickable.getAttribute('data-testid') : null,
+      clickable_haspopup: clickable ? clickable.getAttribute('aria-haspopup') : null,
+      clickable_aria: clickable ? safeAria(clickable) : null,
+    });
+  });
+  // Compact testid inventory (uncapped, scrubbed) to eyeball the switcher's testid.
+  const seen = new Set();
+  document.querySelectorAll('[data-testid]').forEach((el) => {
+    if (isAccount(el)) return;
+    const t = el.getAttribute('data-testid');
+    if (t && !seen.has(t) && seen.size < 200) { seen.add(t); out.testid_inventory.push(t); }
+  });
+  document.querySelectorAll('[role="menuitem"], [role="option"], [data-testid^="model-switcher"]').forEach((el) => {
+    if (isAccount(el)) return;
+    out.menuitems.push(shape(el));
+  });
+  return out;
+}
+"""
+
+
+def leg_model_discovery(_args: argparse.Namespace) -> int:
+    """Read-mostly: enumerate the real model picker. Open the menu, dump options, Escape (no select)."""
+    report = REPORT_DIR / "T3-model-discovery.json"
+    payload: dict[str, Any] = {"stage": "start"}
+    session: BrowserSession | None = None
+    close_on_exit = True
+    try:
+        session = connect()
+        try:
+            session.open_or_create_conversation(None)
+        except HUMAN_ERRORS as exc:
+            close_on_exit = False
+            _emit_human_action_needed(exc)
+            payload["result"] = _human_label(exc)
+            _write_json(report, payload)
+            return 5
+        if not recheck_safe(session):
+            close_on_exit = False
+            payload["result"] = "HUMAN-ACTION-NEEDED"
+            _write_json(report, payload)
+            return 5
+        page = session.page
+        closed = page.evaluate(_MODEL_ENUMERATE_JS)
+        payload["closed_state"] = closed
+        audit({"leg": "T3-model", "action": "enumerate (menu closed, read-only)",
+               "prompt-label": "n/a", "observation": f"triggers={len(closed.get('triggers', []))},menuitems_closed={len(closed.get('menuitems', []))}",
+               "markers": "n/a", "result": "OK"})
+
+        # Pick the most likely trigger and open the menu (UI-only; Escape afterwards, no selection).
+        triggers = closed.get("triggers", [])
+        opened = {"triggers": [], "menuitems": []}
+        chosen = None
+        for tr in triggers:
+            tid = (tr.get("testid") or "")
+            if "model-switcher" in tid or "model" in tid.lower():
+                chosen = tr
+                break
+        if chosen is None and triggers:
+            chosen = triggers[0]
+        payload["chosen_trigger"] = chosen
+        if chosen is not None:
+            try:
+                sel = None
+                if chosen.get("testid"):
+                    sel = f'[data-testid="{chosen["testid"]}"]'
+                elif chosen.get("aria_label"):
+                    sel = f'button[aria-label="{chosen["aria_label"]}"]'
+                if sel is not None:
+                    loc = page.locator(sel)
+                    if loc.count() > 0:
+                        loc.first.click(timeout=5000)
+                        page.wait_for_timeout(900)
+                        opened = page.evaluate(_MODEL_ENUMERATE_JS)
+                        payload["open_trigger_selector"] = sel
+                # Close the menu without selecting anything.
+                page.keyboard.press("Escape")
+                page.wait_for_timeout(300)
+            except PlaywrightError as exc:
+                payload["open_error"] = f"{exc.__class__.__name__}"
+        payload["opened_state"] = opened
+        payload["stage"] = "done"
+        _write_json(report, payload)
+        audit({"leg": "T3-model", "action": "open menu + enumerate options + Escape (no select)",
+               "prompt-label": "n/a", "observation": f"menuitems_open={len(opened.get('menuitems', []))}",
+               "markers": "n/a", "result": "OK"})
+        _emit(f"MODEL-DISCOVERY: triggers={len(triggers)} menuitems_open={len(opened.get('menuitems', []))}")
+        return 0
+    except SystemExit:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        payload["stage"] = "error"; payload["error"] = f"{exc.__class__.__name__}: {redact(str(exc))[:200]}"
+        _write_json(report, payload)
+        _emit(f"ERROR: {exc.__class__.__name__}: {exc}")
+        return 1
+    finally:
+        if session is not None and close_on_exit:
+            session.close()
+
+
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
     path.write_text(redact(json.dumps(payload, indent=2, sort_keys=True)) + "\n", encoding="utf-8")
@@ -393,6 +557,9 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("short", help="short-response completion edge via PRODUCTION ask_chatgpt()->text")
     s.add_argument("--completion-timeout", type=float, default=60.0)
     s.set_defaults(func=leg_short)
+
+    m = sub.add_parser("model-discovery", help="read-mostly: enumerate the real model picker (open menu, dump, Escape)")
+    m.set_defaults(func=leg_model_discovery)
     return p
 
 

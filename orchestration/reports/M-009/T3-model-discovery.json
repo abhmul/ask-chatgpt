@@ -1,0 +1,63 @@
+{
+  "chosen_trigger": null,
+  "closed_state": {
+    "main_buttons": [
+      {
+        "clickable_aria": null,
+        "clickable_haspopup": null,
+        "clickable_tag": null,
+        "clickable_testid": null,
+        "role": null,
+        "tag": "span",
+        "testid": null,
+        "text": "ChatGPT"
+      }
+    ],
+    "menuitems": [],
+    "testid_inventory": [
+      "blocking-initial-modals-done",
+      "create-new-chat-button",
+      "close-sidebar-button",
+      "sidebar-item-recall",
+      "apps-button",
+      "history-item-0-options",
+      "history-item-1-options",
+      "history-item-2-options",
+      "history-item-3-options",
+      "history-item-4-options",
+      "history-item-5-options",
+      "history-item-6-options",
+      "history-item-7-options",
+      "history-item-8-options",
+      "history-item-9-options",
+      "history-item-10-options",
+      "history-item-11-options",
+      "history-item-12-options",
+      "history-item-13-options",
+      "history-item-14-options",
+      "history-item-15-options",
+      "history-item-16-options",
+      "history-item-17-options",
+      "history-item-18-options",
+      "history-item-19-options",
+      "history-item-20-options",
+      "history-item-21-options",
+      "history-item-22-options",
+      "history-item-23-options",
+      "history-item-24-options",
+      "history-item-25-options",
+      "history-item-26-options",
+      "history-item-27-options",
+      "thread-header-right-actions-container",
+      "thread-header-right-actions",
+      "composer-plus-btn",
+      "upload-photos-input"
+    ],
+    "triggers": []
+  },
+  "opened_state": {
+    "menuitems": [],
+    "triggers": []
+  },
+  "stage": "done"
+}

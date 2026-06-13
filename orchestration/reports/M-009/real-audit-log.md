@@ -19,3 +19,11 @@
 | 14 | 2026-06-13T16:29:13.266885-05:00 | T1-uc2 | send-uc2-prompt | uc2-red-to-blue | sent; prompt_chars=2193 | n/a | OK |
 | 15 | 2026-06-13T16:29:47.565914-05:00 | T1-uc2 | first-wait_for_completion | uc2-red-to-blue | returned | n/a | returned |
 | 16 | 2026-06-13T16:29:51.316711-05:00 | T1-uc2 | retrieve_patch_bundle (PRODUCTION path) | uc2-red-to-blue | outcome=retrieved;  | n/a | retrieved |
+| 17 | 2026-06-13T16:32:00.141925-05:00 | T3-model | enumerate (menu closed, read-only) | n/a | triggers=0,menuitems_closed=0 | n/a | OK |
+| 18 | 2026-06-13T16:32:00.142086-05:00 | T3-model | open menu + enumerate options + Escape (no select) | n/a | menuitems_open=0 | n/a | OK |
+| 19 | 2026-06-13T16:32:48.157053-05:00 | T3-model | enumerate (menu closed, read-only) | n/a | triggers=0,menuitems_closed=0 | n/a | OK |
+| 20 | 2026-06-13T16:32:48.158364-05:00 | T3-model | open menu + enumerate options + Escape (no select) | n/a | menuitems_open=0 | n/a | OK |
+| 21 | 2026-06-13T16:34:56.142151-05:00 | T3-model | enumerate (menu closed, read-only) | n/a | triggers=0,menuitems_closed=0 | n/a | OK |
+| 22 | 2026-06-13T16:34:56.142443-05:00 | T3-model | open menu + enumerate options + Escape (no select) | n/a | menuitems_open=0 | n/a | OK |
+| 23 | 2026-06-13T16:36:36.151649-05:00 | T3-model | enumerate (menu closed, read-only) | n/a | triggers=0,menuitems_closed=0 | n/a | OK |
+| 24 | 2026-06-13T16:36:36.152027-05:00 | T3-model | open menu + enumerate options + Escape (no select) | n/a | menuitems_open=0 | n/a | OK |
