@@ -1,0 +1,2218 @@
+{
+  "actual_minutes": 0.75,
+  "clicked_summary": "home-initial: clicked=3 opened(option/model-like)=[6/0,0/0,0/0]; home-after-composer-focus: clicked=1 opened(option/model-like)=[0/0]; thread-recent-header-composer: clicked=3 opened(option/model-like)=[6/0,0/0,0/0]",
+  "ended_at": "2026-06-13T18:25:32.572597-05:00",
+  "fail_closed_reason": "Steps 1-4 ran; no clicked candidate opened a portal with at least two non-disabled model-name options",
+  "history_conversation_link_count": 28,
+  "passes": [
+    {
+      "candidate_results": [
+        {
+          "candidate": {
+            "aria_checked": null,
+            "aria_expanded": "false",
+            "aria_haspopup": "menu",
+            "aria_label": null,
+            "aria_selected": null,
+            "candidate_reasons": [
+              "composer-step1",
+              "aria-haspopup",
+              "data-state=closed"
+            ],
+            "contains_caret": false,
+            "data_state": "closed",
+            "disabled": false,
+            "own_text": "<non-model-text>",
+            "rect": {
+              "height": 36,
+              "left": 1265,
+              "top": 407,
+              "width": 113
+            },
+            "role": null,
+            "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > form:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(1)",
+            "selector_basis": "structural-path",
+            "selector_count": 1,
+            "sources": [
+              "composer",
+              "document"
+            ],
+            "tag": "button",
+            "testid": null,
+            "text": "<non-model-text>",
+            "text_matches_model": false
+          },
+          "escape_confirmation": {
+            "portal_options_after_escape": 0,
+            "portal_roots_after_escape": 0,
+            "script_clicked_option": false,
+            "trigger_state_after_escape": {
+              "aria_expanded": "false",
+              "aria_haspopup": "menu",
+              "count": 1,
+              "data_state": "closed"
+            }
+          },
+          "index": 0,
+          "is_model_trigger": false,
+          "opened_state": {
+            "available_model_labels": [],
+            "candidate_list": [],
+            "composer_controls": [],
+            "document_candidates": [],
+            "header_controls_all": [],
+            "header_left_containers": [],
+            "header_left_controls": [],
+            "hydrated_markers": {
+              "composer_present": 1,
+              "header_present": 1,
+              "ready_root_present": 1
+            },
+            "mode": "full",
+            "model_option_disabled_selector": "[data-radix-popper-content-wrapper] [role=menuitemradio][aria-disabled=true], [data-radix-popper-content-wrapper] [role=menuitemradio][data-disabled=true], [data-radix-popper-content-wrapper] [role=menuitemradio][disabled]",
+            "model_option_selector": "[data-radix-popper-content-wrapper] [role=menuitemradio]",
+            "model_option_selector_counts": [
+              {
+                "dom_count": 5,
+                "selector": "[data-radix-popper-content-wrapper] [role=menuitemradio]",
+                "visible_count": 5
+              },
+              {
+                "dom_count": 0,
+                "selector": "[data-radix-popper-content-wrapper] [role=option]",
+                "visible_count": 0
+              },
+              {
+                "dom_count": 2,
+                "selector": "[data-radix-popper-content-wrapper] [role=menuitem]",
+                "visible_count": 1
+              },
+              {
+                "dom_count": 5,
+                "selector": "[role=menu] [role=menuitemradio]",
+                "visible_count": 5
+              },
+              {
+                "dom_count": 0,
+                "selector": "[role=menu] [role=option]",
+                "visible_count": 0
+              },
+              {
+                "dom_count": 2,
+                "selector": "[role=menu] [role=menuitem]",
+                "visible_count": 1
+              },
+              {
+                "dom_count": 0,
+                "selector": "[role=listbox] [role=option]",
+                "visible_count": 0
+              },
+              {
+                "dom_count": 5,
+                "selector": "[data-radix-collection-item][role=menuitemradio]",
+                "visible_count": 5
+              },
+              {
+                "dom_count": 0,
+                "selector": "[data-radix-collection-item][role=option]",
+                "visible_count": 0
+              },
+              {
+                "dom_count": 7,
+                "selector": "[data-radix-collection-item]",
+                "visible_count": 6
+              }
+            ],
+            "portal_options": [
+              {
+                "aria_checked": "false",
+                "aria_expanded": null,
+                "aria_haspopup": null,
+                "aria_label": null,
+                "aria_selected": null,
+                "data_state": "unchecked",
+                "disabled": false,
+                "full_label_text": "<non-model-text>",
+                "is_model_option": false,
+                "is_submenu_or_more_models": false,
+                "model_label": "<non-model-text>",
+                "rect": {
+                  "height": 36,
+                  "left": 1225,
+                  "top": 489,
+                  "width": 147
+                },
+                "role": "menuitemradio",
+                "selector": "body > div:nth-of-type(5) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1)",
+                "selector_basis": "structural-path",
+                "selector_count": 1,
+                "tag": "div",
+                "testid": null,
+                "value_attr_model_gated": "<non-model-text>"
+              },
+              {
+                "aria_checked": "false",
+                "aria_expanded": null,
+                "aria_haspopup": null,
+                "aria_label": null,
+                "aria_selected": null,
+                "data_state": "unchecked",
+                "disabled": false,
+                "full_label_text": "<non-model-text>",
+                "is_model_option": false,
+                "is_submenu_or_more_models": false,
+                "model_label": "<non-model-text>",
+                "rect": {
+                  "height": 36,
+                  "left": 1225,
+                  "top": 525,
+                  "width": 147
+                },
+                "role": "menuitemradio",
+                "selector": "body > div:nth-of-type(5) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(2)",
+                "selector_basis": "structural-path",
+                "selector_count": 1,
+                "tag": "div",
+                "testid": null,
+                "value_attr_model_gated": "<non-model-text>"
+              },
+              {
+                "aria_checked": "false",
+                "aria_expanded": null,
+                "aria_haspopup": null,
+                "aria_label": null,
+                "aria_selected": null,
+                "data_state": "unchecked",
+                "disabled": false,
+                "full_label_text": "<non-model-text>",
+                "is_model_option": false,
+                "is_submenu_or_more_models": false,
+                "model_label": "<non-model-text>",
+                "rect": {
+                  "height": 36,
+                  "left": 1225,
+                  "top": 561,
+                  "width": 147
+                },
+                "role": "menuitemradio",
+                "selector": "body > div:nth-of-type(5) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(3)",
+                "selector_basis": "structural-path",
+                "selector_count": 1,
+                "tag": "div",
+                "testid": null,
+                "value_attr_model_gated": "<non-model-text>"
+              },
+              {
+                "aria_checked": "true",
+                "aria_expanded": null,
+                "aria_haspopup": null,
+                "aria_label": null,
+                "aria_selected": null,
+                "data_state": "checked",
+                "disabled": false,
+                "full_label_text": "<non-model-text>",
+                "is_model_option": false,
+                "is_submenu_or_more_models": false,
+                "model_label": "<non-model-text>",
+                "rect": {
+                  "height": 36,
+                  "left": 1225,
+                  "top": 597,
+                  "width": 147
+                },
+                "role": "menuitemradio",
+                "selector": "body > div:nth-of-type(5) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(4)",
+                "selector_basis": "structural-path",
+                "selector_count": 1,
+                "tag": "div",
+                "testid": null,
+                "value_attr_model_gated": "<non-model-text>"
+              },
+              {
+                "aria_checked": "false",
+                "aria_expanded": null,
+                "aria_haspopup": null,
+                "aria_label": null,
+                "aria_selected": null,
+                "data_state": null,
+                "disabled": false,
+                "full_label_text": "<non-model-text>",
+                "is_model_option": false,
+                "is_submenu_or_more_models": false,
+                "model_label": "<non-model-text>",
+                "rect": {
+                  "height": 36,
+                  "left": 1225,
+                  "top": 633,
+                  "width": 147
+                },
+                "role": "menuitemradio",
+                "selector": "body > div:nth-of-type(5) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(5) > div:nth-of-type(1)",
+                "selector_basis": "structural-path",
+                "selector_count": 1,
+                "tag": "div",
+                "testid": null,
+                "value_attr_model_gated": "<non-model-text>"
+              },
+              {
+                "aria_checked": null,
+                "aria_expanded": "false",
+                "aria_haspopup": "menu",
+                "aria_label": null,
+                "aria_selected": null,
+                "data_state": "closed",
+                "disabled": false,
+                "full_label_text": "GPT-5.5",
+                "is_model_option": false,
+                "is_submenu_or_more_models": true,
+                "model_label": "GPT-5.5",
+                "rect": {
+                  "height": 36,
+                  "left": 1225,
+                  "top": 678,
+                  "width": 147
+                },
+                "role": "menuitem",
+                "selector": "div[role=\"menuitem\"]",
+                "selector_basis": "role",
+                "selector_count": 1,
+                "tag": "div",
+                "testid": null,
+                "value_attr_model_gated": "<non-model-text>"
+              }
+            ],
+            "portal_roots": [
+              {
+                "aria_checked": null,
+                "aria_expanded": null,
+                "aria_haspopup": null,
+                "aria_label": null,
+                "aria_selected": null,
+                "data_state": null,
+                "disabled": false,
+                "rect": {
+                  "height": 273,
+                  "left": 1219,
+                  "top": 447,
+                  "width": 159
+                },
+                "role": null,
+                "selector": "body > div:nth-of-type(5)",
+                "selector_basis": "structural-path",
+                "selector_count": 1,
+                "tag": "div",
+                "testid": null,
+                "text": "<non-model-text>"
+              },
+              {
+                "aria_checked": null,
+                "aria_expanded": null,
+                "aria_haspopup": null,
+                "aria_label": null,
+                "aria_selected": null,
+                "data_state": "open",
+                "disabled": false,
+                "rect": {
+                  "height": 273,
+                  "left": 1219,
+                  "top": 447,
+                  "width": 159
+                },
+                "role": "menu",
+                "selector": "div[role=\"menu\"]",
+                "selector_basis": "role",
+                "selector_count": 1,
+                "tag": "div",
+                "testid": null,
+                "text": "<non-model-text>"
+              }
+            ],
+            "url_path": "/"
+          },
+          "opened_summary": {
+            "available_model_labels": [],
+            "model_like_option_count": 0,
+            "model_option_disabled_selector": "[data-radix-popper-content-wrapper] [role=menuitemradio][aria-disabled=true], [data-radix-popper-content-wrapper] [role=menuitemradio][data-disabled=true], [data-radix-popper-content-wrapper] [role=menuitemradio][disabled]",
+            "model_option_selector": "[data-radix-popper-content-wrapper] [role=menuitemradio]",
+            "option_count": 6,
+            "portal_root_count": 2
+          },
+          "pass_label": "home-initial",
+          "selector_count_before_click": 1,
+          "trigger_state_before": {
+            "aria_expanded": "false",
+            "aria_haspopup": "menu",
+            "count": 1,
+            "data_state": "closed"
+          }
+        },
+        {
+          "candidate": {
+            "aria_checked": null,
+            "aria_expanded": null,
+            "aria_haspopup": null,
+            "aria_label": "<non-model-aria>",
+            "aria_selected": null,
+            "candidate_reasons": [
+              "composer-step1"
+            ],
+            "contains_caret": false,
+            "data_state": null,
+            "disabled": false,
+            "own_text": "<non-model-text>",
+            "rect": {
+              "height": 36,
+              "left": 1384,
+              "top": 407,
+              "width": 36
+            },
+            "role": null,
+            "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > form:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(2) > button:nth-of-type(1)",
+            "selector_basis": "structural-path",
+            "selector_count": 1,
+            "sources": [
+              "composer"
+            ],
+            "tag": "button",
+            "testid": null,
+            "text": "<non-model-text>",
+            "text_matches_model": false
+          },
+          "escape_confirmation": {
+            "portal_options_after_escape": 0,
+            "portal_roots_after_escape": 0,
+            "script_clicked_option": false,
+            "trigger_state_after_escape": {
+              "aria_expanded": null,
+              "aria_haspopup": null,
+              "count": 1,
+              "data_state": null
+            }
+          },
+          "index": 1,
+          "is_model_trigger": false,
+          "opened_state": {
+            "available_model_labels": [],
+            "candidate_list": [],
+            "composer_controls": [],
+            "document_candidates": [],
+            "header_controls_all": [],
+            "header_left_containers": [],
+            "header_left_controls": [],
+            "hydrated_markers": {
+              "composer_present": 1,
+              "header_present": 1,
+              "ready_root_present": 1
+            },
+            "mode": "full",
+            "model_option_disabled_selector": null,
+            "model_option_selector": null,
+            "model_option_selector_counts": [
+              {
+                "dom_count": 0,
+                "selector": "[data-radix-popper-content-wrapper] [role=menuitemradio]",
+                "visible_count": 0
+              },
+              {
+                "dom_count": 0,
+                "selector": "[data-radix-popper-content-wrapper] [role=option]",
+                "visible_count": 0
+              },
+              {
+                "dom_count": 0,
+                "selector": "[data-radix-popper-content-wrapper] [role=menuitem]",
+                "visible_count": 0
+              },
+              {
+                "dom_count": 0,
+                "selector": "[role=menu] [role=menuitemradio]",
+                "visible_count": 0
+              },
+              {
+                "dom_count": 0,
+                "selector": "[role=menu] [role=option]",
+                "visible_count": 0
+              },
+              {
+                "dom_count": 0,
+                "selector": "[role=menu] [role=menuitem]",
+                "visible_count": 0
+              },
+              {
+                "dom_count": 0,
+                "selector": "[role=listbox] [role=option]",
+                "visible_count": 0
+              },
+              {
+                "dom_count": 0,
+                "selector": "[data-radix-collection-item][role=menuitemradio]",
+                "visible_count": 0
+              },
+              {
+                "dom_count": 0,
+                "selector": "[data-radix-collection-item][role=option]",
+                "visible_count": 0
+              },
+              {
+                "dom_count": 0,
+                "selector": "[data-radix-collection-item]",
+                "visible_count": 0
+              }
+            ],
+            "portal_options": [],
+            "portal_roots": [],
+            "url_path": "/"
+          },
+          "opened_summary": {
+            "available_model_labels": [],
+            "model_like_option_count": 0,
+            "model_option_disabled_selector": null,
+            "model_option_selector": null,
+            "option_count": 0,
+            "portal_root_count": 0
+          },
+          "pass_label": "home-initial",
+          "selector_count_before_click": 1,
+          "trigger_state_before": {
+            "aria_expanded": null,
+            "aria_haspopup": null,
+            "count": 1,
+            "data_state": null
+          }
+        },
+        {
+          "candidate": {
+            "aria_checked": null,
+            "aria_expanded": null,
+            "aria_haspopup": null,
+            "aria_label": "<non-model-aria>",
+            "aria_selected": null,
+            "candidate_reasons": [
+              "composer-step1"
+            ],
+            "contains_caret": false,
+            "data_state": null,
+            "disabled": false,
+            "own_text": "<non-model-text>",
+            "rect": {
+              "height": 36,
+              "left": 1426,
+              "top": 407,
+              "width": 36
+            },
+            "role": null,
+            "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > form:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(2) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(1)",
+            "selector_basis": "structural-path",
+            "selector_count": 1,
+            "sources": [
+              "composer"
+            ],
+            "tag": "button",
+            "testid": null,
+            "text": "<non-model-text>",
+            "text_matches_model": false
+          },
+          "escape_confirmation": {
+            "portal_options_after_escape": 0,
+            "portal_roots_after_escape": 0,
+            "script_clicked_option": false,
+            "trigger_state_after_escape": {
+              "count": 0
+            }
+          },
+          "index": 2,
+          "is_model_trigger": false,
+          "opened_state": {
+            "available_model_labels": [],
+            "candidate_list": [],
+            "composer_controls": [],
+            "document_candidates": [],
+            "header_controls_all": [],
+            "header_left_containers": [],
+            "header_left_controls": [],
+            "hydrated_markers": {
+              "composer_present": 1,
+              "header_present": 1,
+              "ready_root_present": 1
+            },
+            "mode": "full",
+            "model_option_disabled_selector": null,
+            "model_option_selector": null,
+            "model_option_selector_counts": [
+              {
+                "dom_count": 0,
+                "selector": "[data-radix-popper-content-wrapper] [role=menuitemradio]",
+                "visible_count": 0
+              },
+              {
+                "dom_count": 0,
+                "selector": "[data-radix-popper-content-wrapper] [role=option]",
+                "visible_count": 0
+              },
+              {
+                "dom_count": 0,
+                "selector": "[data-radix-popper-content-wrapper] [role=menuitem]",
+                "visible_count": 0
+              },
+              {
+                "dom_count": 0,
+                "selector": "[role=menu] [role=menuitemradio]",
+                "visible_count": 0
+              },
+              {
+                "dom_count": 0,
+                "selector": "[role=menu] [role=option]",
+                "visible_count": 0
+              },
+              {
+                "dom_count": 0,
+                "selector": "[role=menu] [role=menuitem]",
+                "visible_count": 0
+              },
+              {
+                "dom_count": 0,
+                "selector": "[role=listbox] [role=option]",
+                "visible_count": 0
+              },
+              {
+                "dom_count": 0,
+                "selector": "[data-radix-collection-item][role=menuitemradio]",
+                "visible_count": 0
+              },
+              {
+                "dom_count": 0,
+                "selector": "[data-radix-collection-item][role=option]",
+                "visible_count": 0
+              },
+              {
+                "dom_count": 0,
+                "selector": "[data-radix-collection-item]",
+                "visible_count": 0
+              }
+            ],
+            "portal_options": [],
+            "portal_roots": [],
+            "url_path": "/"
+          },
+          "opened_summary": {
+            "available_model_labels": [],
+            "model_like_option_count": 0,
+            "model_option_disabled_selector": null,
+            "model_option_selector": null,
+            "option_count": 0,
+            "portal_root_count": 0
+          },
+          "pass_label": "home-initial",
+          "selector_count_before_click": 1,
+          "trigger_state_before": {
+            "aria_expanded": null,
+            "aria_haspopup": null,
+            "count": 1,
+            "data_state": null
+          }
+        }
+      ],
+      "enumeration": {
+        "available_model_labels": [],
+        "candidate_list": [
+          {
+            "aria_checked": null,
+            "aria_expanded": "false",
+            "aria_haspopup": "menu",
+            "aria_label": null,
+            "aria_selected": null,
+            "candidate_reasons": [
+              "composer-step1",
+              "aria-haspopup",
+              "data-state=closed"
+            ],
+            "contains_caret": false,
+            "data_state": "closed",
+            "disabled": false,
+            "own_text": "<non-model-text>",
+            "rect": {
+              "height": 36,
+              "left": 1265,
+              "top": 407,
+              "width": 113
+            },
+            "role": null,
+            "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > form:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(1)",
+            "selector_basis": "structural-path",
+            "selector_count": 1,
+            "sources": [
+              "composer",
+              "document"
+            ],
+            "tag": "button",
+            "testid": null,
+            "text": "<non-model-text>",
+            "text_matches_model": false
+          },
+          {
+            "aria_checked": null,
+            "aria_expanded": null,
+            "aria_haspopup": null,
+            "aria_label": "<non-model-aria>",
+            "aria_selected": null,
+            "candidate_reasons": [
+              "composer-step1"
+            ],
+            "contains_caret": false,
+            "data_state": null,
+            "disabled": false,
+            "own_text": "<non-model-text>",
+            "rect": {
+              "height": 36,
+              "left": 1384,
+              "top": 407,
+              "width": 36
+            },
+            "role": null,
+            "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > form:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(2) > button:nth-of-type(1)",
+            "selector_basis": "structural-path",
+            "selector_count": 1,
+            "sources": [
+              "composer"
+            ],
+            "tag": "button",
+            "testid": null,
+            "text": "<non-model-text>",
+            "text_matches_model": false
+          },
+          {
+            "aria_checked": null,
+            "aria_expanded": null,
+            "aria_haspopup": null,
+            "aria_label": "<non-model-aria>",
+            "aria_selected": null,
+            "candidate_reasons": [
+              "composer-step1"
+            ],
+            "contains_caret": false,
+            "data_state": null,
+            "disabled": false,
+            "own_text": "<non-model-text>",
+            "rect": {
+              "height": 36,
+              "left": 1426,
+              "top": 407,
+              "width": 36
+            },
+            "role": null,
+            "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > form:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(2) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(1)",
+            "selector_basis": "structural-path",
+            "selector_count": 1,
+            "sources": [
+              "composer"
+            ],
+            "tag": "button",
+            "testid": null,
+            "text": "<non-model-text>",
+            "text_matches_model": false
+          }
+        ],
+        "composer_controls": [
+          {
+            "aria_checked": null,
+            "aria_expanded": "false",
+            "aria_haspopup": "menu",
+            "aria_label": null,
+            "aria_selected": null,
+            "contains_caret": false,
+            "data_state": "closed",
+            "disabled": false,
+            "own_text": "<non-model-text>",
+            "rect": {
+              "height": 36,
+              "left": 1265,
+              "top": 407,
+              "width": 113
+            },
+            "role": null,
+            "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > form:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(1)",
+            "selector_basis": "structural-path",
+            "selector_count": 1,
+            "source": "composer",
+            "tag": "button",
+            "testid": null,
+            "text": "<non-model-text>",
+            "text_matches_model": false
+          },
+          {
+            "aria_checked": null,
+            "aria_expanded": null,
+            "aria_haspopup": null,
+            "aria_label": "<non-model-aria>",
+            "aria_selected": null,
+            "contains_caret": false,
+            "data_state": null,
+            "disabled": false,
+            "own_text": "<non-model-text>",
+            "rect": {
+              "height": 36,
+              "left": 1384,
+              "top": 407,
+              "width": 36
+            },
+            "role": null,
+            "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > form:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(2) > button:nth-of-type(1)",
+            "selector_basis": "structural-path",
+            "selector_count": 1,
+            "source": "composer",
+            "tag": "button",
+            "testid": null,
+            "text": "<non-model-text>",
+            "text_matches_model": false
+          },
+          {
+            "aria_checked": null,
+            "aria_expanded": null,
+            "aria_haspopup": null,
+            "aria_label": "<non-model-aria>",
+            "aria_selected": null,
+            "contains_caret": false,
+            "data_state": null,
+            "disabled": false,
+            "own_text": "<non-model-text>",
+            "rect": {
+              "height": 36,
+              "left": 1426,
+              "top": 407,
+              "width": 36
+            },
+            "role": null,
+            "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > form:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(2) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(1)",
+            "selector_basis": "structural-path",
+            "selector_count": 1,
+            "source": "composer",
+            "tag": "button",
+            "testid": null,
+            "text": "<non-model-text>",
+            "text_matches_model": false
+          }
+        ],
+        "document_candidates": [
+          {
+            "aria_checked": null,
+            "aria_expanded": "false",
+            "aria_haspopup": "menu",
+            "aria_label": null,
+            "aria_selected": null,
+            "candidate_reasons": [
+              "aria-haspopup",
+              "data-state=closed"
+            ],
+            "contains_caret": false,
+            "data_state": "closed",
+            "disabled": false,
+            "own_text": "<non-model-text>",
+            "rect": {
+              "height": 36,
+              "left": 1265,
+              "top": 407,
+              "width": 113
+            },
+            "role": null,
+            "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > form:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(1)",
+            "selector_basis": "structural-path",
+            "selector_count": 1,
+            "tag": "button",
+            "testid": null,
+            "text": "<non-model-text>",
+            "text_matches_model": false
+          }
+        ],
+        "header_controls_all": [
+          {
+            "aria_checked": null,
+            "aria_expanded": null,
+            "aria_haspopup": null,
+            "aria_label": "<non-model-aria>",
+            "aria_selected": null,
+            "contains_caret": false,
+            "data_state": null,
+            "disabled": false,
+            "own_text": "<non-model-text>",
+            "rect": {
+              "height": 36,
+              "left": 1857,
+              "top": 8,
+              "width": 36
+            },
+            "role": null,
+            "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > header:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > span:nth-of-type(1) > button:nth-of-type(1)",
+            "selector_basis": "structural-path",
+            "selector_count": 1,
+            "source": "header",
+            "tag": "button",
+            "testid": null,
+            "text": "<non-model-text>",
+            "text_matches_model": false
+          }
+        ],
+        "header_left_containers": [],
+        "header_left_controls": [],
+        "hydrated_markers": {
+          "composer_present": 1,
+          "header_present": 1,
+          "ready_root_present": 1
+        },
+        "mode": "full",
+        "model_option_disabled_selector": null,
+        "model_option_selector": null,
+        "model_option_selector_counts": [
+          {
+            "dom_count": 0,
+            "selector": "[data-radix-popper-content-wrapper] [role=menuitemradio]",
+            "visible_count": 0
+          },
+          {
+            "dom_count": 0,
+            "selector": "[data-radix-popper-content-wrapper] [role=option]",
+            "visible_count": 0
+          },
+          {
+            "dom_count": 0,
+            "selector": "[data-radix-popper-content-wrapper] [role=menuitem]",
+            "visible_count": 0
+          },
+          {
+            "dom_count": 0,
+            "selector": "[role=menu] [role=menuitemradio]",
+            "visible_count": 0
+          },
+          {
+            "dom_count": 0,
+            "selector": "[role=menu] [role=option]",
+            "visible_count": 0
+          },
+          {
+            "dom_count": 0,
+            "selector": "[role=menu] [role=menuitem]",
+            "visible_count": 0
+          },
+          {
+            "dom_count": 0,
+            "selector": "[role=listbox] [role=option]",
+            "visible_count": 0
+          },
+          {
+            "dom_count": 0,
+            "selector": "[data-radix-collection-item][role=menuitemradio]",
+            "visible_count": 0
+          },
+          {
+            "dom_count": 0,
+            "selector": "[data-radix-collection-item][role=option]",
+            "visible_count": 0
+          },
+          {
+            "dom_count": 0,
+            "selector": "[data-radix-collection-item]",
+            "visible_count": 0
+          }
+        ],
+        "portal_options": [],
+        "portal_roots": [],
+        "url_path": "/"
+      },
+      "mode": "full",
+      "pass_label": "home-initial"
+    },
+    {
+      "candidate_results": [
+        {
+          "candidate": {
+            "aria_checked": null,
+            "aria_expanded": null,
+            "aria_haspopup": null,
+            "aria_label": "<non-model-aria>",
+            "aria_selected": null,
+            "candidate_reasons": [
+              "composer-step1"
+            ],
+            "contains_caret": false,
+            "data_state": null,
+            "disabled": false,
+            "own_text": "<non-model-text>",
+            "rect": {
+              "height": 36,
+              "left": 1364,
+              "top": 407,
+              "width": 98
+            },
+            "role": null,
+            "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > form:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(1)",
+            "selector_basis": "structural-path",
+            "selector_count": 1,
+            "sources": [
+              "composer"
+            ],
+            "tag": "button",
+            "testid": null,
+            "text": "<non-model-text>",
+            "text_matches_model": false
+          },
+          "escape_confirmation": {
+            "portal_options_after_escape": 0,
+            "portal_roots_after_escape": 0,
+            "script_clicked_option": false,
+            "trigger_state_after_escape": {
+              "count": 0
+            }
+          },
+          "index": 0,
+          "is_model_trigger": false,
+          "opened_state": {
+            "available_model_labels": [],
+            "candidate_list": [],
+            "composer_controls": [],
+            "document_candidates": [],
+            "header_controls_all": [],
+            "header_left_containers": [],
+            "header_left_controls": [],
+            "hydrated_markers": {
+              "composer_present": 1,
+              "header_present": 1,
+              "ready_root_present": 1
+            },
+            "mode": "full",
+            "model_option_disabled_selector": null,
+            "model_option_selector": null,
+            "model_option_selector_counts": [
+              {
+                "dom_count": 0,
+                "selector": "[data-radix-popper-content-wrapper] [role=menuitemradio]",
+                "visible_count": 0
+              },
+              {
+                "dom_count": 0,
+                "selector": "[data-radix-popper-content-wrapper] [role=option]",
+                "visible_count": 0
+              },
+              {
+                "dom_count": 0,
+                "selector": "[data-radix-popper-content-wrapper] [role=menuitem]",
+                "visible_count": 0
+              },
+              {
+                "dom_count": 0,
+                "selector": "[role=menu] [role=menuitemradio]",
+                "visible_count": 0
+              },
+              {
+                "dom_count": 0,
+                "selector": "[role=menu] [role=option]",
+                "visible_count": 0
+              },
+              {
+                "dom_count": 0,
+                "selector": "[role=menu] [role=menuitem]",
+                "visible_count": 0
+              },
+              {
+                "dom_count": 0,
+                "selector": "[role=listbox] [role=option]",
+                "visible_count": 0
+              },
+              {
+                "dom_count": 0,
+                "selector": "[data-radix-collection-item][role=menuitemradio]",
+                "visible_count": 0
+              },
+              {
+                "dom_count": 0,
+                "selector": "[data-radix-collection-item][role=option]",
+                "visible_count": 0
+              },
+              {
+                "dom_count": 0,
+                "selector": "[data-radix-collection-item]",
+                "visible_count": 0
+              }
+            ],
+            "portal_options": [],
+            "portal_roots": [],
+            "url_path": "/"
+          },
+          "opened_summary": {
+            "available_model_labels": [],
+            "model_like_option_count": 0,
+            "model_option_disabled_selector": null,
+            "model_option_selector": null,
+            "option_count": 0,
+            "portal_root_count": 0
+          },
+          "pass_label": "home-after-composer-focus",
+          "selector_count_before_click": 1,
+          "trigger_state_before": {
+            "aria_expanded": null,
+            "aria_haspopup": null,
+            "count": 1,
+            "data_state": null
+          }
+        }
+      ],
+      "enumeration": {
+        "available_model_labels": [],
+        "candidate_list": [
+          {
+            "aria_checked": null,
+            "aria_expanded": null,
+            "aria_haspopup": null,
+            "aria_label": "<non-model-aria>",
+            "aria_selected": null,
+            "candidate_reasons": [
+              "composer-step1"
+            ],
+            "contains_caret": false,
+            "data_state": null,
+            "disabled": false,
+            "own_text": "<non-model-text>",
+            "rect": {
+              "height": 36,
+              "left": 1364,
+              "top": 407,
+              "width": 98
+            },
+            "role": null,
+            "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > form:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(1)",
+            "selector_basis": "structural-path",
+            "selector_count": 1,
+            "sources": [
+              "composer"
+            ],
+            "tag": "button",
+            "testid": null,
+            "text": "<non-model-text>",
+            "text_matches_model": false
+          }
+        ],
+        "composer_controls": [
+          {
+            "aria_checked": null,
+            "aria_expanded": null,
+            "aria_haspopup": null,
+            "aria_label": "<non-model-aria>",
+            "aria_selected": null,
+            "contains_caret": false,
+            "data_state": null,
+            "disabled": true,
+            "own_text": "<non-model-text>",
+            "rect": {
+              "height": 36,
+              "left": 1320,
+              "top": 407,
+              "width": 36
+            },
+            "role": null,
+            "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > form:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > span:nth-of-type(1) > span:nth-of-type(1) > button:nth-of-type(1)",
+            "selector_basis": "structural-path",
+            "selector_count": 1,
+            "source": "composer",
+            "tag": "button",
+            "testid": null,
+            "text": "<non-model-text>",
+            "text_matches_model": false
+          },
+          {
+            "aria_checked": null,
+            "aria_expanded": null,
+            "aria_haspopup": null,
+            "aria_label": "<non-model-aria>",
+            "aria_selected": null,
+            "contains_caret": false,
+            "data_state": null,
+            "disabled": false,
+            "own_text": "<non-model-text>",
+            "rect": {
+              "height": 36,
+              "left": 1364,
+              "top": 407,
+              "width": 98
+            },
+            "role": null,
+            "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > form:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(1)",
+            "selector_basis": "structural-path",
+            "selector_count": 1,
+            "source": "composer",
+            "tag": "button",
+            "testid": null,
+            "text": "<non-model-text>",
+            "text_matches_model": false
+          }
+        ],
+        "document_candidates": [],
+        "header_controls_all": [],
+        "header_left_containers": [
+          {
+            "aria_checked": null,
+            "aria_expanded": null,
+            "aria_haspopup": null,
+            "aria_label": null,
+            "aria_selected": null,
+            "child_index": 1,
+            "data_state": null,
+            "disabled": false,
+            "own_text": "<non-model-text>",
+            "rect": {
+              "height": 28,
+              "left": 283,
+              "top": 12,
+              "width": 1598
+            },
+            "role": null,
+            "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > header:nth-of-type(1) > div:nth-of-type(2)",
+            "selector_basis": "structural-path",
+            "selector_count": 1,
+            "tag": "div",
+            "testid": null,
+            "text": "<non-model-text>"
+          }
+        ],
+        "header_left_controls": [],
+        "hydrated_markers": {
+          "composer_present": 1,
+          "header_present": 1,
+          "ready_root_present": 1
+        },
+        "mode": "full",
+        "model_option_disabled_selector": null,
+        "model_option_selector": null,
+        "model_option_selector_counts": [
+          {
+            "dom_count": 0,
+            "selector": "[data-radix-popper-content-wrapper] [role=menuitemradio]",
+            "visible_count": 0
+          },
+          {
+            "dom_count": 0,
+            "selector": "[data-radix-popper-content-wrapper] [role=option]",
+            "visible_count": 0
+          },
+          {
+            "dom_count": 0,
+            "selector": "[data-radix-popper-content-wrapper] [role=menuitem]",
+            "visible_count": 0
+          },
+          {
+            "dom_count": 0,
+            "selector": "[role=menu] [role=menuitemradio]",
+            "visible_count": 0
+          },
+          {
+            "dom_count": 0,
+            "selector": "[role=menu] [role=option]",
+            "visible_count": 0
+          },
+          {
+            "dom_count": 0,
+            "selector": "[role=menu] [role=menuitem]",
+            "visible_count": 0
+          },
+          {
+            "dom_count": 0,
+            "selector": "[role=listbox] [role=option]",
+            "visible_count": 0
+          },
+          {
+            "dom_count": 0,
+            "selector": "[data-radix-collection-item][role=menuitemradio]",
+            "visible_count": 0
+          },
+          {
+            "dom_count": 0,
+            "selector": "[data-radix-collection-item][role=option]",
+            "visible_count": 0
+          },
+          {
+            "dom_count": 0,
+            "selector": "[data-radix-collection-item]",
+            "visible_count": 0
+          }
+        ],
+        "portal_options": [],
+        "portal_roots": [],
+        "url_path": "/"
+      },
+      "mode": "full",
+      "pass_label": "home-after-composer-focus"
+    },
+    {
+      "candidate_results": [
+        {
+          "candidate": {
+            "aria_checked": null,
+            "aria_expanded": "false",
+            "aria_haspopup": "menu",
+            "aria_label": null,
+            "aria_selected": null,
+            "candidate_reasons": [
+              "composer-step1",
+              "aria-haspopup",
+              "data-state=closed"
+            ],
+            "contains_caret": false,
+            "data_state": "closed",
+            "disabled": false,
+            "own_text": "<non-model-text>",
+            "rect": {
+              "height": 36,
+              "left": 1265,
+              "top": 873,
+              "width": 113
+            },
+            "role": null,
+            "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > form:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(1)",
+            "selector_basis": "structural-path",
+            "selector_count": 1,
+            "sources": [
+              "composer",
+              "document"
+            ],
+            "tag": "button",
+            "testid": null,
+            "text": "<non-model-text>",
+            "text_matches_model": false
+          },
+          "escape_confirmation": {
+            "portal_options_after_escape": 0,
+            "portal_roots_after_escape": 0,
+            "script_clicked_option": false,
+            "trigger_state_after_escape": {
+              "aria_expanded": "false",
+              "aria_haspopup": "menu",
+              "count": 1,
+              "data_state": "closed"
+            }
+          },
+          "index": 0,
+          "is_model_trigger": false,
+          "opened_state": {
+            "available_model_labels": [],
+            "candidate_list": [],
+            "composer_controls": [],
+            "document_candidates": [],
+            "header_controls_all": [],
+            "header_left_containers": [],
+            "header_left_controls": [],
+            "hydrated_markers": {
+              "composer_present": 1,
+              "header_present": 1,
+              "ready_root_present": 1
+            },
+            "mode": "thread",
+            "model_option_disabled_selector": "[data-radix-popper-content-wrapper] [role=menuitemradio][aria-disabled=true], [data-radix-popper-content-wrapper] [role=menuitemradio][data-disabled=true], [data-radix-popper-content-wrapper] [role=menuitemradio][disabled]",
+            "model_option_selector": "[data-radix-popper-content-wrapper] [role=menuitemradio]",
+            "model_option_selector_counts": [
+              {
+                "dom_count": 5,
+                "selector": "[data-radix-popper-content-wrapper] [role=menuitemradio]",
+                "visible_count": 5
+              },
+              {
+                "dom_count": 0,
+                "selector": "[data-radix-popper-content-wrapper] [role=option]",
+                "visible_count": 0
+              },
+              {
+                "dom_count": 2,
+                "selector": "[data-radix-popper-content-wrapper] [role=menuitem]",
+                "visible_count": 1
+              },
+              {
+                "dom_count": 5,
+                "selector": "[role=menu] [role=menuitemradio]",
+                "visible_count": 5
+              },
+              {
+                "dom_count": 0,
+                "selector": "[role=menu] [role=option]",
+                "visible_count": 0
+              },
+              {
+                "dom_count": 2,
+                "selector": "[role=menu] [role=menuitem]",
+                "visible_count": 1
+              },
+              {
+                "dom_count": 0,
+                "selector": "[role=listbox] [role=option]",
+                "visible_count": 0
+              },
+              {
+                "dom_count": 5,
+                "selector": "[data-radix-collection-item][role=menuitemradio]",
+                "visible_count": 5
+              },
+              {
+                "dom_count": 0,
+                "selector": "[data-radix-collection-item][role=option]",
+                "visible_count": 0
+              },
+              {
+                "dom_count": 7,
+                "selector": "[data-radix-collection-item]",
+                "visible_count": 6
+              }
+            ],
+            "portal_options": [
+              {
+                "aria_checked": "false",
+                "aria_expanded": null,
+                "aria_haspopup": null,
+                "aria_label": null,
+                "aria_selected": null,
+                "data_state": "unchecked",
+                "disabled": false,
+                "full_label_text": "<non-model-text>",
+                "is_model_option": false,
+                "is_submenu_or_more_models": false,
+                "model_label": "<non-model-text>",
+                "rect": {
+                  "height": 36,
+                  "left": 1225,
+                  "top": 638,
+                  "width": 147
+                },
+                "role": "menuitemradio",
+                "selector": "body > div:nth-of-type(5) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1)",
+                "selector_basis": "structural-path",
+                "selector_count": 1,
+                "tag": "div",
+                "testid": null,
+                "value_attr_model_gated": "<non-model-text>"
+              },
+              {
+                "aria_checked": "false",
+                "aria_expanded": null,
+                "aria_haspopup": null,
+                "aria_label": null,
+                "aria_selected": null,
+                "data_state": "unchecked",
+                "disabled": false,
+                "full_label_text": "<non-model-text>",
+                "is_model_option": false,
+                "is_submenu_or_more_models": false,
+                "model_label": "<non-model-text>",
+                "rect": {
+                  "height": 36,
+                  "left": 1225,
+                  "top": 674,
+                  "width": 147
+                },
+                "role": "menuitemradio",
+                "selector": "body > div:nth-of-type(5) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(2)",
+                "selector_basis": "structural-path",
+                "selector_count": 1,
+                "tag": "div",
+                "testid": null,
+                "value_attr_model_gated": "<non-model-text>"
+              },
+              {
+                "aria_checked": "false",
+                "aria_expanded": null,
+                "aria_haspopup": null,
+                "aria_label": null,
+                "aria_selected": null,
+                "data_state": "unchecked",
+                "disabled": false,
+                "full_label_text": "<non-model-text>",
+                "is_model_option": false,
+                "is_submenu_or_more_models": false,
+                "model_label": "<non-model-text>",
+                "rect": {
+                  "height": 36,
+                  "left": 1225,
+                  "top": 710,
+                  "width": 147
+                },
+                "role": "menuitemradio",
+                "selector": "body > div:nth-of-type(5) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(3)",
+                "selector_basis": "structural-path",
+                "selector_count": 1,
+                "tag": "div",
+                "testid": null,
+                "value_attr_model_gated": "<non-model-text>"
+              },
+              {
+                "aria_checked": "true",
+                "aria_expanded": null,
+                "aria_haspopup": null,
+                "aria_label": null,
+                "aria_selected": null,
+                "data_state": "checked",
+                "disabled": false,
+                "full_label_text": "<non-model-text>",
+                "is_model_option": false,
+                "is_submenu_or_more_models": false,
+                "model_label": "<non-model-text>",
+                "rect": {
+                  "height": 36,
+                  "left": 1225,
+                  "top": 746,
+                  "width": 147
+                },
+                "role": "menuitemradio",
+                "selector": "body > div:nth-of-type(5) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(4)",
+                "selector_basis": "structural-path",
+                "selector_count": 1,
+                "tag": "div",
+                "testid": null,
+                "value_attr_model_gated": "<non-model-text>"
+              },
+              {
+                "aria_checked": "false",
+                "aria_expanded": null,
+                "aria_haspopup": null,
+                "aria_label": null,
+                "aria_selected": null,
+                "data_state": null,
+                "disabled": false,
+                "full_label_text": "<non-model-text>",
+                "is_model_option": false,
+                "is_submenu_or_more_models": false,
+                "model_label": "<non-model-text>",
+                "rect": {
+                  "height": 36,
+                  "left": 1225,
+                  "top": 782,
+                  "width": 147
+                },
+                "role": "menuitemradio",
+                "selector": "body > div:nth-of-type(5) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(5) > div:nth-of-type(1)",
+                "selector_basis": "structural-path",
+                "selector_count": 1,
+                "tag": "div",
+                "testid": null,
+                "value_attr_model_gated": "<non-model-text>"
+              },
+              {
+                "aria_checked": null,
+                "aria_expanded": "false",
+                "aria_haspopup": "menu",
+                "aria_label": null,
+                "aria_selected": null,
+                "data_state": "closed",
+                "disabled": false,
+                "full_label_text": "GPT-5.5",
+                "is_model_option": false,
+                "is_submenu_or_more_models": true,
+                "model_label": "GPT-5.5",
+                "rect": {
+                  "height": 36,
+                  "left": 1225,
+                  "top": 827,
+                  "width": 147
+                },
+                "role": "menuitem",
+                "selector": "div[role=\"menuitem\"]",
+                "selector_basis": "role",
+                "selector_count": 1,
+                "tag": "div",
+                "testid": null,
+                "value_attr_model_gated": "<non-model-text>"
+              }
+            ],
+            "portal_roots": [
+              {
+                "aria_checked": null,
+                "aria_expanded": null,
+                "aria_haspopup": null,
+                "aria_label": null,
+                "aria_selected": null,
+                "data_state": null,
+                "disabled": false,
+                "rect": {
+                  "height": 273,
+                  "left": 1219,
+                  "top": 596,
+                  "width": 159
+                },
+                "role": null,
+                "selector": "body > div:nth-of-type(5)",
+                "selector_basis": "structural-path",
+                "selector_count": 1,
+                "tag": "div",
+                "testid": null,
+                "text": "<non-model-text>"
+              },
+              {
+                "aria_checked": null,
+                "aria_expanded": null,
+                "aria_haspopup": null,
+                "aria_label": null,
+                "aria_selected": null,
+                "data_state": "open",
+                "disabled": false,
+                "rect": {
+                  "height": 273,
+                  "left": 1219,
+                  "top": 596,
+                  "width": 159
+                },
+                "role": "menu",
+                "selector": "div[role=\"menu\"]",
+                "selector_basis": "role",
+                "selector_count": 1,
+                "tag": "div",
+                "testid": null,
+                "text": "<non-model-text>"
+              }
+            ],
+            "url_path": "/c/<redacted>
+          },
+          "opened_summary": {
+            "available_model_labels": [],
+            "model_like_option_count": 0,
+            "model_option_disabled_selector": "[data-radix-popper-content-wrapper] [role=menuitemradio][aria-disabled=true], [data-radix-popper-content-wrapper] [role=menuitemradio][data-disabled=true], [data-radix-popper-content-wrapper] [role=menuitemradio][disabled]",
+            "model_option_selector": "[data-radix-popper-content-wrapper] [role=menuitemradio]",
+            "option_count": 6,
+            "portal_root_count": 2
+          },
+          "pass_label": "thread-recent-header-composer",
+          "selector_count_before_click": 1,
+          "trigger_state_before": {
+            "aria_expanded": "false",
+            "aria_haspopup": "menu",
+            "count": 1,
+            "data_state": "closed"
+          }
+        },
+        {
+          "candidate": {
+            "aria_checked": null,
+            "aria_expanded": null,
+            "aria_haspopup": null,
+            "aria_label": "<non-model-aria>",
+            "aria_selected": null,
+            "candidate_reasons": [
+              "composer-step1"
+            ],
+            "contains_caret": false,
+            "data_state": null,
+            "disabled": false,
+            "own_text": "<non-model-text>",
+            "rect": {
+              "height": 36,
+              "left": 1384,
+              "top": 873,
+              "width": 36
+            },
+            "role": null,
+            "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > form:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(2) > button:nth-of-type(1)",
+            "selector_basis": "structural-path",
+            "selector_count": 1,
+            "sources": [
+              "composer"
+            ],
+            "tag": "button",
+            "testid": null,
+            "text": "<non-model-text>",
+            "text_matches_model": false
+          },
+          "escape_confirmation": {
+            "portal_options_after_escape": 0,
+            "portal_roots_after_escape": 0,
+            "script_clicked_option": false,
+            "trigger_state_after_escape": {
+              "aria_expanded": null,
+              "aria_haspopup": null,
+              "count": 1,
+              "data_state": null
+            }
+          },
+          "index": 1,
+          "is_model_trigger": false,
+          "opened_state": {
+            "available_model_labels": [],
+            "candidate_list": [],
+            "composer_controls": [],
+            "document_candidates": [],
+            "header_controls_all": [],
+            "header_left_containers": [],
+            "header_left_controls": [],
+            "hydrated_markers": {
+              "composer_present": 1,
+              "header_present": 1,
+              "ready_root_present": 1
+            },
+            "mode": "thread",
+            "model_option_disabled_selector": null,
+            "model_option_selector": null,
+            "model_option_selector_counts": [
+              {
+                "dom_count": 0,
+                "selector": "[data-radix-popper-content-wrapper] [role=menuitemradio]",
+                "visible_count": 0
+              },
+              {
+                "dom_count": 0,
+                "selector": "[data-radix-popper-content-wrapper] [role=option]",
+                "visible_count": 0
+              },
+              {
+                "dom_count": 0,
+                "selector": "[data-radix-popper-content-wrapper] [role=menuitem]",
+                "visible_count": 0
+              },
+              {
+                "dom_count": 0,
+                "selector": "[role=menu] [role=menuitemradio]",
+                "visible_count": 0
+              },
+              {
+                "dom_count": 0,
+                "selector": "[role=menu] [role=option]",
+                "visible_count": 0
+              },
+              {
+                "dom_count": 0,
+                "selector": "[role=menu] [role=menuitem]",
+                "visible_count": 0
+              },
+              {
+                "dom_count": 0,
+                "selector": "[role=listbox] [role=option]",
+                "visible_count": 0
+              },
+              {
+                "dom_count": 0,
+                "selector": "[data-radix-collection-item][role=menuitemradio]",
+                "visible_count": 0
+              },
+              {
+                "dom_count": 0,
+                "selector": "[data-radix-collection-item][role=option]",
+                "visible_count": 0
+              },
+              {
+                "dom_count": 0,
+                "selector": "[data-radix-collection-item]",
+                "visible_count": 0
+              }
+            ],
+            "portal_options": [],
+            "portal_roots": [],
+            "url_path": "/c/<redacted>
+          },
+          "opened_summary": {
+            "available_model_labels": [],
+            "model_like_option_count": 0,
+            "model_option_disabled_selector": null,
+            "model_option_selector": null,
+            "option_count": 0,
+            "portal_root_count": 0
+          },
+          "pass_label": "thread-recent-header-composer",
+          "selector_count_before_click": 1,
+          "trigger_state_before": {
+            "aria_expanded": null,
+            "aria_haspopup": null,
+            "count": 1,
+            "data_state": null
+          }
+        },
+        {
+          "candidate": {
+            "aria_checked": null,
+            "aria_expanded": null,
+            "aria_haspopup": null,
+            "aria_label": "<non-model-aria>",
+            "aria_selected": null,
+            "candidate_reasons": [
+              "composer-step1"
+            ],
+            "contains_caret": false,
+            "data_state": null,
+            "disabled": false,
+            "own_text": "<non-model-text>",
+            "rect": {
+              "height": 36,
+              "left": 1426,
+              "top": 873,
+              "width": 36
+            },
+            "role": null,
+            "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > form:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(2) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(1)",
+            "selector_basis": "structural-path",
+            "selector_count": 1,
+            "sources": [
+              "composer"
+            ],
+            "tag": "button",
+            "testid": null,
+            "text": "<non-model-text>",
+            "text_matches_model": false
+          },
+          "escape_confirmation": {
+            "portal_options_after_escape": 0,
+            "portal_roots_after_escape": 0,
+            "script_clicked_option": false,
+            "trigger_state_after_escape": {
+              "count": 0
+            }
+          },
+          "index": 2,
+          "is_model_trigger": false,
+          "opened_state": {
+            "available_model_labels": [],
+            "candidate_list": [],
+            "composer_controls": [],
+            "document_candidates": [],
+            "header_controls_all": [],
+            "header_left_containers": [],
+            "header_left_controls": [],
+            "hydrated_markers": {
+              "composer_present": 1,
+              "header_present": 1,
+              "ready_root_present": 1
+            },
+            "mode": "thread",
+            "model_option_disabled_selector": null,
+            "model_option_selector": null,
+            "model_option_selector_counts": [
+              {
+                "dom_count": 0,
+                "selector": "[data-radix-popper-content-wrapper] [role=menuitemradio]",
+                "visible_count": 0
+              },
+              {
+                "dom_count": 0,
+                "selector": "[data-radix-popper-content-wrapper] [role=option]",
+                "visible_count": 0
+              },
+              {
+                "dom_count": 0,
+                "selector": "[data-radix-popper-content-wrapper] [role=menuitem]",
+                "visible_count": 0
+              },
+              {
+                "dom_count": 0,
+                "selector": "[role=menu] [role=menuitemradio]",
+                "visible_count": 0
+              },
+              {
+                "dom_count": 0,
+                "selector": "[role=menu] [role=option]",
+                "visible_count": 0
+              },
+              {
+                "dom_count": 0,
+                "selector": "[role=menu] [role=menuitem]",
+                "visible_count": 0
+              },
+              {
+                "dom_count": 0,
+                "selector": "[role=listbox] [role=option]",
+                "visible_count": 0
+              },
+              {
+                "dom_count": 0,
+                "selector": "[data-radix-collection-item][role=menuitemradio]",
+                "visible_count": 0
+              },
+              {
+                "dom_count": 0,
+                "selector": "[data-radix-collection-item][role=option]",
+                "visible_count": 0
+              },
+              {
+                "dom_count": 0,
+                "selector": "[data-radix-collection-item]",
+                "visible_count": 0
+              }
+            ],
+            "portal_options": [],
+            "portal_roots": [],
+            "url_path": "/c/<redacted>
+          },
+          "opened_summary": {
+            "available_model_labels": [],
+            "model_like_option_count": 0,
+            "model_option_disabled_selector": null,
+            "model_option_selector": null,
+            "option_count": 0,
+            "portal_root_count": 0
+          },
+          "pass_label": "thread-recent-header-composer",
+          "selector_count_before_click": 1,
+          "trigger_state_before": {
+            "aria_expanded": null,
+            "aria_haspopup": null,
+            "count": 1,
+            "data_state": null
+          }
+        }
+      ],
+      "enumeration": {
+        "available_model_labels": [],
+        "candidate_list": [
+          {
+            "aria_checked": null,
+            "aria_expanded": "false",
+            "aria_haspopup": "menu",
+            "aria_label": null,
+            "aria_selected": null,
+            "candidate_reasons": [
+              "composer-step1",
+              "aria-haspopup",
+              "data-state=closed"
+            ],
+            "contains_caret": false,
+            "data_state": "closed",
+            "disabled": false,
+            "own_text": "<non-model-text>",
+            "rect": {
+              "height": 36,
+              "left": 1265,
+              "top": 873,
+              "width": 113
+            },
+            "role": null,
+            "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > form:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(1)",
+            "selector_basis": "structural-path",
+            "selector_count": 1,
+            "sources": [
+              "composer",
+              "document"
+            ],
+            "tag": "button",
+            "testid": null,
+            "text": "<non-model-text>",
+            "text_matches_model": false
+          },
+          {
+            "aria_checked": null,
+            "aria_expanded": null,
+            "aria_haspopup": null,
+            "aria_label": "<non-model-aria>",
+            "aria_selected": null,
+            "candidate_reasons": [
+              "composer-step1"
+            ],
+            "contains_caret": false,
+            "data_state": null,
+            "disabled": false,
+            "own_text": "<non-model-text>",
+            "rect": {
+              "height": 36,
+              "left": 1384,
+              "top": 873,
+              "width": 36
+            },
+            "role": null,
+            "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > form:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(2) > button:nth-of-type(1)",
+            "selector_basis": "structural-path",
+            "selector_count": 1,
+            "sources": [
+              "composer"
+            ],
+            "tag": "button",
+            "testid": null,
+            "text": "<non-model-text>",
+            "text_matches_model": false
+          },
+          {
+            "aria_checked": null,
+            "aria_expanded": null,
+            "aria_haspopup": null,
+            "aria_label": "<non-model-aria>",
+            "aria_selected": null,
+            "candidate_reasons": [
+              "composer-step1"
+            ],
+            "contains_caret": false,
+            "data_state": null,
+            "disabled": false,
+            "own_text": "<non-model-text>",
+            "rect": {
+              "height": 36,
+              "left": 1426,
+              "top": 873,
+              "width": 36
+            },
+            "role": null,
+            "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > form:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(2) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(1)",
+            "selector_basis": "structural-path",
+            "selector_count": 1,
+            "sources": [
+              "composer"
+            ],
+            "tag": "button",
+            "testid": null,
+            "text": "<non-model-text>",
+            "text_matches_model": false
+          }
+        ],
+        "composer_controls": [
+          {
+            "aria_checked": null,
+            "aria_expanded": "false",
+            "aria_haspopup": "menu",
+            "aria_label": null,
+            "aria_selected": null,
+            "contains_caret": false,
+            "data_state": "closed",
+            "disabled": false,
+            "own_text": "<non-model-text>",
+            "rect": {
+              "height": 36,
+              "left": 1265,
+              "top": 873,
+              "width": 113
+            },
+            "role": null,
+            "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > form:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(1)",
+            "selector_basis": "structural-path",
+            "selector_count": 1,
+            "source": "composer",
+            "tag": "button",
+            "testid": null,
+            "text": "<non-model-text>",
+            "text_matches_model": false
+          },
+          {
+            "aria_checked": null,
+            "aria_expanded": null,
+            "aria_haspopup": null,
+            "aria_label": "<non-model-aria>",
+            "aria_selected": null,
+            "contains_caret": false,
+            "data_state": null,
+            "disabled": false,
+            "own_text": "<non-model-text>",
+            "rect": {
+              "height": 36,
+              "left": 1384,
+              "top": 873,
+              "width": 36
+            },
+            "role": null,
+            "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > form:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(2) > button:nth-of-type(1)",
+            "selector_basis": "structural-path",
+            "selector_count": 1,
+            "source": "composer",
+            "tag": "button",
+            "testid": null,
+            "text": "<non-model-text>",
+            "text_matches_model": false
+          },
+          {
+            "aria_checked": null,
+            "aria_expanded": null,
+            "aria_haspopup": null,
+            "aria_label": "<non-model-aria>",
+            "aria_selected": null,
+            "contains_caret": false,
+            "data_state": null,
+            "disabled": false,
+            "own_text": "<non-model-text>",
+            "rect": {
+              "height": 36,
+              "left": 1426,
+              "top": 873,
+              "width": 36
+            },
+            "role": null,
+            "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > form:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(2) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(1)",
+            "selector_basis": "structural-path",
+            "selector_count": 1,
+            "source": "composer",
+            "tag": "button",
+            "testid": null,
+            "text": "<non-model-text>",
+            "text_matches_model": false
+          }
+        ],
+        "document_candidates": [
+          {
+            "aria_checked": null,
+            "aria_expanded": "false",
+            "aria_haspopup": "menu",
+            "aria_label": null,
+            "aria_selected": null,
+            "candidate_reasons": [
+              "aria-haspopup",
+              "data-state=closed"
+            ],
+            "contains_caret": false,
+            "data_state": "closed",
+            "disabled": false,
+            "own_text": "<non-model-text>",
+            "rect": {
+              "height": 36,
+              "left": 1265,
+              "top": 873,
+              "width": 113
+            },
+            "role": null,
+            "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > form:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(1)",
+            "selector_basis": "structural-path",
+            "selector_count": 1,
+            "tag": "button",
+            "testid": null,
+            "text": "<non-model-text>",
+            "text_matches_model": false
+          }
+        ],
+        "header_controls_all": [
+          {
+            "aria_checked": null,
+            "aria_expanded": null,
+            "aria_haspopup": null,
+            "aria_label": "<non-model-aria>",
+            "aria_selected": null,
+            "contains_caret": false,
+            "data_state": null,
+            "disabled": false,
+            "own_text": "<non-model-text>",
+            "rect": {
+              "height": 36,
+              "left": 1768,
+              "top": 8,
+              "width": 89
+            },
+            "role": null,
+            "selector": "button[data-testid=\"share-chat-button\"]",
+            "selector_basis": "testid",
+            "selector_count": 1,
+            "source": "header",
+            "tag": "button",
+            "testid": "share-chat-button",
+            "text": "<non-model-text>",
+            "text_matches_model": false
+          },
+          {
+            "aria_checked": null,
+            "aria_expanded": "false",
+            "aria_haspopup": "menu",
+            "aria_label": null,
+            "aria_selected": null,
+            "contains_caret": false,
+            "data_state": "closed",
+            "disabled": false,
+            "own_text": "<non-model-text>",
+            "rect": {
+              "height": 36,
+              "left": 1857,
+              "top": 8,
+              "width": 36
+            },
+            "role": null,
+            "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > header:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1)",
+            "selector_basis": "structural-path",
+            "selector_count": 1,
+            "source": "header",
+            "tag": "div",
+            "testid": null,
+            "text": "<non-model-text>",
+            "text_matches_model": false
+          },
+          {
+            "aria_checked": null,
+            "aria_expanded": null,
+            "aria_haspopup": null,
+            "aria_label": "<omitted>",
+            "aria_selected": null,
+            "contains_caret": false,
+            "data_state": null,
+            "disabled": false,
+            "own_text": "<non-model-text>",
+            "rect": {
+              "height": 36,
+              "left": 1857,
+              "top": 8,
+              "width": 36
+            },
+            "role": null,
+            "selector": "button[data-testid=\"conversation-options-button\"]",
+            "selector_basis": "testid",
+            "selector_count": 1,
+            "source": "header",
+            "tag": "button",
+            "testid": "conversation-options-button",
+            "text": "<non-model-text>",
+            "text_matches_model": false
+          }
+        ],
+        "header_left_containers": [],
+        "header_left_controls": [],
+        "hydrated_markers": {
+          "composer_present": 1,
+          "header_present": 1,
+          "ready_root_present": 1
+        },
+        "mode": "thread",
+        "model_option_disabled_selector": null,
+        "model_option_selector": null,
+        "model_option_selector_counts": [
+          {
+            "dom_count": 0,
+            "selector": "[data-radix-popper-content-wrapper] [role=menuitemradio]",
+            "visible_count": 0
+          },
+          {
+            "dom_count": 0,
+            "selector": "[data-radix-popper-content-wrapper] [role=option]",
+            "visible_count": 0
+          },
+          {
+            "dom_count": 0,
+            "selector": "[data-radix-popper-content-wrapper] [role=menuitem]",
+            "visible_count": 0
+          },
+          {
+            "dom_count": 0,
+            "selector": "[role=menu] [role=menuitemradio]",
+            "visible_count": 0
+          },
+          {
+            "dom_count": 0,
+            "selector": "[role=menu] [role=option]",
+            "visible_count": 0
+          },
+          {
+            "dom_count": 0,
+            "selector": "[role=menu] [role=menuitem]",
+            "visible_count": 0
+          },
+          {
+            "dom_count": 0,
+            "selector": "[role=listbox] [role=option]",
+            "visible_count": 0
+          },
+          {
+            "dom_count": 0,
+            "selector": "[data-radix-collection-item][role=menuitemradio]",
+            "visible_count": 0
+          },
+          {
+            "dom_count": 0,
+            "selector": "[data-radix-collection-item][role=option]",
+            "visible_count": 0
+          },
+          {
+            "dom_count": 0,
+            "selector": "[data-radix-collection-item]",
+            "visible_count": 0
+          }
+        ],
+        "portal_options": [],
+        "portal_roots": [],
+        "url_path": "/c/<redacted>
+      },
+      "mode": "thread",
+      "pass_label": "thread-recent-header-composer"
+    }
+  ],
+  "stage": "done",
+  "started_at": "2026-06-13T18:24:47.719463-05:00",
+  "status": "DONE",
+  "step4_used": [
+    "4a composer focus + space/delete (no send)",
+    "4b most recent history conversation"
+  ],
+  "verdict": "HONEST-FAIL-CLOSED"
+}

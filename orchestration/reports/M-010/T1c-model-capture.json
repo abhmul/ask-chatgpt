@@ -1,0 +1,632 @@
+{
+  "actual_minutes": 0.33,
+  "available_model_labels": [
+    "Instant",
+    "Medium",
+    "High",
+    "Extra High",
+    "Pro Extended"
+  ],
+  "chosen_trigger_basis": "attribute-no-testid",
+  "chosen_trigger_count": 1,
+  "chosen_trigger_robustness_note": "Chosen by ordered T1c selector test: data-testid candidates first, then unique composer attribute selector, then T1b structural fallback. This selector had count==1 and reproducibly opened the Radix menuitemradio model menu.",
+  "chosen_trigger_selector": "form:has(#prompt-textarea) button[aria-haspopup=\"menu\"]:not([data-testid])",
+  "composer_menu_button_inventory": {
+    "composer_menu_buttons": [
+      {
+        "aria_expanded": "false",
+        "aria_haspopup": "menu",
+        "aria_label": "<non-model-aria>",
+        "class_hash": "fnv1a32:c94f480e",
+        "class_token_count": 1,
+        "data_state": "closed",
+        "disabled": false,
+        "excluded_reason": "composer-plus/upload/attach",
+        "innerText_gated": "<non-model-text>",
+        "own_text_gated": "<non-model-text>",
+        "rect": {
+          "height": 36,
+          "left": 714,
+          "top": 407,
+          "width": 36
+        },
+        "role": null,
+        "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > form:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > span:nth-of-type(1) > button:nth-of-type(1)",
+        "selector_count": 1,
+        "tag": "button",
+        "testid": "composer-plus-btn",
+        "text_matches_model": false
+      },
+      {
+        "aria_expanded": "false",
+        "aria_haspopup": "menu",
+        "aria_label": null,
+        "class_hash": "fnv1a32:fcd5e443",
+        "class_token_count": 3,
+        "data_state": "closed",
+        "disabled": false,
+        "excluded_reason": null,
+        "innerText_gated": "<non-model-text>",
+        "own_text_gated": "<non-model-text>",
+        "rect": {
+          "height": 36,
+          "left": 1265,
+          "top": 407,
+          "width": 113
+        },
+        "role": null,
+        "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > form:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(1)",
+        "selector_count": 1,
+        "tag": "button",
+        "testid": null,
+        "text_matches_model": false
+      }
+    ],
+    "hydrated_markers": {
+      "composer_form_present": 1,
+      "composer_present": 1,
+      "ready_root_present": 1
+    },
+    "stable_selector_candidates": [
+      {
+        "basis": "attribute-no-testid",
+        "count": 1,
+        "selector": "form:has(#prompt-textarea) button[aria-haspopup=\"menu\"]:not([data-testid])"
+      }
+    ],
+    "url_path": "/"
+  },
+  "current_model_label": "Extra High",
+  "ended_at": "2026-06-13T18:37:53.567048-05:00",
+  "first_capture": {
+    "escape_confirmation": {
+      "model_option_count_after_escape": 0,
+      "portal_root_count_after_escape": 0,
+      "script_clicked_option": false,
+      "trigger_state_after_escape": {
+        "aria_expanded": "false",
+        "aria_haspopup": "menu",
+        "count": 1,
+        "data_state": "closed"
+      }
+    },
+    "open_capture": {
+      "menuitems": [
+        {
+          "aria_checked": null,
+          "aria_disabled": null,
+          "aria_expanded": "false",
+          "aria_haspopup": "menu",
+          "data_disabled": null,
+          "data_state": "closed",
+          "disabled": false,
+          "disabled_attr": false,
+          "first_line": "GPT-5.5",
+          "has_submenu": true,
+          "index": 0,
+          "innerText": "GPT-5.5",
+          "innerText_strip": "GPT-5.5",
+          "label_subselector_within_option": ":scope > span:nth-of-type(1)",
+          "line_count": 1,
+          "rect": {
+            "height": 36,
+            "left": 1225,
+            "top": 678,
+            "width": 147
+          },
+          "role": "menuitem",
+          "selector": "[data-radix-popper-content-wrapper] [role=\"menuitem\"] >> nth=0",
+          "structural_selector": "body > div:nth-of-type(5) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(4)",
+          "tag": "div",
+          "value_attr": null
+        }
+      ],
+      "model_option_count": 5,
+      "model_option_disabled_count": 0,
+      "model_option_disabled_selector": "[data-radix-popper-content-wrapper] [role=\"menuitemradio\"][aria-disabled=\"true\"], [data-radix-popper-content-wrapper] [role=\"menuitemradio\"][data-disabled=\"true\"], [data-radix-popper-content-wrapper] [role=\"menuitemradio\"][disabled]",
+      "model_option_dom_count": 5,
+      "model_option_selector": "[data-radix-popper-content-wrapper] [role=\"menuitemradio\"]",
+      "options": [
+        {
+          "aria_checked": "false",
+          "aria_disabled": null,
+          "aria_expanded": null,
+          "aria_haspopup": null,
+          "data_disabled": null,
+          "data_state": "unchecked",
+          "disabled": false,
+          "disabled_attr": false,
+          "first_line": "Instant",
+          "has_submenu": false,
+          "index": 0,
+          "innerText": "Instant",
+          "innerText_strip": "Instant",
+          "label_subselector_within_option": ":scope > span:nth-of-type(1) > span:nth-of-type(1)",
+          "line_count": 1,
+          "rect": {
+            "height": 36,
+            "left": 1225,
+            "top": 489,
+            "width": 147
+          },
+          "role": "menuitemradio",
+          "selector": "[data-radix-popper-content-wrapper] [role=\"menuitemradio\"] >> nth=0",
+          "structural_selector": "body > div:nth-of-type(5) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1)",
+          "tag": "div",
+          "value_attr": null
+        },
+        {
+          "aria_checked": "false",
+          "aria_disabled": null,
+          "aria_expanded": null,
+          "aria_haspopup": null,
+          "data_disabled": null,
+          "data_state": "unchecked",
+          "disabled": false,
+          "disabled_attr": false,
+          "first_line": "Medium",
+          "has_submenu": false,
+          "index": 1,
+          "innerText": "Medium",
+          "innerText_strip": "Medium",
+          "label_subselector_within_option": ":scope > span:nth-of-type(1) > span:nth-of-type(1)",
+          "line_count": 1,
+          "rect": {
+            "height": 36,
+            "left": 1225,
+            "top": 525,
+            "width": 147
+          },
+          "role": "menuitemradio",
+          "selector": "[data-radix-popper-content-wrapper] [role=\"menuitemradio\"] >> nth=1",
+          "structural_selector": "body > div:nth-of-type(5) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(2)",
+          "tag": "div",
+          "value_attr": null
+        },
+        {
+          "aria_checked": "false",
+          "aria_disabled": null,
+          "aria_expanded": null,
+          "aria_haspopup": null,
+          "data_disabled": null,
+          "data_state": "unchecked",
+          "disabled": false,
+          "disabled_attr": false,
+          "first_line": "High",
+          "has_submenu": false,
+          "index": 2,
+          "innerText": "High",
+          "innerText_strip": "High",
+          "label_subselector_within_option": ":scope > span:nth-of-type(1) > span:nth-of-type(1)",
+          "line_count": 1,
+          "rect": {
+            "height": 36,
+            "left": 1225,
+            "top": 561,
+            "width": 147
+          },
+          "role": "menuitemradio",
+          "selector": "[data-radix-popper-content-wrapper] [role=\"menuitemradio\"] >> nth=2",
+          "structural_selector": "body > div:nth-of-type(5) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(3)",
+          "tag": "div",
+          "value_attr": null
+        },
+        {
+          "aria_checked": "true",
+          "aria_disabled": null,
+          "aria_expanded": null,
+          "aria_haspopup": null,
+          "data_disabled": null,
+          "data_state": "checked",
+          "disabled": false,
+          "disabled_attr": false,
+          "first_line": "Extra High",
+          "has_submenu": false,
+          "index": 3,
+          "innerText": "Extra High",
+          "innerText_strip": "Extra High",
+          "label_subselector_within_option": ":scope > span:nth-of-type(1) > span:nth-of-type(1)",
+          "line_count": 1,
+          "rect": {
+            "height": 36,
+            "left": 1225,
+            "top": 597,
+            "width": 147
+          },
+          "role": "menuitemradio",
+          "selector": "[data-radix-popper-content-wrapper] [role=\"menuitemradio\"] >> nth=3",
+          "structural_selector": "body > div:nth-of-type(5) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(4)",
+          "tag": "div",
+          "value_attr": null
+        },
+        {
+          "aria_checked": "false",
+          "aria_disabled": null,
+          "aria_expanded": null,
+          "aria_haspopup": null,
+          "data_disabled": null,
+          "data_state": null,
+          "disabled": false,
+          "disabled_attr": false,
+          "first_line": "Pro Extended",
+          "has_submenu": false,
+          "index": 4,
+          "innerText": "Pro Extended",
+          "innerText_strip": "Pro Extended",
+          "label_subselector_within_option": ":scope > span:nth-of-type(1)",
+          "line_count": 1,
+          "rect": {
+            "height": 36,
+            "left": 1225,
+            "top": 633,
+            "width": 147
+          },
+          "role": "menuitemradio",
+          "selector": "[data-radix-popper-content-wrapper] [role=\"menuitemradio\"] >> nth=4",
+          "structural_selector": "body > div:nth-of-type(5) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(5) > div:nth-of-type(1)",
+          "tag": "div",
+          "value_attr": null
+        }
+      ],
+      "root_count": 1,
+      "root_selector": "body > div:nth-of-type(5)",
+      "trigger": {
+        "aria_expanded": "true",
+        "aria_haspopup": "menu",
+        "data_state": "open",
+        "innerText": "Extra High",
+        "innerText_strip": "Extra High",
+        "rect": {
+          "height": 36,
+          "left": 1265,
+          "top": 407,
+          "width": 113
+        },
+        "selector": "form:has(#prompt-textarea) button[aria-haspopup=\"menu\"]:not([data-testid])"
+      },
+      "url_path": "/"
+    },
+    "pass_label": "first-open",
+    "selector": "form:has(#prompt-textarea) button[aria-haspopup=\"menu\"]:not([data-testid])",
+    "selector_count": 1,
+    "trigger_state_after_open": {
+      "aria_expanded": "true",
+      "aria_haspopup": "menu",
+      "count": 1,
+      "data_state": "open"
+    },
+    "trigger_state_before_open": {
+      "aria_expanded": "false",
+      "aria_haspopup": "menu",
+      "count": 1,
+      "data_state": "closed"
+    }
+  },
+  "leak_guard": "Captured verbatim text only from verified model-trigger and menuitemradio/menuitem option elements inside the model menu popper; all composer-button enumeration text is model-gated/redacted.",
+  "matching_rule": {
+    "exact_t2_recipe": "Open model_menu, query model_option, skip model_option_disabled. For each option, prefer a nonempty value attribute; otherwise compare requested exactly to option.inner_text().strip(). In this capture inner_text().strip() is single-line and equals the first-line label for every top-level radio option.",
+    "inner_text_is_single_line_for_all_options": true,
+    "observed_option_returns": [
+      {
+        "inner_text_strip": "Instant",
+        "label": "Instant",
+        "label_subselector_within_option": ":scope > span:nth-of-type(1) > span:nth-of-type(1)",
+        "line_count": 1,
+        "value_attr": null
+      },
+      {
+        "inner_text_strip": "Medium",
+        "label": "Medium",
+        "label_subselector_within_option": ":scope > span:nth-of-type(1) > span:nth-of-type(1)",
+        "line_count": 1,
+        "value_attr": null
+      },
+      {
+        "inner_text_strip": "High",
+        "label": "High",
+        "label_subselector_within_option": ":scope > span:nth-of-type(1) > span:nth-of-type(1)",
+        "line_count": 1,
+        "value_attr": null
+      },
+      {
+        "inner_text_strip": "Extra High",
+        "label": "Extra High",
+        "label_subselector_within_option": ":scope > span:nth-of-type(1) > span:nth-of-type(1)",
+        "line_count": 1,
+        "value_attr": null
+      },
+      {
+        "inner_text_strip": "Pro Extended",
+        "label": "Pro Extended",
+        "label_subselector_within_option": ":scope > span:nth-of-type(1)",
+        "line_count": 1,
+        "value_attr": null
+      }
+    ],
+    "production_rule_under_test": "requested in {option.get_attribute(\"value\"), option.inner_text().strip()}",
+    "value_attr_null_or_empty_for_all_options": true
+  },
+  "menuitem_submenu_findings": [
+    {
+      "aria_haspopup": "menu",
+      "data_state": "closed",
+      "expansion_probe": "not_attempted; attributes are sufficient to note submenu entry and top-level two-switch does not require expanding it",
+      "first_line": "GPT-5.5",
+      "has_submenu": true,
+      "innerText": "GPT-5.5"
+    }
+  ],
+  "model_option_disabled_selector": "[data-radix-popper-content-wrapper] [role=\"menuitemradio\"][aria-disabled=\"true\"], [data-radix-popper-content-wrapper] [role=\"menuitemradio\"][data-disabled=\"true\"], [data-radix-popper-content-wrapper] [role=\"menuitemradio\"][disabled]",
+  "model_option_selector": "[data-radix-popper-content-wrapper] [role=\"menuitemradio\"]",
+  "reopen_capture": {
+    "escape_confirmation": {
+      "model_option_count_after_escape": 0,
+      "portal_root_count_after_escape": 0,
+      "script_clicked_option": false,
+      "trigger_state_after_escape": {
+        "aria_expanded": "false",
+        "aria_haspopup": "menu",
+        "count": 1,
+        "data_state": "closed"
+      }
+    },
+    "open_capture": {
+      "menuitems": [
+        {
+          "aria_checked": null,
+          "aria_disabled": null,
+          "aria_expanded": "false",
+          "aria_haspopup": "menu",
+          "data_disabled": null,
+          "data_state": "closed",
+          "disabled": false,
+          "disabled_attr": false,
+          "first_line": "GPT-5.5",
+          "has_submenu": true,
+          "index": 0,
+          "innerText": "GPT-5.5",
+          "innerText_strip": "GPT-5.5",
+          "label_subselector_within_option": ":scope > span:nth-of-type(1)",
+          "line_count": 1,
+          "rect": {
+            "height": 36,
+            "left": 1225,
+            "top": 678,
+            "width": 147
+          },
+          "role": "menuitem",
+          "selector": "[data-radix-popper-content-wrapper] [role=\"menuitem\"] >> nth=0",
+          "structural_selector": "body > div:nth-of-type(5) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(4)",
+          "tag": "div",
+          "value_attr": null
+        }
+      ],
+      "model_option_count": 5,
+      "model_option_disabled_count": 0,
+      "model_option_disabled_selector": "[data-radix-popper-content-wrapper] [role=\"menuitemradio\"][aria-disabled=\"true\"], [data-radix-popper-content-wrapper] [role=\"menuitemradio\"][data-disabled=\"true\"], [data-radix-popper-content-wrapper] [role=\"menuitemradio\"][disabled]",
+      "model_option_dom_count": 5,
+      "model_option_selector": "[data-radix-popper-content-wrapper] [role=\"menuitemradio\"]",
+      "options": [
+        {
+          "aria_checked": "false",
+          "aria_disabled": null,
+          "aria_expanded": null,
+          "aria_haspopup": null,
+          "data_disabled": null,
+          "data_state": "unchecked",
+          "disabled": false,
+          "disabled_attr": false,
+          "first_line": "Instant",
+          "has_submenu": false,
+          "index": 0,
+          "innerText": "Instant",
+          "innerText_strip": "Instant",
+          "label_subselector_within_option": ":scope > span:nth-of-type(1) > span:nth-of-type(1)",
+          "line_count": 1,
+          "rect": {
+            "height": 36,
+            "left": 1225,
+            "top": 489,
+            "width": 147
+          },
+          "role": "menuitemradio",
+          "selector": "[data-radix-popper-content-wrapper] [role=\"menuitemradio\"] >> nth=0",
+          "structural_selector": "body > div:nth-of-type(5) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1)",
+          "tag": "div",
+          "value_attr": null
+        },
+        {
+          "aria_checked": "false",
+          "aria_disabled": null,
+          "aria_expanded": null,
+          "aria_haspopup": null,
+          "data_disabled": null,
+          "data_state": "unchecked",
+          "disabled": false,
+          "disabled_attr": false,
+          "first_line": "Medium",
+          "has_submenu": false,
+          "index": 1,
+          "innerText": "Medium",
+          "innerText_strip": "Medium",
+          "label_subselector_within_option": ":scope > span:nth-of-type(1) > span:nth-of-type(1)",
+          "line_count": 1,
+          "rect": {
+            "height": 36,
+            "left": 1225,
+            "top": 525,
+            "width": 147
+          },
+          "role": "menuitemradio",
+          "selector": "[data-radix-popper-content-wrapper] [role=\"menuitemradio\"] >> nth=1",
+          "structural_selector": "body > div:nth-of-type(5) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(2)",
+          "tag": "div",
+          "value_attr": null
+        },
+        {
+          "aria_checked": "false",
+          "aria_disabled": null,
+          "aria_expanded": null,
+          "aria_haspopup": null,
+          "data_disabled": null,
+          "data_state": "unchecked",
+          "disabled": false,
+          "disabled_attr": false,
+          "first_line": "High",
+          "has_submenu": false,
+          "index": 2,
+          "innerText": "High",
+          "innerText_strip": "High",
+          "label_subselector_within_option": ":scope > span:nth-of-type(1) > span:nth-of-type(1)",
+          "line_count": 1,
+          "rect": {
+            "height": 36,
+            "left": 1225,
+            "top": 561,
+            "width": 147
+          },
+          "role": "menuitemradio",
+          "selector": "[data-radix-popper-content-wrapper] [role=\"menuitemradio\"] >> nth=2",
+          "structural_selector": "body > div:nth-of-type(5) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(3)",
+          "tag": "div",
+          "value_attr": null
+        },
+        {
+          "aria_checked": "true",
+          "aria_disabled": null,
+          "aria_expanded": null,
+          "aria_haspopup": null,
+          "data_disabled": null,
+          "data_state": "checked",
+          "disabled": false,
+          "disabled_attr": false,
+          "first_line": "Extra High",
+          "has_submenu": false,
+          "index": 3,
+          "innerText": "Extra High",
+          "innerText_strip": "Extra High",
+          "label_subselector_within_option": ":scope > span:nth-of-type(1) > span:nth-of-type(1)",
+          "line_count": 1,
+          "rect": {
+            "height": 36,
+            "left": 1225,
+            "top": 597,
+            "width": 147
+          },
+          "role": "menuitemradio",
+          "selector": "[data-radix-popper-content-wrapper] [role=\"menuitemradio\"] >> nth=3",
+          "structural_selector": "body > div:nth-of-type(5) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(4)",
+          "tag": "div",
+          "value_attr": null
+        },
+        {
+          "aria_checked": "false",
+          "aria_disabled": null,
+          "aria_expanded": null,
+          "aria_haspopup": null,
+          "data_disabled": null,
+          "data_state": null,
+          "disabled": false,
+          "disabled_attr": false,
+          "first_line": "Pro Extended",
+          "has_submenu": false,
+          "index": 4,
+          "innerText": "Pro Extended",
+          "innerText_strip": "Pro Extended",
+          "label_subselector_within_option": ":scope > span:nth-of-type(1)",
+          "line_count": 1,
+          "rect": {
+            "height": 36,
+            "left": 1225,
+            "top": 633,
+            "width": 147
+          },
+          "role": "menuitemradio",
+          "selector": "[data-radix-popper-content-wrapper] [role=\"menuitemradio\"] >> nth=4",
+          "structural_selector": "body > div:nth-of-type(5) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(5) > div:nth-of-type(1)",
+          "tag": "div",
+          "value_attr": null
+        }
+      ],
+      "root_count": 1,
+      "root_selector": "body > div:nth-of-type(5)",
+      "trigger": {
+        "aria_expanded": "true",
+        "aria_haspopup": "menu",
+        "data_state": "open",
+        "innerText": "Extra High",
+        "innerText_strip": "Extra High",
+        "rect": {
+          "height": 36,
+          "left": 1265,
+          "top": 407,
+          "width": 113
+        },
+        "selector": "form:has(#prompt-textarea) button[aria-haspopup=\"menu\"]:not([data-testid])"
+      },
+      "url_path": "/"
+    },
+    "pass_label": "reopen-confirm",
+    "selector": "form:has(#prompt-textarea) button[aria-haspopup=\"menu\"]:not([data-testid])",
+    "selector_count": 1,
+    "trigger_state_after_open": {
+      "aria_expanded": "true",
+      "aria_haspopup": "menu",
+      "count": 1,
+      "data_state": "open"
+    },
+    "trigger_state_before_open": {
+      "aria_expanded": "false",
+      "aria_haspopup": "menu",
+      "count": 1,
+      "data_state": "closed"
+    }
+  },
+  "reproducible": {
+    "first_option_count": 5,
+    "same_option_labels": true,
+    "second_option_count": 5,
+    "selector_count": 1
+  },
+  "selector_attempts": [
+    {
+      "basis": "attribute-no-testid",
+      "count": 1,
+      "disabled_count_after_click": 0,
+      "escape_confirmation": {
+        "model_option_count_after_escape": 0,
+        "portal_root_count_after_escape": 0,
+        "script_clicked_option": false,
+        "trigger_state_after_escape": {
+          "aria_expanded": "false",
+          "aria_haspopup": "menu",
+          "count": 1,
+          "data_state": "closed"
+        }
+      },
+      "opens_menuitemradio": true,
+      "option_count_after_click": 5,
+      "selector": "form:has(#prompt-textarea) button[aria-haspopup=\"menu\"]:not([data-testid])",
+      "trigger_state_after_click": {
+        "aria_expanded": "true",
+        "aria_haspopup": "menu",
+        "count": 1,
+        "data_state": "open"
+      },
+      "trigger_state_before": {
+        "aria_expanded": "false",
+        "aria_haspopup": "menu",
+        "count": 1,
+        "data_state": "closed"
+      }
+    }
+  ],
+  "stage": "done",
+  "started_at": "2026-06-13T18:37:33.673712-05:00",
+  "status": "DONE",
+  "two_switch_labels": [
+    "Extra High",
+    "Instant"
+  ],
+  "verdict": "FOUND"
+}

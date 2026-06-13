@@ -1,0 +1,896 @@
+{
+  "chosen_trigger": null,
+  "chosen_trigger_reason": null,
+  "closed_state": {
+    "available_model_labels": [],
+    "best_trigger": null,
+    "best_trigger_reason": null,
+    "doc_model_candidates": [
+      {
+        "clickable_composer_like": false,
+        "clickable_data_state": null,
+        "clickable_haspopup": null,
+        "clickable_headerish": true,
+        "clickable_home_link_like": true,
+        "clickable_reasoning_like": true,
+        "clickable_role": null,
+        "clickable_sidebar_like": true,
+        "clickable_tag": "a",
+        "clickable_testid": null,
+        "element_headerish": true,
+        "element_selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > nav:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > a:nth-of-type(1) > span:nth-of-type(1) > span:nth-of-type(1)",
+        "element_selector_basis": "structural-path",
+        "element_selector_count": 1,
+        "rect": {
+          "height": 21,
+          "left": 18,
+          "top": 15,
+          "width": 75
+        },
+        "role": null,
+        "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > nav:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > a:nth-of-type(1)",
+        "selector_basis": "structural-path",
+        "selector_count": 1,
+        "tag": "span",
+        "testid": null,
+        "text": "ChatGPT"
+      }
+    ],
+    "header_buttons": [
+      {
+        "aria_checked": null,
+        "aria_expanded": "false",
+        "aria_haspopup": null,
+        "aria_label": "<non-model-aria>",
+        "aria_selected": null,
+        "composer_like": false,
+        "data_radix_collection_item": false,
+        "data_state": null,
+        "disabled": false,
+        "headerish": true,
+        "home_link_like": false,
+        "own_text": "<non-model-text>",
+        "reasoning_like": true,
+        "rect": {
+          "height": 36,
+          "left": 8,
+          "top": 8,
+          "width": 36
+        },
+        "role": null,
+        "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > nav:nth-of-type(1) > div:nth-of-type(1) > span:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(1)",
+        "selector_basis": "structural-path",
+        "selector_count": 1,
+        "sidebar_like": true,
+        "tag": "button",
+        "testid": null,
+        "text": "<non-model-text>",
+        "text_matches_model": false
+      },
+      {
+        "aria_checked": null,
+        "aria_expanded": null,
+        "aria_haspopup": null,
+        "aria_label": null,
+        "aria_selected": null,
+        "composer_like": false,
+        "data_radix_collection_item": false,
+        "data_state": null,
+        "disabled": false,
+        "headerish": true,
+        "home_link_like": false,
+        "own_text": "<non-model-text>",
+        "reasoning_like": false,
+        "rect": {
+          "height": 36,
+          "left": 6,
+          "top": 96,
+          "width": 40
+        },
+        "role": null,
+        "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > nav:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(2) > button:nth-of-type(1)",
+        "selector_basis": "structural-path",
+        "selector_count": 1,
+        "sidebar_like": true,
+        "tag": "button",
+        "testid": null,
+        "text": "<non-model-text>",
+        "text_matches_model": false
+      },
+      {
+        "aria_checked": null,
+        "aria_expanded": "false",
+        "aria_haspopup": "menu",
+        "aria_label": null,
+        "aria_selected": null,
+        "composer_like": false,
+        "data_radix_collection_item": false,
+        "data_state": "closed",
+        "disabled": false,
+        "headerish": true,
+        "home_link_like": false,
+        "own_text": "<non-model-text>",
+        "reasoning_like": false,
+        "rect": {
+          "height": 36,
+          "left": 6,
+          "top": 132,
+          "width": 40
+        },
+        "role": null,
+        "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > nav:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(3) > button:nth-of-type(1)",
+        "selector_basis": "structural-path",
+        "selector_count": 1,
+        "sidebar_like": true,
+        "tag": "button",
+        "testid": null,
+        "text": "<non-model-text>",
+        "text_matches_model": false
+      },
+      {
+        "aria_checked": null,
+        "aria_expanded": "true",
+        "aria_haspopup": null,
+        "aria_label": "<non-model-aria>",
+        "aria_selected": null,
+        "composer_like": false,
+        "data_radix_collection_item": false,
+        "data_state": "closed",
+        "disabled": false,
+        "headerish": true,
+        "home_link_like": false,
+        "own_text": "<non-model-text>",
+        "reasoning_like": true,
+        "rect": {
+          "height": 36,
+          "left": 201,
+          "top": 8,
+          "width": 36
+        },
+        "role": null,
+        "selector": "button[data-testid=\"close-sidebar-button\"]",
+        "selector_basis": "testid",
+        "selector_count": 1,
+        "sidebar_like": true,
+        "tag": "button",
+        "testid": "close-sidebar-button",
+        "text": "<non-model-text>",
+        "text_matches_model": false
+      },
+      {
+        "aria_checked": null,
+        "aria_expanded": null,
+        "aria_haspopup": null,
+        "aria_label": null,
+        "aria_selected": null,
+        "composer_like": false,
+        "data_radix_collection_item": false,
+        "data_state": null,
+        "disabled": false,
+        "headerish": true,
+        "home_link_like": false,
+        "own_text": "<non-model-text>",
+        "reasoning_like": false,
+        "rect": {
+          "height": 36,
+          "left": 6,
+          "top": 96,
+          "width": 233
+        },
+        "role": null,
+        "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > nav:nth-of-type(1) > div:nth-of-type(3) > ul:nth-of-type(1) > li:nth-of-type(2) > button:nth-of-type(1)",
+        "selector_basis": "structural-path",
+        "selector_count": 1,
+        "sidebar_like": true,
+        "tag": "button",
+        "testid": null,
+        "text": "<non-model-text>",
+        "text_matches_model": false
+      },
+      {
+        "aria_checked": null,
+        "aria_expanded": null,
+        "aria_haspopup": null,
+        "aria_label": "<non-model-aria>",
+        "aria_selected": null,
+        "composer_like": false,
+        "data_radix_collection_item": false,
+        "data_state": null,
+        "disabled": false,
+        "headerish": true,
+        "home_link_like": false,
+        "own_text": "<non-model-text>",
+        "reasoning_like": true,
+        "rect": {
+          "height": 36,
+          "left": 1857,
+          "top": 8,
+          "width": 36
+        },
+        "role": null,
+        "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > header:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > span:nth-of-type(1) > button:nth-of-type(1)",
+        "selector_basis": "structural-path",
+        "selector_count": 1,
+        "sidebar_like": false,
+        "tag": "button",
+        "testid": null,
+        "text": "<non-model-text>",
+        "text_matches_model": false
+      }
+    ],
+    "hydrated_markers": {
+      "composer_present": 1,
+      "ready_root_present": 1
+    },
+    "model_option_disabled_selector": null,
+    "model_option_selector": null,
+    "model_option_selector_counts": [
+      {
+        "dom_count": 0,
+        "selector": "[data-radix-popper-content-wrapper] [role=menuitemradio]",
+        "visible_count": 0
+      },
+      {
+        "dom_count": 0,
+        "selector": "[data-radix-popper-content-wrapper] [role=option]",
+        "visible_count": 0
+      },
+      {
+        "dom_count": 0,
+        "selector": "[data-radix-popper-content-wrapper] [role=menuitem]",
+        "visible_count": 0
+      },
+      {
+        "dom_count": 0,
+        "selector": "[role=menu] [role=menuitemradio]",
+        "visible_count": 0
+      },
+      {
+        "dom_count": 0,
+        "selector": "[role=menu] [role=option]",
+        "visible_count": 0
+      },
+      {
+        "dom_count": 0,
+        "selector": "[role=menu] [role=menuitem]",
+        "visible_count": 0
+      },
+      {
+        "dom_count": 0,
+        "selector": "[role=listbox] [role=option]",
+        "visible_count": 0
+      },
+      {
+        "dom_count": 0,
+        "selector": "[data-radix-collection-item][role=menuitemradio]",
+        "visible_count": 0
+      },
+      {
+        "dom_count": 0,
+        "selector": "[data-radix-collection-item][role=option]",
+        "visible_count": 0
+      },
+      {
+        "dom_count": 0,
+        "selector": "[data-radix-collection-item]",
+        "visible_count": 0
+      }
+    ],
+    "modelish_testids": [],
+    "portal_options": [],
+    "portal_roots": [],
+    "submenu_or_more_models_visible": false,
+    "testid_inventory": [
+      "apps-button",
+      "blocking-initial-modals-done",
+      "close-sidebar-button",
+      "composer-plus-btn",
+      "create-new-chat-button",
+      "history-item-0-options",
+      "history-item-1-options",
+      "history-item-10-options",
+      "history-item-11-options",
+      "history-item-12-options",
+      "history-item-13-options",
+      "history-item-14-options",
+      "history-item-15-options",
+      "history-item-16-options",
+      "history-item-17-options",
+      "history-item-18-options",
+      "history-item-19-options",
+      "history-item-2-options",
+      "history-item-20-options",
+      "history-item-21-options",
+      "history-item-22-options",
+      "history-item-23-options",
+      "history-item-24-options",
+      "history-item-25-options",
+      "history-item-26-options",
+      "history-item-27-options",
+      "history-item-3-options",
+      "history-item-4-options",
+      "history-item-5-options",
+      "history-item-6-options",
+      "history-item-7-options",
+      "history-item-8-options",
+      "history-item-9-options",
+      "sidebar-item-recall",
+      "thread-header-right-actions",
+      "thread-header-right-actions-container",
+      "upload-photos-input"
+    ],
+    "text_model_candidates": [
+      {
+        "clickable_composer_like": false,
+        "clickable_headerish": true,
+        "clickable_home_link_like": false,
+        "clickable_reasoning_like": false,
+        "clickable_sidebar_like": true,
+        "clickable_tag": "div",
+        "rect": {
+          "height": 52,
+          "left": 0,
+          "top": 0,
+          "width": 245
+        },
+        "role": null,
+        "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > nav:nth-of-type(1) > div:nth-of-type(1)",
+        "selector_basis": "structural-path",
+        "selector_count": 1,
+        "tag": "div",
+        "testid": null,
+        "text": "ChatGPT"
+      },
+      {
+        "clickable_composer_like": false,
+        "clickable_headerish": true,
+        "clickable_home_link_like": false,
+        "clickable_reasoning_like": false,
+        "clickable_sidebar_like": true,
+        "clickable_tag": "div",
+        "rect": {
+          "height": 52,
+          "left": 0,
+          "top": 0,
+          "width": 245
+        },
+        "role": null,
+        "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > nav:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1)",
+        "selector_basis": "structural-path",
+        "selector_count": 1,
+        "tag": "div",
+        "testid": null,
+        "text": "ChatGPT"
+      },
+      {
+        "clickable_composer_like": false,
+        "clickable_headerish": true,
+        "clickable_home_link_like": false,
+        "clickable_reasoning_like": false,
+        "clickable_sidebar_like": true,
+        "clickable_tag": "div",
+        "rect": {
+          "height": 52,
+          "left": 8,
+          "top": 0,
+          "width": 229
+        },
+        "role": null,
+        "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > nav:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1)",
+        "selector_basis": "structural-path",
+        "selector_count": 1,
+        "tag": "div",
+        "testid": null,
+        "text": "ChatGPT"
+      },
+      {
+        "clickable_composer_like": false,
+        "clickable_headerish": true,
+        "clickable_home_link_like": true,
+        "clickable_reasoning_like": true,
+        "clickable_sidebar_like": true,
+        "clickable_tag": "a",
+        "rect": {
+          "height": 36,
+          "left": 8,
+          "top": 8,
+          "width": 95
+        },
+        "role": null,
+        "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > nav:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > a:nth-of-type(1)",
+        "selector_basis": "structural-path",
+        "selector_count": 1,
+        "tag": "a",
+        "testid": null,
+        "text": "ChatGPT"
+      },
+      {
+        "clickable_composer_like": false,
+        "clickable_headerish": true,
+        "clickable_home_link_like": true,
+        "clickable_reasoning_like": true,
+        "clickable_sidebar_like": true,
+        "clickable_tag": "a",
+        "rect": {
+          "height": 26,
+          "left": 18,
+          "top": 13,
+          "width": 75
+        },
+        "role": null,
+        "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > nav:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > a:nth-of-type(1)",
+        "selector_basis": "structural-path",
+        "selector_count": 1,
+        "tag": "span",
+        "testid": null,
+        "text": "ChatGPT"
+      },
+      {
+        "clickable_composer_like": false,
+        "clickable_headerish": true,
+        "clickable_home_link_like": true,
+        "clickable_reasoning_like": true,
+        "clickable_sidebar_like": true,
+        "clickable_tag": "a",
+        "rect": {
+          "height": 21,
+          "left": 18,
+          "top": 15,
+          "width": 75
+        },
+        "role": null,
+        "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > nav:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > a:nth-of-type(1)",
+        "selector_basis": "structural-path",
+        "selector_count": 1,
+        "tag": "span",
+        "testid": null,
+        "text": "ChatGPT"
+      }
+    ],
+    "top_main_elements": [
+      {
+        "aria_checked": null,
+        "aria_expanded": null,
+        "aria_haspopup": null,
+        "aria_label": null,
+        "aria_selected": null,
+        "data_radix_collection_item": false,
+        "data_state": null,
+        "disabled": false,
+        "own_text": "<non-model-text>",
+        "rect": {
+          "height": 36,
+          "left": 1845,
+          "top": 8,
+          "width": 48
+        },
+        "role": null,
+        "selector": "div[data-testid=\"thread-header-right-actions-container\"]",
+        "selector_basis": "testid",
+        "selector_count": 1,
+        "tag": "div",
+        "testid": "thread-header-right-actions-container",
+        "text": "<non-model-text>"
+      },
+      {
+        "aria_checked": null,
+        "aria_expanded": null,
+        "aria_haspopup": null,
+        "aria_label": null,
+        "aria_selected": null,
+        "data_radix_collection_item": false,
+        "data_state": null,
+        "disabled": false,
+        "own_text": "<non-model-text>",
+        "rect": {
+          "height": 36,
+          "left": 1857,
+          "top": 8,
+          "width": 36
+        },
+        "role": null,
+        "selector": "div[data-testid=\"thread-header-right-actions\"]",
+        "selector_basis": "testid",
+        "selector_count": 1,
+        "tag": "div",
+        "testid": "thread-header-right-actions",
+        "text": "<non-model-text>"
+      },
+      {
+        "aria_checked": null,
+        "aria_expanded": null,
+        "aria_haspopup": null,
+        "aria_label": null,
+        "aria_selected": null,
+        "data_radix_collection_item": false,
+        "data_state": null,
+        "disabled": false,
+        "own_text": "<non-model-text>",
+        "rect": {
+          "height": 36,
+          "left": 1857,
+          "top": 8,
+          "width": 36
+        },
+        "role": null,
+        "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > header:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(2) > div:nth-of-type(1)",
+        "selector_basis": "structural-path",
+        "selector_count": 1,
+        "tag": "div",
+        "testid": null,
+        "text": "<non-model-text>"
+      },
+      {
+        "aria_checked": null,
+        "aria_expanded": null,
+        "aria_haspopup": null,
+        "aria_label": null,
+        "aria_selected": null,
+        "data_radix_collection_item": false,
+        "data_state": null,
+        "disabled": false,
+        "own_text": "<non-model-text>",
+        "rect": {
+          "height": 36,
+          "left": 1857,
+          "top": 8,
+          "width": 36
+        },
+        "role": null,
+        "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > header:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1)",
+        "selector_basis": "structural-path",
+        "selector_count": 1,
+        "tag": "div",
+        "testid": null,
+        "text": "<non-model-text>"
+      },
+      {
+        "aria_checked": null,
+        "aria_expanded": null,
+        "aria_haspopup": null,
+        "aria_label": null,
+        "aria_selected": null,
+        "data_radix_collection_item": false,
+        "data_state": "closed",
+        "disabled": false,
+        "own_text": "<non-model-text>",
+        "rect": {
+          "height": 36,
+          "left": 1857,
+          "top": 8,
+          "width": 36
+        },
+        "role": null,
+        "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > header:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > span:nth-of-type(1)",
+        "selector_basis": "structural-path",
+        "selector_count": 1,
+        "tag": "span",
+        "testid": null,
+        "text": "<non-model-text>"
+      },
+      {
+        "aria_checked": null,
+        "aria_expanded": null,
+        "aria_haspopup": null,
+        "aria_label": "<non-model-aria>",
+        "aria_selected": null,
+        "data_radix_collection_item": false,
+        "data_state": null,
+        "disabled": false,
+        "own_text": "<non-model-text>",
+        "rect": {
+          "height": 36,
+          "left": 1857,
+          "top": 8,
+          "width": 36
+        },
+        "role": null,
+        "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > header:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > span:nth-of-type(1) > button:nth-of-type(1)",
+        "selector_basis": "structural-path",
+        "selector_count": 1,
+        "tag": "button",
+        "testid": null,
+        "text": "<non-model-text>"
+      },
+      {
+        "aria_checked": null,
+        "aria_expanded": null,
+        "aria_haspopup": null,
+        "aria_label": null,
+        "aria_selected": null,
+        "data_radix_collection_item": false,
+        "data_state": null,
+        "disabled": false,
+        "own_text": "<non-model-text>",
+        "rect": {
+          "height": 20,
+          "left": 1865,
+          "top": 16,
+          "width": 20
+        },
+        "role": null,
+        "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > header:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > span:nth-of-type(1) > button:nth-of-type(1) > svg:nth-of-type(1)",
+        "selector_basis": "structural-path",
+        "selector_count": 1,
+        "tag": "svg",
+        "testid": null,
+        "text": "<non-model-text>"
+      },
+      {
+        "aria_checked": null,
+        "aria_expanded": null,
+        "aria_haspopup": null,
+        "aria_label": null,
+        "aria_selected": null,
+        "data_radix_collection_item": false,
+        "data_state": null,
+        "disabled": false,
+        "own_text": "<non-model-text>",
+        "rect": {
+          "height": 15,
+          "left": 1867,
+          "top": 18,
+          "width": 16
+        },
+        "role": null,
+        "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > header:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > span:nth-of-type(1) > button:nth-of-type(1) > svg:nth-of-type(1) > use:nth-of-type(1)",
+        "selector_basis": "structural-path",
+        "selector_count": 1,
+        "tag": "use",
+        "testid": null,
+        "text": "<non-model-text>"
+      },
+      {
+        "aria_checked": null,
+        "aria_expanded": null,
+        "aria_haspopup": null,
+        "aria_label": null,
+        "aria_selected": null,
+        "data_radix_collection_item": false,
+        "data_state": null,
+        "disabled": false,
+        "own_text": "<non-model-text>",
+        "rect": {
+          "height": 897,
+          "left": 275,
+          "top": 52,
+          "width": 1626
+        },
+        "role": null,
+        "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > main:nth-of-type(1) > div:nth-of-type(1)",
+        "selector_basis": "structural-path",
+        "selector_count": 1,
+        "tag": "div",
+        "testid": null,
+        "text": "<non-model-text>"
+      },
+      {
+        "aria_checked": null,
+        "aria_expanded": null,
+        "aria_haspopup": null,
+        "aria_label": null,
+        "aria_selected": null,
+        "data_radix_collection_item": false,
+        "data_state": null,
+        "disabled": false,
+        "own_text": "<non-model-text>",
+        "rect": {
+          "height": 897,
+          "left": 275,
+          "top": 52,
+          "width": 1626
+        },
+        "role": "presentation",
+        "selector": "div[role=\"presentation\"]",
+        "selector_basis": "role",
+        "selector_count": 1,
+        "tag": "div",
+        "testid": null,
+        "text": "<non-model-text>"
+      },
+      {
+        "aria_checked": null,
+        "aria_expanded": null,
+        "aria_haspopup": null,
+        "aria_label": null,
+        "aria_selected": null,
+        "data_radix_collection_item": false,
+        "data_state": null,
+        "disabled": false,
+        "own_text": "<non-model-text>",
+        "rect": {
+          "height": 347,
+          "left": 275,
+          "top": 52,
+          "width": 1626
+        },
+        "role": null,
+        "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1)",
+        "selector_basis": "structural-path",
+        "selector_count": 1,
+        "tag": "div",
+        "testid": null,
+        "text": "<non-model-text>"
+      }
+    ],
+    "trigger_candidates": [
+      {
+        "aria_checked": null,
+        "aria_expanded": "false",
+        "aria_haspopup": "menu",
+        "aria_label": null,
+        "aria_selected": null,
+        "composer_like": false,
+        "data_radix_collection_item": false,
+        "data_state": "closed",
+        "disabled": false,
+        "headerish": true,
+        "home_link_like": false,
+        "own_text": "<non-model-text>",
+        "reasoning_like": false,
+        "rect": {
+          "height": 36,
+          "left": 6,
+          "top": 132,
+          "width": 40
+        },
+        "role": null,
+        "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > nav:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(3) > button:nth-of-type(1)",
+        "selector_basis": "structural-path",
+        "selector_count": 1,
+        "sidebar_like": true,
+        "tag": "button",
+        "testid": null,
+        "text": "<non-model-text>",
+        "text_matches_model": false
+      }
+    ],
+    "url_path": "/"
+  },
+  "fail_closed_reason": "no model-menu trigger candidate after broad hydrated search",
+  "hydration_poll": [
+    {
+      "best_trigger": false,
+      "elapsed_s": 0.03,
+      "header_buttons": 6,
+      "modelish_testids": [],
+      "trigger_candidates": 1
+    },
+    {
+      "best_trigger": false,
+      "elapsed_s": 0.56,
+      "header_buttons": 6,
+      "modelish_testids": [],
+      "trigger_candidates": 1
+    },
+    {
+      "best_trigger": false,
+      "elapsed_s": 1.09,
+      "header_buttons": 6,
+      "modelish_testids": [],
+      "trigger_candidates": 1
+    },
+    {
+      "best_trigger": false,
+      "elapsed_s": 1.62,
+      "header_buttons": 6,
+      "modelish_testids": [],
+      "trigger_candidates": 1
+    },
+    {
+      "best_trigger": false,
+      "elapsed_s": 2.15,
+      "header_buttons": 6,
+      "modelish_testids": [],
+      "trigger_candidates": 1
+    },
+    {
+      "best_trigger": false,
+      "elapsed_s": 2.67,
+      "header_buttons": 6,
+      "modelish_testids": [],
+      "trigger_candidates": 1
+    },
+    {
+      "best_trigger": false,
+      "elapsed_s": 3.2,
+      "header_buttons": 6,
+      "modelish_testids": [],
+      "trigger_candidates": 1
+    },
+    {
+      "best_trigger": false,
+      "elapsed_s": 3.73,
+      "header_buttons": 6,
+      "modelish_testids": [],
+      "trigger_candidates": 1
+    },
+    {
+      "best_trigger": false,
+      "elapsed_s": 4.25,
+      "header_buttons": 6,
+      "modelish_testids": [],
+      "trigger_candidates": 1
+    },
+    {
+      "best_trigger": false,
+      "elapsed_s": 4.78,
+      "header_buttons": 6,
+      "modelish_testids": [],
+      "trigger_candidates": 1
+    },
+    {
+      "best_trigger": false,
+      "elapsed_s": 5.31,
+      "header_buttons": 6,
+      "modelish_testids": [],
+      "trigger_candidates": 1
+    },
+    {
+      "best_trigger": false,
+      "elapsed_s": 5.83,
+      "header_buttons": 6,
+      "modelish_testids": [],
+      "trigger_candidates": 1
+    },
+    {
+      "best_trigger": false,
+      "elapsed_s": 6.36,
+      "header_buttons": 6,
+      "modelish_testids": [],
+      "trigger_candidates": 1
+    },
+    {
+      "best_trigger": false,
+      "elapsed_s": 6.88,
+      "header_buttons": 6,
+      "modelish_testids": [],
+      "trigger_candidates": 1
+    },
+    {
+      "best_trigger": false,
+      "elapsed_s": 7.41,
+      "header_buttons": 6,
+      "modelish_testids": [],
+      "trigger_candidates": 1
+    },
+    {
+      "best_trigger": false,
+      "elapsed_s": 7.93,
+      "header_buttons": 6,
+      "modelish_testids": [],
+      "trigger_candidates": 1
+    },
+    {
+      "best_trigger": false,
+      "elapsed_s": 8.46,
+      "header_buttons": 6,
+      "modelish_testids": [],
+      "trigger_candidates": 1
+    },
+    {
+      "best_trigger": false,
+      "elapsed_s": 8.99,
+      "header_buttons": 6,
+      "modelish_testids": [],
+      "trigger_candidates": 1
+    },
+    {
+      "best_trigger": false,
+      "elapsed_s": 9.51,
+      "header_buttons": 6,
+      "modelish_testids": [],
+      "trigger_candidates": 1
+    },
+    {
+      "best_trigger": false,
+      "elapsed_s": 10.04,
+      "header_buttons": 6,
+      "modelish_testids": [],
+      "trigger_candidates": 1
+    }
+  ],
+  "stage": "done",
+  "started_at": "2026-06-13T18:07:36.649174-05:00",
+  "verdict": "HONEST-FAIL-CLOSED"
+}

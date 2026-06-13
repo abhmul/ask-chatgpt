@@ -1,0 +1,29 @@
+{
+  "mission": "MISSION-010",
+  "title": "Wire real model-selection (close B-2). REAL SITE over CDP.",
+  "manager": "headless Opus orchestrator",
+  "editor": "pi (single editor)",
+  "started": "2026-06-13",
+  "objective": "Map + wire the real ChatGPT model picker (a Radix dropdown) so model_settings={'model': '<label>'} actually selects a model live over CDP; keep FAIL-CLOSED (ModelUnavailableError if a requested model is absent). Prove via UI STATE, not self-report. Update VERIFICATION.md + docs/USAGE.md without overclaim.",
+  "constraints": [
+    "CDP attach ONLY (127.0.0.1:9222); preflight PASSED at dispatch (Chrome/149). Never launch a browser.",
+    "NO stealth; login NEVER automated; ANY challenge/logout/profile-lock -> STOP HUMAN-ACTION-NEEDED + poll READ-ONLY, never click through.",
+    "Own tabs only; close()=detach never quit. Work in the tool's own tab; do NOT change global account settings.",
+    "LEAK GUARD (this task leaked in M-009): capture ONLY model-option labels; NEVER capture/log/commit account/profile/email/name/avatar/plan. Reuse hardened redact()+isAccount(); emit raw text only when it matches MODEL_RE. Scrub immediately; never let an identifier reach a commit.",
+    "Human-paced, NO message cap, no spam; per-message audit log; redact /c/<id>.",
+    "Default test tier stays mock-only (real_site marker + ASK_CHATGPT_REAL=1 double-gate).",
+    "uv sync --all-groups; uv run from repo root; never bare python / shared agent venv.",
+    "RED-first for behavior changes; keep all mock tests green (212).",
+    "Workers DO NOT git commit/push; manager leak-reviews then commits. NEVER git push.",
+    "Telemetry v2: ESTIMATE/ACTUAL/end-timestamp/REWORK-CAUSE in every worker report."
+  ],
+  "queue": [
+    {"id": "T1", "title": "Discover model picker (OPEN-then-enumerate, real CDP)", "status": "dispatched", "deps": [], "worker": "pi"},
+    {"id": "T2", "title": "Wire select_model real path + populate real.json (RED-first, editing)", "status": "pending", "deps": ["T1"], "worker": "pi"},
+    {"id": "T3", "title": "Prove real two-switch via UI-state + fail-closed (production entrypoint, real CDP)", "status": "pending", "deps": ["T2"], "worker": "pi"},
+    {"id": "T4", "title": "Verify + docs (VERIFICATION.md, USAGE.md) + verify.md + handoff", "status": "pending", "deps": ["T3"], "worker": "pi+manager"}
+  ],
+  "artifacts_trust": {},
+  "blockers": [],
+  "gate": "AWAITING-TEAM-LEAD-SPOTCHECK (set at mission close)"
+}
