@@ -322,16 +322,16 @@ class BrowserSession:
             except PlaywrightError as exc:
                 raise AskChatGPTError("Browser prompt submission failed. Operator action: retry or inspect the UI.") from exc
 
-    def wait_for_completion(self, timeout_s: float = 10.0) -> Locator:
+    def wait_for_completion(self, timeout_s: float = 120.0) -> Locator:
         """Return the latest completed assistant turn locator.
 
-        Mock-channel strategy: poll for completion markers; when only streaming markers are present, reload ``/c/<ref>`` so the fixture advances scripted stream state, then re-check. Real/CDP completion additionally accepts a latest assistant turn whose stop control is gone and whose body text has stabilized.
+        Mock-channel strategy: poll for completion markers; when only streaming markers are present, reload ``/c/<ref>`` so the fixture advances scripted stream state, then re-check. Real/CDP completion requires positive completion evidence with the stop control absent; body-text progress extends the timeout window for long actively growing responses.
         """
 
         page = self._require_page()
-        deadline = time.monotonic() + max(0.0, float(timeout_s))
+        timeout_window = max(0.0, float(timeout_s))
+        deadline = time.monotonic() + timeout_window
         last_text = ""
-        stable_since: float | None = None
         while True:
             self._raise_open_failures()
             if self._rate_limit_visible():
@@ -352,16 +352,19 @@ class BrowserSession:
                 if self.channel in {"real", "cdp"}:
                     latest_text = self._latest_assistant_body_text(latest_assistant)
                     now = time.monotonic()
-                    if latest_text and latest_text == last_text:
-                        if stable_since is None:
-                            stable_since = now
-                    else:
-                        last_text = latest_text
-                        stable_since = None
+                    if latest_text and latest_text != last_text:
+                        deadline = max(deadline, now + timeout_window)
+                    last_text = latest_text
                     streaming_visible = self._present("streaming_marker")
-                    completion_visible = completion_present_on_latest or self._present("completion_marker")
-                    text_stable = stable_since is not None and now - stable_since >= _REAL_COMPLETION_STABLE_S
-                    if not streaming_visible and (completion_visible or text_stable):
+                    completion_affordance_selector = self._optional_selector("completion_affordance")
+                    if completion_affordance_selector is not None:
+                        completion_visible = (
+                            latest_assistant.locator(completion_affordance_selector).count() > 0
+                            or self._present("completion_affordance")
+                        )
+                    else:
+                        completion_visible = completion_present_on_latest or self._present("completion_marker")
+                    if not streaming_visible and completion_visible:
                         return latest_assistant
 
             now = time.monotonic()
