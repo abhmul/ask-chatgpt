@@ -16,6 +16,7 @@ import re
 import sys
 import tempfile
 import time
+import zipfile
 from typing import Any
 from urllib.parse import urlparse
 
@@ -25,7 +26,7 @@ for path in (SRC, ROOT):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
-from playwright.sync_api import Error as PlaywrightError  # noqa: E402
+from playwright.sync_api import Error as PlaywrightError, TimeoutError as PlaywrightTimeoutError  # noqa: E402
 
 from ask_chatgpt.bundle import build_bundle, generate_prompt_instructions  # noqa: E402
 from ask_chatgpt.driver import BrowserSession  # noqa: E402
@@ -70,6 +71,7 @@ T5_TEMP_RECALL = REPORT_DIR / "T5-temp-recall.txt"
 T5_TEMP_CONTROL = REPORT_DIR / "T5-temp-control.txt"
 T5_TEMP_CONTINUITY = REPORT_DIR / "T5-temp-continuity.json"
 T4_DOWNLOAD_DISCOVERY = REPORT_DIR / "T4-download-discovery.json"
+T4_DOWNLOAD_CAPTURE = REPORT_DIR / "T4-download-capture.json"
 
 DOWNLOAD_DISCOVERY_USER_TASK = "In example.txt, change favorite_color from red to blue."
 DOWNLOAD_DISCOVERY_EXAMPLE = 'favorite_color = "red"\n'
@@ -404,6 +406,314 @@ _DOWNLOAD_DISCOVERY_EVALUATE_JS = r"""
   }));
 }
 """
+
+
+_DOWNLOAD_CAPTURE_LIBRARY_JS = r"""
+function m008bNormalize(value) {
+  return String(value || '').replace(/\s+/g, ' ').trim();
+}
+
+function m008bTruncate(value, limit) {
+  const text = String(value || '');
+  return text.length > limit ? text.slice(0, limit) : text;
+}
+
+function m008bFirstPathSegment(pathname) {
+  const pieces = String(pathname || '').split(/[?#]/, 1)[0].split('/').filter(Boolean);
+  return pieces.length ? pieces[0].slice(0, 80) : '';
+}
+
+function m008bHrefShape(raw) {
+  const text = String(raw || '').trim();
+  if (!text) return null;
+  if (text.startsWith('/')) {
+    const first = m008bFirstPathSegment(text);
+    return first ? `relative:/${first}` : 'relative:/';
+  }
+  if (!/^[A-Za-z][A-Za-z0-9+.-]*:/.test(text)) return null;
+  try {
+    const url = new URL(text, window.location.href);
+    const scheme = url.protocol.replace(/:$/, '').toLowerCase();
+    if (!scheme) return null;
+    if (scheme === 'blob') return 'blob:';
+    if (scheme === 'sandbox') {
+      const first = m008bFirstPathSegment(url.pathname);
+      return first ? `sandbox:/${first}` : 'sandbox:';
+    }
+    const first = m008bFirstPathSegment(url.pathname);
+    if (scheme === 'http' || scheme === 'https') return first ? `${scheme}:/${first}` : `${scheme}:/`;
+    return first ? `${scheme}:/${first}` : `${scheme}:`;
+  } catch (_error) {
+    return null;
+  }
+}
+
+function m008bSafeText(value, limit) {
+  let text = m008bNormalize(value);
+  text = text.replace(/\/c\/[^/?#\s"'<>]+/g, '/c/<redacted>');
+  text = text.replace(/\b(?:https?|blob|sandbox):[^\s<>)"']+/gi, (match) => m008bHrefShape(match) || '<url>');
+  text = text.replace(/\b(access_token|token|sig|signature|x-amz-signature|key|jwt|session|cookie)=[^&\s)"']+/gi, (match) => `${match.split('=')[0]}=<redacted>`);
+  if (typeof limit === 'number') return m008bTruncate(text, limit);
+  return text;
+}
+
+function m008bAttr(element, name) {
+  try {
+    const value = element.getAttribute(name);
+    return value === null ? null : value;
+  } catch (_error) {
+    return null;
+  }
+}
+
+function m008bAnchorFor(element) {
+  if (!element) return null;
+  if (element instanceof HTMLAnchorElement) return element;
+  try {
+    if (element.querySelector) return element.querySelector('a[href]');
+  } catch (_error) {
+    return null;
+  }
+  return null;
+}
+
+function m008bCandidateRawHref(element) {
+  const anchor = m008bAnchorFor(element);
+  if (!anchor) return '';
+  return anchor.getAttribute('href') || anchor.href || '';
+}
+
+function m008bCandidateResolvedHref(element) {
+  const anchor = m008bAnchorFor(element);
+  return anchor ? (anchor.href || m008bCandidateRawHref(element)) : '';
+}
+
+function m008bAccessibleText(element) {
+  const parts = [];
+  function add(value) {
+    const text = m008bNormalize(value);
+    if (text && !parts.includes(text)) parts.push(text);
+  }
+  try { add(element.innerText); } catch (_error) {}
+  try { add(element.textContent); } catch (_error) {}
+  for (const name of ['aria-label', 'title', 'download', 'data-testid']) {
+    add(m008bAttr(element, name));
+  }
+  const anchor = m008bAnchorFor(element);
+  if (anchor && anchor !== element) {
+    for (const name of ['aria-label', 'title', 'download', 'data-testid']) {
+      add(m008bAttr(anchor, name));
+    }
+  }
+  return m008bNormalize(parts.join(' '));
+}
+
+function m008bNearbyText(element) {
+  const parts = [m008bAccessibleText(element)];
+  let node = element;
+  let depth = 0;
+  while (node && node.nodeType === Node.ELEMENT_NODE && depth < 4) {
+    if (node === document.body || node === document.documentElement) break;
+    try { if (node.innerText) parts.push(node.innerText); } catch (_error) {}
+    try { if (node.textContent) parts.push(node.textContent); } catch (_error) {}
+    node = node.parentElement;
+    depth += 1;
+  }
+  return m008bNormalize(parts.join(' '));
+}
+
+function m008bHasPatchContext(element, arg) {
+  const text = m008bNearbyText(element).toLowerCase();
+  const filename = m008bNormalize(arg && arg.bundleFilename).toLowerCase();
+  if (filename && text.includes(filename)) return true;
+  return /\bpatch\b|\bbundle\b|\.zip\b|\bzip\b/.test(text);
+}
+
+function m008bIsInteractive(element) {
+  try {
+    return element.matches('a, button, [role="button"], [role="link"]');
+  } catch (_error) {
+    return false;
+  }
+}
+
+function m008bCandidateState(element, arg) {
+  const anchor = m008bAnchorFor(element);
+  const rawHref = m008bCandidateRawHref(element);
+  const resolvedHref = m008bCandidateResolvedHref(element);
+  const rawLower = String(rawHref || '').trim().toLowerCase();
+  const resolvedLower = String(resolvedHref || '').trim().toLowerCase();
+  const reasons = [];
+  if (anchor && anchor.hasAttribute('download')) reasons.push('a_download');
+  if (anchor && (rawLower.startsWith('blob:') || resolvedLower.startsWith('blob:'))) reasons.push('blob_href');
+  if (anchor && (rawLower.startsWith('sandbox:') || resolvedLower.startsWith('sandbox:'))) reasons.push('sandbox_href');
+
+  const downloadText = /download/i.test(m008bAccessibleText(element));
+  const patchContext = m008bHasPatchContext(element, arg || {});
+  if (downloadText && patchContext) reasons.push('download_text_patch_context');
+  else if (downloadText) reasons.push('download_text_no_patch_context');
+
+  const hrefEligible = Boolean(anchor && reasons.some((reason) => ['a_download', 'blob_href', 'sandbox_href'].includes(reason)));
+  const textEligible = Boolean(m008bIsInteractive(element) && downloadText && patchContext);
+  return {reasons, hrefEligible, textEligible, patchContext, rawHref, resolvedHref};
+}
+
+function m008bChromeNegative(element) {
+  const text = m008bAccessibleText(element).toLowerCase();
+  const dataTestId = String(m008bAttr(element, 'data-testid') || '').toLowerCase();
+  if (/download\s+apps?/.test(text)) return true;
+  if (/(accounts-profile-button|profile|account)/.test(dataTestId) && !/(patch|bundle|zip)/.test(text)) return true;
+  if (/(nav|sidebar)/.test(dataTestId) && /download/.test(text) && !/(patch|bundle|zip)/.test(text)) return true;
+  return false;
+}
+
+function m008bDescribeCandidate(element, scope, order, arg) {
+  const state = m008bCandidateState(element, arg || {});
+  if (!state.hrefEligible && !state.textEligible) return null;
+  if (m008bChromeNegative(element) && !state.patchContext) return null;
+  let score = scope === 'latest_assistant' ? 10000 : 0;
+  if (state.textEligible) score += 1000;
+  if (state.patchContext) score += 500;
+  if (state.reasons.includes('a_download')) score += 300;
+  if (state.reasons.includes('blob_href') || state.reasons.includes('sandbox_href')) score += 200;
+  const tag = String(element.tagName || '').toLowerCase();
+  if (tag === 'button') score += 50;
+  if (tag === 'a') score += 40;
+  return {element, scope, order, score, reasons: state.reasons};
+}
+
+function m008bCollectCandidates(root, scope, arg) {
+  const selectors = ['a[download]', 'a[href^="blob:"]', 'a[href^="sandbox:"]', 'a', 'button', '[role="button"]', '[role="link"]'];
+  const seen = new Set();
+  const candidates = [];
+  let order = 0;
+  for (const selector of selectors) {
+    let elements = [];
+    try { elements = Array.from(root.querySelectorAll(selector)); } catch (_error) { elements = []; }
+    for (const element of elements) {
+      if (seen.has(element)) continue;
+      seen.add(element);
+      const described = m008bDescribeCandidate(element, scope, order, arg || {});
+      order += 1;
+      if (described) candidates.push(described);
+    }
+  }
+  candidates.sort((left, right) => (right.score - left.score) || (left.order - right.order));
+  return candidates;
+}
+
+function m008bLatestAssistant(assistantSelector) {
+  if (!assistantSelector) return null;
+  try {
+    const turns = document.querySelectorAll(assistantSelector);
+    return turns.length ? turns[turns.length - 1] : null;
+  } catch (_error) {
+    return null;
+  }
+}
+
+function m008bSelectDownloadCaptureCandidate(arg) {
+  const latestAssistant = m008bLatestAssistant(arg && arg.assistantSelector);
+  if (latestAssistant) {
+    const assistantCandidates = m008bCollectCandidates(latestAssistant, 'latest_assistant', arg || {});
+    if (assistantCandidates.length) return assistantCandidates[0];
+  }
+  const pageCandidates = m008bCollectCandidates(document, 'page', arg || {});
+  return pageCandidates.length ? pageCandidates[0] : null;
+}
+
+function m008bQuote(value) {
+  return JSON.stringify(m008bSafeText(value, 80));
+}
+
+function m008bProposedSelector(element, scope, arg) {
+  const tag = String(element.tagName || '').toLowerCase() || 'element';
+  const prefix = scope === 'latest_assistant' ? 'latest assistant turn >> ' : 'page >> ';
+  const state = m008bCandidateState(element, arg || {});
+  const dataTestId = m008bAttr(element, 'data-testid');
+  if (dataTestId && !/accounts-profile-button/i.test(dataTestId)) return `${prefix}[data-testid=${m008bQuote(dataTestId)}]`;
+  const aria = m008bAttr(element, 'aria-label') || m008bAttr(element, 'title');
+  const role = m008bAttr(element, 'role');
+  const text = m008bSafeText(m008bAccessibleText(element), 80);
+  if (tag === 'a' && state.reasons.includes('a_download')) {
+    const downloadName = m008bAttr(element, 'download');
+    return downloadName ? `${prefix}a[download=${m008bQuote(downloadName)}]` : `${prefix}a[download]`;
+  }
+  if (tag === 'a' && state.reasons.includes('blob_href')) return `${prefix}a[href^="blob:"]`;
+  if (tag === 'a' && state.reasons.includes('sandbox_href')) return `${prefix}a[href^="sandbox:"]`;
+  if (role && text) return `${prefix}${tag}[role=${m008bQuote(role)}]:has-text(${m008bQuote(text)})`;
+  if (aria && text) return `${prefix}${tag}[aria-label=${m008bQuote(aria)}]`;
+  if (text) return `${prefix}${tag}:has-text(${m008bQuote(text)})`;
+  if (role) return `${prefix}${tag}[role=${m008bQuote(role)}]`;
+  return `${prefix}${tag}`;
+}
+
+function m008bScrubOuterHTML(element, limit) {
+  let clone;
+  try {
+    clone = element.cloneNode(true);
+  } catch (_error) {
+    return '';
+  }
+  const elements = [clone];
+  try {
+    const walker = document.createTreeWalker(clone, NodeFilter.SHOW_ELEMENT);
+    while (walker.nextNode()) elements.push(walker.currentNode);
+  } catch (_error) {}
+  for (const node of elements) {
+    for (const attr of Array.from(node.attributes || [])) {
+      const name = attr.name;
+      const value = attr.value;
+      if (/(?:href|src|url|token|cookie|session|signature|sig|key)/i.test(name)) {
+        node.setAttribute(name, m008bHrefShape(value) || '<redacted>');
+      } else {
+        node.setAttribute(name, m008bSafeText(value, 120));
+      }
+    }
+  }
+  return m008bSafeText(clone.outerHTML || '', limit);
+}
+
+function m008bCleanAttrValue(value, limit) {
+  if (value === null || value === undefined || value === '') return null;
+  return m008bSafeText(value, limit || 120);
+}
+
+function m008bDownloadCaptureAttrs(element, arg) {
+  const latestAssistant = m008bLatestAssistant(arg && arg.assistantSelector);
+  const scope = latestAssistant && latestAssistant.contains(element) ? 'latest_assistant' : 'page';
+  const state = m008bCandidateState(element, arg || {});
+  return {
+    tagName: String(element.tagName || '').toUpperCase(),
+    'data-testid': m008bCleanAttrValue(m008bAttr(element, 'data-testid'), 120),
+    role: m008bCleanAttrValue(m008bAttr(element, 'role'), 80),
+    aria_label: m008bCleanAttrValue(m008bAttr(element, 'aria-label'), 120),
+    title: m008bCleanAttrValue(m008bAttr(element, 'title'), 120),
+    download_attr: m008bCleanAttrValue(m008bAttr(element, 'download'), 120),
+    href_shape: m008bHrefShape(state.rawHref || state.resolvedHref),
+    text_snippet: m008bSafeText(m008bAccessibleText(element), 120),
+    scope,
+    reasons: state.reasons,
+    outerHTML_snippet: m008bScrubOuterHTML(element, 200),
+    proposed_selector: m008bProposedSelector(element, scope, arg || {}),
+  };
+}
+"""
+
+_DOWNLOAD_CAPTURE_SELECT_ELEMENT_JS = (
+    "(arg) => {\n"
+    + _DOWNLOAD_CAPTURE_LIBRARY_JS
+    + "\n  const candidate = m008bSelectDownloadCaptureCandidate(arg || {});\n"
+    + "  return candidate ? candidate.element : null;\n"
+    + "}"
+)
+
+_DOWNLOAD_CAPTURE_ATTRS_JS = (
+    "(element, arg) => {\n"
+    + _DOWNLOAD_CAPTURE_LIBRARY_JS
+    + "\n  return m008bDownloadCaptureAttrs(element, arg || {});\n"
+    + "}"
+)
 
 
 def _round_s(value: float | None) -> float | None:
@@ -949,6 +1259,135 @@ def _write_download_discovery_report(payload: dict[str, object]) -> None:
     T4_DOWNLOAD_DISCOVERY.write_text(redact(text) + "\n", encoding="utf-8")
 
 
+def _sanitize_download_capture_attrs(raw_attrs: Any) -> dict[str, object]:
+    if not isinstance(raw_attrs, dict):
+        return {}
+    sanitized: dict[str, object] = {}
+    for raw_key, value in raw_attrs.items():
+        key = _redact_urlish_text(raw_key, limit=80)
+        if isinstance(value, str):
+            limit = 200 if "outerHTML" in key else 180
+            sanitized[key] = _redact_urlish_text(value, limit=limit)
+        elif isinstance(value, list):
+            sanitized[key] = [
+                _redact_urlish_text(item, limit=80) if isinstance(item, str) else item
+                for item in value[:10]
+            ]
+        elif value is None or isinstance(value, (bool, int, float)):
+            sanitized[key] = value
+        else:
+            sanitized[key] = _redact_urlish_text(value, limit=180)
+    return sanitized
+
+
+def _select_download_capture_candidate(
+    session: BrowserSession,
+    *,
+    bundle_filename: str,
+) -> tuple[Any | None, dict[str, object]]:
+    page = session.page
+    if page is None:
+        raise AskChatGPTError("browser page is unavailable during download capture")
+    assistant_selector = session.selectors.selector("assistant_message")
+    evaluate_arg = {"assistantSelector": assistant_selector, "bundleFilename": bundle_filename}
+    handle = page.evaluate_handle(_DOWNLOAD_CAPTURE_SELECT_ELEMENT_JS, evaluate_arg)
+    element = handle.as_element()
+    if element is None:
+        handle.dispose()
+        return None, {}
+    try:
+        attrs = _sanitize_download_capture_attrs(element.evaluate(_DOWNLOAD_CAPTURE_ATTRS_JS, evaluate_arg))
+    except Exception:
+        try:
+            element.dispose()
+        except PlaywrightError:
+            pass
+        raise
+    return element, attrs
+
+
+def _top_level_zip_entry_names(zip_path: Path) -> list[str]:
+    names: set[str] = set()
+    with zipfile.ZipFile(zip_path) as archive:
+        for raw_name in archive.namelist():
+            clean = raw_name.strip("/")
+            if not clean:
+                continue
+            names.add(clean.split("/", 1)[0])
+    return sorted(names)
+
+
+def _capture_candidate_download(page: Any, candidate: Any) -> dict[str, object]:
+    try:
+        with page.expect_download(timeout=60000) as download_info:
+            candidate.click(timeout=15000)
+        download = download_info.value
+        failure = download.failure()
+        if failure:
+            return {
+                "captured": False,
+                "is_zip": None,
+                "nbytes": None,
+                "entry_names": None,
+                "failure_reason": _redact_urlish_text(f"Download event fired but failed: {failure}", limit=240),
+            }
+        download_path = download.path()
+        if download_path is None:
+            return {
+                "captured": False,
+                "is_zip": None,
+                "nbytes": None,
+                "entry_names": None,
+                "failure_reason": "Download event fired but download body path was unavailable",
+            }
+        zip_bytes = Path(download_path).read_bytes()
+    except PlaywrightTimeoutError:
+        return {
+            "captured": False,
+            "is_zip": None,
+            "nbytes": None,
+            "entry_names": None,
+            "failure_reason": "button present but no capturable Download event",
+        }
+    except PlaywrightError as exc:
+        return {
+            "captured": False,
+            "is_zip": None,
+            "nbytes": None,
+            "entry_names": None,
+            "failure_reason": _redact_urlish_text(f"Playwright download capture failed: {exc.__class__.__name__}", limit=240),
+        }
+    except OSError as exc:
+        return {
+            "captured": False,
+            "is_zip": None,
+            "nbytes": None,
+            "entry_names": None,
+            "failure_reason": _redact_urlish_text(f"download body could not be read: {exc.__class__.__name__}", limit=240),
+        }
+
+    nbytes = len(zip_bytes)
+    with tempfile.NamedTemporaryFile(prefix="m008b-download-capture-", suffix=".zip") as temp_file:
+        temp_file.write(zip_bytes)
+        temp_file.flush()
+        temp_path = Path(temp_file.name)
+        is_zip = zipfile.is_zipfile(temp_path)
+        entry_names = _top_level_zip_entry_names(temp_path) if is_zip else None
+    return {
+        "captured": True,
+        "is_zip": is_zip,
+        "nbytes": nbytes,
+        "entry_names": entry_names,
+        "failure_reason": None,
+    }
+
+
+def _write_download_capture_report(payload: dict[str, object]) -> None:
+    REPORT_DIR.mkdir(parents=True, exist_ok=True)
+    text = json.dumps(_redact_jsonable(payload), indent=2, sort_keys=True)
+    T4_DOWNLOAD_CAPTURE.write_text(redact(text) + "\n", encoding="utf-8")
+
+
 def run_download_discovery(_args: argparse.Namespace) -> int:
     session: BrowserSession | None = None
     close_on_exit = True
@@ -1042,6 +1481,121 @@ def run_download_discovery(_args: argparse.Namespace) -> int:
         _emit(f"ERROR: {exc.__class__.__name__}: {exc}")
         return 1
     finally:
+        if session is not None and close_on_exit:
+            session.close()
+
+
+def run_download_capture(_args: argparse.Namespace) -> int:
+    session: BrowserSession | None = None
+    close_on_exit = True
+    candidate_handle: Any | None = None
+    try:
+        with tempfile.TemporaryDirectory(prefix="m008b-download-capture-") as tmp_text:
+            zip_path, bundle_filename, bundle_size, prompt = _build_download_discovery_bundle(Path(tmp_text))
+            session = connect()
+            try:
+                session.open_or_create_conversation(None)
+            except HUMAN_ERRORS as exc:
+                close_on_exit = False
+                _emit_human_action_needed(exc)
+                return 5
+            if not recheck_safe(session):
+                close_on_exit = False
+                return 5
+
+            _upload_bundle_zip_path(session, zip_path)
+            audit(
+                {
+                    "leg": "T4-download-capture",
+                    "action": "upload-bundle",
+                    "prompt-label": "tiny-one-file-bundle",
+                    "observation": f"uploaded basename={bundle_filename},bytes={bundle_size}",
+                    "markers": "n/a",
+                    "result": "OK",
+                }
+            )
+            time.sleep(HUMAN_PACE_S)
+            if not recheck_safe(session):
+                close_on_exit = False
+                return 5
+
+            _send_prompt_or_human_stop(session, prompt)
+            audit(
+                {
+                    "leg": "T4-download-capture",
+                    "action": "send-rewritten-bundle-prompt",
+                    "prompt-label": "download-capture-task",
+                    "observation": f"sent; prompt_chars={len(prompt)}; bundle={bundle_filename}",
+                    "markers": "n/a",
+                    "result": "OK",
+                }
+            )
+            _wait_for_completion_or_human_stop(session)
+            if not recheck_safe(session):
+                close_on_exit = False
+                return 5
+
+            candidate_handle, candidate_attrs = _select_download_capture_candidate(
+                session,
+                bundle_filename=bundle_filename,
+            )
+            proposed_selector = candidate_attrs.get("proposed_selector") if candidate_attrs else None
+            if candidate_handle is None:
+                capture_result: dict[str, object] = {
+                    "captured": False,
+                    "is_zip": None,
+                    "nbytes": None,
+                    "entry_names": None,
+                    "failure_reason": "no eligible patch download control found",
+                }
+            else:
+                page = session.page
+                if page is None:
+                    raise AskChatGPTError("browser page is unavailable during download capture click")
+                capture_result = _capture_candidate_download(page, candidate_handle)
+
+            payload: dict[str, object] = {
+                **capture_result,
+                "proposed_selector": proposed_selector,
+                "candidate_attrs": candidate_attrs,
+            }
+            _write_download_capture_report(payload)
+            audit(
+                {
+                    "leg": "T4-download-capture",
+                    "action": "summary",
+                    "prompt-label": "download-capture-task",
+                    "observation": (
+                        f"captured={payload['captured']},is_zip={payload['is_zip']},"
+                        f"nbytes={payload['nbytes']},selector={proposed_selector or 'n/a'}"
+                    ),
+                    "markers": "n/a",
+                    "result": payload.get("failure_reason") or "OK",
+                }
+            )
+            _emit(
+                "DOWNLOAD-CAPTURE: "
+                f"captured={payload['captured']} is_zip={payload['is_zip']} "
+                f"nbytes={payload['nbytes']} selector={proposed_selector or 'n/a'}"
+            )
+            return 0
+    except SystemExit as exc:
+        if exc.code == 4:
+            return 5
+        raise
+    except HumanActionStop as exc:
+        close_on_exit = False
+        _emit_human_action_needed(exc.label)
+        return 5
+    except Exception as exc:  # noqa: BLE001 - top-level CLI must fail closed and surface safe detail.
+        _emit(f"ERROR: {exc.__class__.__name__}: {exc}")
+        return 1
+    finally:
+        if candidate_handle is not None:
+            try:
+                candidate_handle.dispose()
+            except PlaywrightError:
+                pass
         if session is not None and close_on_exit:
             session.close()
 
@@ -1213,6 +1767,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="upload a tiny bundle and discover whether the real surface exposes a download affordance",
     )
     download_discovery.set_defaults(func=run_download_discovery)
+
+    download_capture = subparsers.add_parser(
+        "download-capture",
+        help="upload a tiny bundle, click the latest-turn patch download control, and validate captured zip bytes",
+    )
+    download_capture.set_defaults(func=run_download_capture)
     return parser
 
 
