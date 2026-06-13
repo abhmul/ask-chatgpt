@@ -51,13 +51,13 @@ ChangeKind = Literal["added", "modified", "deleted"]
 
 _HEX64_RE = re.compile(r"^[0-9a-f]{64}$")
 _DECIMAL_RE = re.compile(r"^[0-9]+$")
-_BASE64URL_RE = re.compile(r"^[A-Za-z0-9_-]*$")
+_BASE64URL_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 _BEGIN_PATCH_BUNDLE = "BEGIN_PATCH_BUNDLE"
 _END_PATCH_BUNDLE = "END_PATCH_BUNDLE"
-_MANIFEST_LINE_PREFIX = "MANIFEST_JSON:"
-_ZIP_BYTE_COUNT_PREFIX = "ZIP_BYTE_COUNT:"
-_ZIP_SHA256_PREFIX = "ZIP_SHA256:"
-_BASE64URL_LINE = "BASE64URL:"
+_MANIFEST_LINE_RE = re.compile(r"^MANIFEST_JSON\s*:?\s+(?P<value>.*\S)\s*$")
+_ZIP_BYTE_COUNT_RE = re.compile(r"^ZIP_BYTE_COUNT\s*:?\s+(?P<value>\S+)\s*$")
+_ZIP_SHA256_RE = re.compile(r"^ZIP_SHA256\s*:?\s+(?P<value>\S+)\s*$")
+_BASE64URL_RE_LINE = re.compile(r"^BASE64URL\s*:?\s*(?P<value>.*)$")
 _PATCH_RESERVED_PATHS = ("manifest.json", ASK_CHATGPT_BUNDLE_README)
 _PATCH_RESERVED_PREFIXES = (".ask-chatgpt-tmp", "manifest.json", ASK_CHATGPT_BUNDLE_README)
 _DOWNLOAD_DELAYED_SELECTOR = '[data-testid="download-delayed"]'
@@ -244,7 +244,6 @@ def retrieve_patch_bundle(
             expected_byte_count=fenced.byte_count,
             expected_sha256=fenced.sha256,
             caps=resolved_caps,
-            expected_fenced_manifest=fenced.manifest,
         )
         return fenced.zip_bytes, bundle
 
@@ -440,31 +439,80 @@ def _parse_fenced_patch_bundle(text: str, caps: PatchBundleCaps) -> _FencedParse
     except IndexError as exc:
         raise PatchMalformedError("patch-bundle fence markers are malformed") from exc
 
-    lines = [line.strip() for line in block.splitlines() if line.strip()]
-    if len(lines) < 5:
-        raise PatchMalformedError("fenced patch bundle is missing required lines")
-    if not lines[0].startswith(_MANIFEST_LINE_PREFIX):
-        raise PatchMalformedError("fenced patch bundle is missing MANIFEST_JSON line")
-    if not lines[1].startswith(_ZIP_BYTE_COUNT_PREFIX):
-        raise PatchMalformedError("fenced patch bundle is missing ZIP_BYTE_COUNT line")
-    if not lines[2].startswith(_ZIP_SHA256_PREFIX):
-        raise PatchMalformedError("fenced patch bundle is missing ZIP_SHA256 line")
-    if lines[3] != _BASE64URL_LINE:
-        raise PatchMalformedError("fenced patch bundle is missing standalone BASE64URL line")
+    manifest_text: str | None = None
+    byte_count_text: str | None = None
+    digest: str | None = None
+    payload_lines: list[str] = []
+    in_payload = False
 
-    manifest_text = lines[0].removeprefix(_MANIFEST_LINE_PREFIX).strip()
-    if len(manifest_text.encode("utf-8")) > caps.max_manifest_bytes:
-        raise OversizedPayloadError(
-            f"PATCH_MANIFEST_MAX_BYTES exceeded by fenced MANIFEST_JSON: {len(manifest_text.encode('utf-8'))} > {caps.max_manifest_bytes}"
-        )
-    byte_count_text = lines[1].removeprefix(_ZIP_BYTE_COUNT_PREFIX).strip()
+    for raw_line in block.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        if in_payload:
+            payload_lines.append(raw_line)
+            continue
+        if line.startswith("MANIFEST_JSON"):
+            if manifest_text is not None:
+                raise PatchMalformedError("fenced patch bundle contains duplicate MANIFEST_JSON lines")
+            match = _MANIFEST_LINE_RE.fullmatch(line)
+            if match is None:
+                raise PatchMalformedError("fenced MANIFEST_JSON line is malformed")
+            manifest_text = match.group("value")
+            continue
+        if line.startswith("ZIP_BYTE_COUNT"):
+            if byte_count_text is not None:
+                raise PatchMalformedError("fenced patch bundle contains duplicate ZIP_BYTE_COUNT lines")
+            match = _ZIP_BYTE_COUNT_RE.fullmatch(line)
+            if match is None:
+                raise PatchMalformedError("fenced ZIP_BYTE_COUNT line is malformed")
+            byte_count_text = match.group("value")
+            continue
+        if line.startswith("ZIP_SHA256"):
+            if digest is not None:
+                raise PatchMalformedError("fenced patch bundle contains duplicate ZIP_SHA256 lines")
+            match = _ZIP_SHA256_RE.fullmatch(line)
+            if match is None:
+                raise PatchMalformedError("fenced ZIP_SHA256 line is malformed")
+            digest = match.group("value")
+            continue
+        if line.startswith("BASE64URL"):
+            match = _BASE64URL_RE_LINE.fullmatch(line)
+            if match is None:
+                raise PatchMalformedError("fenced BASE64URL line is malformed")
+            payload_lines.append(match.group("value"))
+            in_payload = True
+            continue
+        raise PatchMalformedError("unexpected commentary inside fenced patch bundle before BASE64URL")
+
+    if byte_count_text is None:
+        raise PatchMalformedError("fenced patch bundle is missing ZIP_BYTE_COUNT line")
+    if digest is None:
+        raise PatchMalformedError("fenced patch bundle is missing ZIP_SHA256 line")
+    if not in_payload:
+        raise PatchMalformedError("fenced patch bundle is missing BASE64URL line")
+
+    manifest_obj: dict[str, Any] = {}
+    if manifest_text is not None:
+        manifest_bytes = manifest_text.encode("utf-8")
+        if len(manifest_bytes) > caps.max_manifest_bytes:
+            raise OversizedPayloadError(
+                f"PATCH_MANIFEST_MAX_BYTES exceeded by fenced MANIFEST_JSON: {len(manifest_bytes)} > {caps.max_manifest_bytes}"
+            )
+        try:
+            parsed_manifest = json.loads(manifest_text)
+        except json.JSONDecodeError as exc:
+            raise PatchMalformedError("fenced MANIFEST_JSON is not valid JSON") from exc
+        if not isinstance(parsed_manifest, dict):
+            raise PatchMalformedError("fenced MANIFEST_JSON must be a JSON object")
+        manifest_obj = parsed_manifest
+
     if not _DECIMAL_RE.fullmatch(byte_count_text):
         raise PatchMalformedError("fenced ZIP_BYTE_COUNT is not a decimal byte count")
     byte_count = int(byte_count_text)
-    digest = lines[2].removeprefix(_ZIP_SHA256_PREFIX).strip()
     if not _HEX64_RE.fullmatch(digest):
         raise PatchMalformedError("fenced ZIP_SHA256 is not lowercase 64-hex")
-    encoded = "".join(line.strip() for line in lines[4:] if line.strip())
+    encoded = "".join("".join(line.split()) for line in payload_lines)
 
     if byte_count > caps.max_zip_bytes:
         raise OversizedPayloadError(
@@ -488,21 +536,7 @@ def _parse_fenced_patch_bundle(text: str, caps: PatchBundleCaps) -> _FencedParse
     actual_digest = sha256(zip_bytes).hexdigest()
     if actual_digest != digest:
         raise BundleIntegrityError("fenced ZIP_SHA256 does not match decoded zip bytes")
-
-    try:
-        manifest_obj = json.loads(manifest_text)
-    except json.JSONDecodeError as exc:
-        raise PatchMalformedError("fenced MANIFEST_JSON is not valid JSON") from exc
-    if not isinstance(manifest_obj, dict):
-        raise PatchMalformedError("fenced MANIFEST_JSON must be a JSON object")
-    if manifest_obj.get("zip_byte_count") != byte_count:
-        raise BundleIntegrityError("fenced MANIFEST_JSON.zip_byte_count does not match ZIP_BYTE_COUNT")
-    if manifest_obj.get("zip_sha256") != digest:
-        raise BundleIntegrityError("fenced MANIFEST_JSON.zip_sha256 does not match ZIP_SHA256")
-    embedded_manifest = dict(manifest_obj)
-    embedded_manifest.pop("zip_byte_count", None)
-    embedded_manifest.pop("zip_sha256", None)
-    return _FencedParseResult(zip_bytes=zip_bytes, manifest=embedded_manifest, byte_count=byte_count, sha256=digest)
+    return _FencedParseResult(zip_bytes=zip_bytes, manifest=manifest_obj, byte_count=byte_count, sha256=digest)
 
 
 def _coerce_patch_source(
@@ -545,7 +579,6 @@ def _validate_zip_bytes(
     expected_byte_count: int,
     expected_sha256: str,
     caps: PatchBundleCaps,
-    expected_fenced_manifest: Mapping[str, Any] | None = None,
 ) -> _ValidatedPatch:
     if expected_byte_count > caps.max_zip_bytes:
         raise OversizedPayloadError(
@@ -570,7 +603,6 @@ def _validate_zip_bytes(
                 source=source,
                 digest=actual_digest,
                 caps=caps,
-                expected_fenced_manifest=expected_fenced_manifest,
             )
     except (zipfile.BadZipFile, zipfile.LargeZipFile) as exc:
         raise PatchMalformedError("patch zip central directory is invalid") from exc
@@ -584,21 +616,31 @@ def _validate_open_zip(
     source: PatchSource | Literal["raw", "path"],
     digest: str,
     caps: PatchBundleCaps,
-    expected_fenced_manifest: Mapping[str, Any] | None,
 ) -> _ValidatedPatch:
     infos = archive.infolist()
-    if len(infos) > caps.max_file_count + 1:
-        raise OversizedPayloadError(
-            f"PATCH_BUNDLE_MAX_FILE_COUNT exceeded by zip entries: {len(infos) - 1} > {caps.max_file_count}"
-        )
     names = [info.filename for info in infos]
     if len(names) != len(set(names)):
         raise PatchMalformedError("patch zip contains duplicate member names")
     manifest_infos = [info for info in infos if info.filename == "manifest.json"]
     if len(manifest_infos) > 1:
         raise PatchMalformedError("patch zip contains duplicate manifest.json entries")
+    if len(infos) > caps.max_file_count + len(manifest_infos):
+        raise OversizedPayloadError(
+            f"PATCH_BUNDLE_MAX_FILE_COUNT exceeded by zip entries: {len(infos) - len(manifest_infos)} > {caps.max_file_count}"
+        )
+
     if not manifest_infos:
-        raise PatchMalformedError("patch zip is missing top-level manifest.json")
+        files = _reconstruct_entries_from_zip(archive, infos, caps=caps)
+        manifest_obj = _manifest_from_reconstructed_entries(files)
+        return _ValidatedPatch(
+            filename=filename,
+            content=content,
+            sha256=digest,
+            byte_count=len(content),
+            source=source,
+            manifest=manifest_obj,
+            files=files,
+        )
 
     file_infos: dict[str, zipfile.ZipInfo] = {}
     directory_infos: list[zipfile.ZipInfo] = []
@@ -621,8 +663,6 @@ def _validate_open_zip(
         )
     manifest_obj = _read_manifest_json(archive, manifest_info)
     entries = _validate_manifest_schema(manifest_obj, caps)
-    if expected_fenced_manifest is not None and manifest_obj != dict(expected_fenced_manifest):
-        raise PatchMalformedError("embedded manifest.json does not match fenced MANIFEST_JSON")
 
     changed_paths = {entry.path for entry in entries if entry.status == "changed"}
     payload_paths = set(file_infos)
@@ -673,6 +713,68 @@ def _validate_open_zip(
         manifest=manifest_obj,
         files=files,
     )
+
+
+def _reconstruct_entries_from_zip(
+    archive: zipfile.ZipFile,
+    infos: Sequence[zipfile.ZipInfo],
+    *,
+    caps: PatchBundleCaps,
+) -> tuple[_PatchFile, ...]:
+    file_infos: list[tuple[str, zipfile.ZipInfo]] = []
+    directory_infos: list[zipfile.ZipInfo] = []
+    for info in infos:
+        _validate_zip_info_basic(info, caps=caps, is_manifest=False)
+        if info.is_dir():
+            directory_infos.append(info)
+            continue
+        rel = _validate_patch_rel_path(info.filename)
+        file_infos.append((rel, info))
+    if len(file_infos) > caps.max_file_count:
+        raise OversizedPayloadError(
+            f"PATCH_BUNDLE_MAX_FILE_COUNT exceeded by payload entries: {len(file_infos)} > {caps.max_file_count}"
+        )
+    if not file_infos:
+        raise PatchMalformedError("patch zip without manifest.json contains no payload entries")
+    changed_paths = {rel for rel, _info in file_infos}
+    _validate_directory_entries(directory_infos, changed_paths)
+
+    files: list[_PatchFile] = []
+    expanded = 0
+    for rel, info in file_infos:
+        expanded += info.file_size
+        if expanded > caps.max_expanded_bytes:
+            raise OversizedPayloadError(
+                f"PATCH_BUNDLE_MAX_EXPANDED_BYTES exceeded while reading payloads: {expanded} > {caps.max_expanded_bytes}"
+            )
+        data = _read_zip_payload(archive, info, cap=caps.max_file_bytes)
+        if len(data) != info.file_size:
+            raise BundleIntegrityError(f"payload byte count mismatch for {rel}: expected {info.file_size}, got {len(data)}")
+        files.append(
+            _PatchFile(
+                path=rel,
+                status="changed",
+                operation="modified",
+                size=len(data),
+                sha256=sha256(data).hexdigest(),
+                data=data,
+            )
+        )
+    return tuple(files)
+
+
+def _manifest_from_reconstructed_entries(entries: Sequence[_PatchFile]) -> dict[str, Any]:
+    files = [
+        {
+            "path": entry.path,
+            "status": entry.status,
+            "operation": entry.operation,
+            "size": entry.size,
+            "sha256": entry.sha256,
+        }
+        for entry in entries
+    ]
+    return {"version": 1, "files": files, "total_byte_count": sum(entry.size for entry in entries)}
 
 
 def _zip_file_type(info: zipfile.ZipInfo) -> int:

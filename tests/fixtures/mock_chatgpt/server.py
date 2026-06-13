@@ -36,7 +36,7 @@ _FAILURE_MODES = frozenset(
 )
 _COPY_MODES = frozenset({"ok", "missing", "wrong", "stale", "truncated"})
 _DOWNLOAD_MODES = frozenset({"ok", "missing", "delayed", "wrong_older", "corrupt", "truncated", "collision", "unsupported"})
-_FENCED_MODES = frozenset({"ok", "missing_end", "bad_hash", "changed_and_unchanged", "oversized"})
+_FENCED_MODES = frozenset({"ok", "canonical", "missing_end", "bad_hash", "changed_and_unchanged", "oversized"})
 _LAYOUT_VARIANTS = frozenset({"stable", "virtualized"})
 _UPLOAD_MODES = frozenset({"ok", "unsupported", "reject_size_type", "corrupt"})
 _DEFAULT_STREAM_READS = 2
@@ -84,6 +84,7 @@ def build_mock_patch_zip(
     unchanged_files: dict[str, str | bytes] | None = None,
     deleted_files: list[str] | tuple[str, ...] | str | None = None,
     operations: dict[str, str] | None = None,
+    embed_manifest: bool = True,
 ) -> tuple[bytes, dict[str, Any]]:
     """Build a deterministic synthetic patch zip and its manifest."""
     raw_changed = _DEFAULT_PATCH_FILES if changed_files is None else changed_files
@@ -115,7 +116,8 @@ def build_mock_patch_zip(
     manifest_bytes = json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode("utf-8")
     buffer = BytesIO()
     with zipfile.ZipFile(buffer, mode="w") as archive:
-        archive.writestr(_zip_info("manifest.json"), manifest_bytes)
+        if embed_manifest:
+            archive.writestr(_zip_info("manifest.json"), manifest_bytes)
         for path, data in changed:
             archive.writestr(_zip_info(path), data)
     return buffer.getvalue(), manifest
@@ -130,31 +132,30 @@ def build_mock_fenced_patch_bundle(
 ) -> tuple[str, bytes, dict[str, Any]]:
     """Build the fenced base64url patch-bundle payload used by the fixture."""
     fenced_mode = _validated_fenced_mode(mode)
+    deleted_paths = _as_path_tuple(deleted_files)
     unchanged_files = _DEFAULT_UNCHANGED_FILES if fenced_mode == "changed_and_unchanged" else None
+    embed_manifest = bool(deleted_paths) or fenced_mode == "changed_and_unchanged"
     zip_bytes, zip_manifest = build_mock_patch_zip(
         changed_files=changed_files,
         unchanged_files=unchanged_files,
-        deleted_files=deleted_files,
+        deleted_files=deleted_paths,
         operations=operations,
+        embed_manifest=embed_manifest,
     )
     actual_zip_sha = sha256(zip_bytes).hexdigest()
+    display_sha = "0" * 64 if fenced_mode == "bad_hash" else actual_zip_sha
     manifest = dict(zip_manifest)
     manifest["zip_byte_count"] = len(zip_bytes)
-    manifest["zip_sha256"] = actual_zip_sha
-    if fenced_mode == "bad_hash":
-        manifest["zip_sha256"] = "0" * 64
+    manifest["zip_sha256"] = display_sha
     if fenced_mode == "oversized":
         manifest["oversized"] = True
         manifest["oversized_threshold_bytes"] = _OVERSIZED_THRESHOLD_BYTES
     encoded = base64.urlsafe_b64encode(zip_bytes).decode("ascii").rstrip("=")
-    display_sha = str(manifest["zip_sha256"])
     lines = [
         "BEGIN_PATCH_BUNDLE",
-        "MANIFEST_JSON: " + json.dumps(manifest, sort_keys=True, separators=(",", ":")),
-        f"ZIP_BYTE_COUNT: {len(zip_bytes)}",
-        f"ZIP_SHA256: {display_sha}",
-        "BASE64URL:",
-        encoded,
+        f"ZIP_BYTE_COUNT {len(zip_bytes)}",
+        f"ZIP_SHA256 {display_sha}",
+        f"BASE64URL {encoded}",
     ]
     if fenced_mode != "missing_end":
         lines.append("END_PATCH_BUNDLE")

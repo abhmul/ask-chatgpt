@@ -65,17 +65,18 @@ def _parse_fenced_bundle(text: str) -> dict:
     assert "END_PATCH_BUNDLE" in text
     block = text.split("BEGIN_PATCH_BUNDLE", 1)[1].split("END_PATCH_BUNDLE", 1)[0]
     lines = [line.strip() for line in block.splitlines() if line.strip()]
-    manifest_line = next(line for line in lines if line.startswith("MANIFEST_JSON:"))
-    zip_byte_count_line = next(line for line in lines if line.startswith("ZIP_BYTE_COUNT:"))
-    zip_sha_line = next(line for line in lines if line.startswith("ZIP_SHA256:"))
-    base64_index = lines.index("BASE64URL:")
-    encoded = "".join(lines[base64_index + 1 :])
+    zip_byte_count_line = next(line for line in lines if line.startswith("ZIP_BYTE_COUNT"))
+    zip_sha_line = next(line for line in lines if line.startswith("ZIP_SHA256"))
+    base64_line = next(line for line in lines if line.startswith("BASE64URL"))
+    assert all(not line.startswith("MANIFEST_JSON") for line in lines)
+    assert ":" not in zip_byte_count_line.split()[0]
+    assert ":" not in zip_sha_line.split()[0]
+    encoded = base64_line.split(maxsplit=1)[1]
     padding = "=" * (-len(encoded) % 4)
     decoded = base64.urlsafe_b64decode((encoded + padding).encode("ascii"))
     return {
-        "manifest": json.loads(manifest_line.removeprefix("MANIFEST_JSON:").strip()),
-        "zip_byte_count": int(zip_byte_count_line.removeprefix("ZIP_BYTE_COUNT:").strip()),
-        "zip_sha256": zip_sha_line.removeprefix("ZIP_SHA256:").strip(),
+        "zip_byte_count": int(zip_byte_count_line.split(maxsplit=1)[1]),
+        "zip_sha256": zip_sha_line.split(maxsplit=1)[1],
         "zip_bytes": decoded,
     }
 
@@ -190,15 +191,13 @@ def test_fenced_base64url_patch_bundle_ok_and_variants(mock_chatgpt):
             latest = _drive_scripted_turn(page, mock_chatgpt, selectors, {"text": "fenced ok", "fenced_mode": "ok"})
             text = latest.locator(selectors["message_body"]).inner_text()
             bundle = _parse_fenced_bundle(text)
-            expected_zip, expected_manifest = build_mock_patch_zip()
+            expected_zip, _expected_manifest = build_mock_patch_zip(embed_manifest=False)
             assert bundle["zip_bytes"] == expected_zip
-            assert bundle["manifest"] == expected_manifest | {
-                "zip_byte_count": len(expected_zip),
-                "zip_sha256": hashlib.sha256(expected_zip).hexdigest(),
-            }
             assert bundle["zip_byte_count"] == len(bundle["zip_bytes"])
             assert bundle["zip_sha256"] == hashlib.sha256(bundle["zip_bytes"]).hexdigest()
             assert zipfile.is_zipfile(BytesIO(bundle["zip_bytes"]))
+            with zipfile.ZipFile(BytesIO(bundle["zip_bytes"])) as archive:
+                assert "manifest.json" not in archive.namelist()
 
             latest = _drive_scripted_turn(page, mock_chatgpt, selectors, {"text": "fenced missing end", "fenced_mode": "missing_end"})
             missing_end_text = latest.locator(selectors["message_body"]).inner_text()
@@ -207,12 +206,11 @@ def test_fenced_base64url_patch_bundle_ok_and_variants(mock_chatgpt):
 
             latest = _drive_scripted_turn(page, mock_chatgpt, selectors, {"text": "fenced bad hash", "fenced_mode": "bad_hash"})
             bad_hash = _parse_fenced_bundle(latest.locator(selectors["message_body"]).inner_text())
-            assert bad_hash["manifest"]["zip_sha256"] != hashlib.sha256(bad_hash["zip_bytes"]).hexdigest()
+            assert bad_hash["zip_sha256"] != hashlib.sha256(bad_hash["zip_bytes"]).hexdigest()
 
             latest = _drive_scripted_turn(page, mock_chatgpt, selectors, {"text": "fenced oversized", "fenced_mode": "oversized"})
             oversized = _parse_fenced_bundle(latest.locator(selectors["message_body"]).inner_text())
-            assert oversized["manifest"]["oversized"] is True
-            assert oversized["manifest"]["oversized_threshold_bytes"] < oversized["zip_byte_count"]
+            assert oversized["zip_byte_count"] > 64
 
             latest = _drive_scripted_turn(
                 page,
@@ -221,11 +219,12 @@ def test_fenced_base64url_patch_bundle_ok_and_variants(mock_chatgpt):
                 {"text": "fenced changed and unchanged", "fenced_mode": "changed_and_unchanged"},
             )
             mixed = _parse_fenced_bundle(latest.locator(selectors["message_body"]).inner_text())
-            statuses = {item["status"] for item in mixed["manifest"]["files"]}
-            assert statuses == {"changed", "unchanged"}
             with zipfile.ZipFile(BytesIO(mixed["zip_bytes"])) as archive:
                 names = set(archive.namelist())
-            for item in mixed["manifest"]["files"]:
+                manifest = json.loads(archive.read("manifest.json").decode("utf-8"))
+            statuses = {item["status"] for item in manifest["files"]}
+            assert statuses == {"changed", "unchanged"}
+            for item in manifest["files"]:
                 if item["status"] == "changed":
                     assert item["path"] in names
                 else:

@@ -11,7 +11,7 @@ caller files/dirs under bundle root
   -> build bundle-out zip with ASK_CHATGPT_BUNDLE_README.md + selected regular files
   -> upload through upload_input and send prompt instructions
   -> GPT reads catalogue and either replies NO_CHANGES_NEEDED or returns one patch bundle
-  -> retriever prefers latest-turn download_artifact zip; if no eligible download exists, parses fenced base64url fallback
+  -> retriever parses fenced base64url patch block, with legacy/mock download_artifact zip still supported
   -> validate envelope byte count/SHA-256, zip structure, manifest schema, file hashes, caps, and root containment
   -> apply_patch(..., dry_run=True) returns DiffSummary without writes, or dry_run=False commits through a journaled staged transaction
 ```
@@ -39,7 +39,7 @@ Read this file first. This zip is a project-context bundle prepared by `ask-chat
 
 ## Project root and path rules
 
-The archive root represents the project root named `{{PROJECT_ROOT_NAME}}`. Every project file path below is repo-root-relative. Use forward slashes only. Never use absolute paths, drive letters, leading `/`, backslashes, empty path segments, or `..`. Treat paths as case-sensitive. Patch bundles may contain only regular file entries plus `manifest.json`; do not create symlinks or special files.
+The archive root represents the project root named `{{PROJECT_ROOT_NAME}}`. Every project file path below is repo-root-relative. Use forward slashes only. Never use absolute paths, drive letters, leading `/`, backslashes, empty path segments, or `..`. Treat paths as case-sensitive. Patch bundles may contain only regular file entries; include a top-level `manifest.json` only when representing deletions. Do not create symlinks or special files.
 
 ## Bundle identity
 
@@ -71,25 +71,15 @@ If the correct response requires no file changes, reply exactly:
 NO_CHANGES_NEEDED
 ```
 
-Do not attach a zip and do not emit a fenced patch bundle in that case.
+Do not emit a fenced patch bundle in that case.
 
 ## If edits are needed: return a patch bundle, not the whole tree
 
-Return exactly one patch bundle containing only changed/deleted paths and `manifest.json`. Do not include unchanged files. Do not include this instruction file. Do not include the whole project tree.
+Return exactly one patch bundle containing only changed/added file payloads at repo-root-relative forward-slash paths. Do not include unchanged files. Do not include this instruction file. Do not include the whole project tree. Do not include `ASK_CHATGPT_BUNDLE_README.md`, absolute paths, `..`, backslashes, drive letters, symlinks, or paths outside the project root.
 
-Example: if you change `src/app.py`, add `tests/test_app.py`, delete `docs/obsolete.md`, and leave `README.md` unchanged, the patch zip must contain:
+No `manifest.json` is required for added or modified files; the tool reconstructs per-file metadata from verified zip entries after checking the whole-zip SHA-256. If deletions are required, additionally include one top-level `manifest.json` with deletion entries and omit payloads for deleted paths.
 
-```text
-manifest.json
-src/app.py
-tests/test_app.py
-```
-
-It must not contain `README.md`, `docs/obsolete.md`, or `ASK_CHATGPT_BUNDLE_README.md`.
-
-## Patch zip manifest
-
-Every patch zip must contain one top-level `manifest.json` encoded as UTF-8 JSON. Use this schema, keeping the fixture-compatible fields `version`, `files`, `total_byte_count`, `path`, `size`, `sha256`, and `status`:
+Deletion manifest schema, only when needed:
 
 ```json
 {
@@ -103,31 +93,33 @@ Every patch zip must contain one top-level `manifest.json` encoded as UTF-8 JSON
 }
 ```
 
-For added and modified files, include the new file bytes in the zip at exactly `path`, set `status` to `changed`, set `operation` to `added` or `modified`, set `size` to the byte length, and set `sha256` to the lowercase SHA-256 of the included bytes. For deleted files, do not include a file payload, set `status` and `operation` to `deleted`, set `size` to `0`, and set `sha256` to `null`. `total_byte_count` is the sum of byte sizes for added and modified payloads; deletions contribute zero. Do not use `status: "unchanged"` in real patch bundles.
+For added and modified files, include the new file bytes in the zip at exactly `path`. For deleted files, set `status` and `operation` to `deleted`, set `size` to `0`, set `sha256` to `null`, and omit the deleted file payload from the zip. Do not use `status: "unchanged"` in real patch bundles.
 
-## Response channel priority
+## Fenced patch-bundle response format
 
-Primary/preferred: produce a downloadable `.zip` file named `patch-bundle.zip` containing the patch zip described above. If you provide a downloadable zip, do not also emit the fallback text block. In the chat message body, write only:
-
-```text
-PATCH_BUNDLE_DOWNLOAD_READY: patch-bundle.zip
-```
-
-Fallback: if you cannot produce a downloadable `.zip`, emit the same zip bytes as one base64url marker block. The marker block must be the only patch bundle in the response. Do not wrap it in Markdown triple backticks; the `BEGIN_PATCH_BUNDLE` and `END_PATCH_BUNDLE` lines are the fence. Do not put commentary inside the block. Use unpadded base64url (`A-Z`, `a-z`, `0-9`, `-`, `_`), preferably on one line.
-
-Exact fallback format:
+Emit exactly this 5-line block and no other patch bundle. Do not wrap it in Markdown triple backticks. Do not add commentary inside the block. Use a single space after each key and no colon. Put the `BASE64URL` payload on the same line, one unbroken unpadded base64url token using only `A-Z`, `a-z`, `0-9`, `-`, and `_`; do not use `+`, `/`, or `=`.
 
 ```text
 BEGIN_PATCH_BUNDLE
-MANIFEST_JSON: {"files":[{"operation":"modified","path":"src/example.py","sha256":"<sha256-of-new-bytes>","size":123,"status":"changed"}],"total_byte_count":123,"version":1,"zip_byte_count":456,"zip_sha256":"<sha256-of-zip-bytes>"}
-ZIP_BYTE_COUNT: 456
-ZIP_SHA256: <sha256-of-zip-bytes>
-BASE64URL:
-<unpadded-base64url-of-the-zip-bytes>
+ZIP_BYTE_COUNT <decimal byte length of the zip>
+ZIP_SHA256 <lowercase 64-hex sha256 of the exact zip bytes>
+BASE64URL <unpadded base64url of the zip bytes, one unbroken token on this line>
 END_PATCH_BUNDLE
 ```
 
-`MANIFEST_JSON` must be compact JSON on the same line. Its `zip_byte_count` and `zip_sha256` must match `ZIP_BYTE_COUNT`, `ZIP_SHA256`, and the decoded zip bytes. Emit exactly one `BEGIN_PATCH_BUNDLE` and exactly one `END_PATCH_BUNDLE`.
+`ZIP_BYTE_COUNT` and `ZIP_SHA256` describe the exact zip bytes before base64url encoding. Patch caps: zip < 25 MiB, each file < 5 MiB, and at most 1000 files.
+
+Worked example shape from a 144-byte single-file zip:
+
+```text
+BEGIN_PATCH_BUNDLE
+ZIP_BYTE_COUNT 144
+ZIP_SHA256 3dce3bc5690138135aca9a04e04973c7f75f36e337e1579bf63230a69fbbd050
+BASE64URL UEsDBBQAAAAAAAAAIQCdm2LOGAAAABgAAAALAAAAZXhhbXBsZS50eHRmYXZvcml0ZV9jb2xvciA9ICJibHVlIgpQSwECFAMUAAAAAAAAACEAnZtizhgAAAAYAAAACwAAAAAAAAAAAAAApIEAAAAAZXhhbXBsZS50eHRQSwUGAAAAAAEAAQA5AAAAQQAAAAAA
+END_PATCH_BUNDLE
+```
+
+Emit exactly one `BEGIN_PATCH_BUNDLE` and exactly one `END_PATCH_BUNDLE`.
 ````
 
 ### Accompanying prompt-instructions text
@@ -141,26 +133,32 @@ I uploaded a zip project-context bundle named `{{BUNDLE_FILENAME}}`. First read 
 
 If no file edits are needed, reply exactly `NO_CHANGES_NEEDED` and nothing else.
 
-If file edits are needed, return exactly one patch bundle. The patch bundle must contain only `manifest.json` plus added or modified file payloads at repo-root-relative paths, with deleted files represented only in `manifest.json`. Do not return the whole tree. Do not include unchanged files. Do not include absolute paths, `..`, backslashes, symlinks, or files outside the project root.
+If file edits are needed, return exactly one fenced patch bundle. Build a zip containing only changed/added file payloads at repo-root-relative forward-slash paths. Do not return the whole tree. Do not include unchanged files, `ASK_CHATGPT_BUNDLE_README.md`, absolute paths, `..`, backslashes, drive letters, symlinks, or files outside the project root. No `manifest.json` is required for added or modified files; the tool reconstructs per-file metadata from verified zip entries. To delete files, additionally include a top-level `manifest.json` with `status: "deleted"` entries and no deleted-file payloads.
 
-Preferred response channel: attach or produce a downloadable zip named `patch-bundle.zip`. In the message body, write only `PATCH_BUNDLE_DOWNLOAD_READY: patch-bundle.zip`. Do not also include the base64 fallback if a downloadable zip is available.
-
-Fallback response channel, only if no downloadable zip can be produced: emit exactly this marker-block shape and no other patch bundle. Do not wrap it in triple backticks. Do not add commentary inside the block.
+Emit exactly this 5-line marker-block shape and no other patch bundle. Do not wrap it in triple backticks. Do not add commentary inside the block. Use a single space after each key and no colon. Put the `BASE64URL` payload on the same line, one unbroken unpadded base64url token using only `A-Z`, `a-z`, `0-9`, `-`, and `_`; do not use `+`, `/`, or `=`.
 
 BEGIN_PATCH_BUNDLE
-MANIFEST_JSON: {"files":[{"operation":"modified","path":"src/example.py","sha256":"<sha256-of-new-bytes>","size":123,"status":"changed"}],"total_byte_count":123,"version":1,"zip_byte_count":456,"zip_sha256":"<sha256-of-zip-bytes>"}
-ZIP_BYTE_COUNT: 456
-ZIP_SHA256: <sha256-of-zip-bytes>
-BASE64URL:
-<unpadded-base64url-of-the-zip-bytes>
+ZIP_BYTE_COUNT <decimal byte length of the zip>
+ZIP_SHA256 <lowercase 64-hex sha256 of the exact zip bytes>
+BASE64URL <unpadded base64url of the zip bytes, one unbroken token on this line>
 END_PATCH_BUNDLE
 
-For added files use `status: "changed"` and `operation: "added"`; for modified files use `status: "changed"` and `operation: "modified"`; for deletions use `status: "deleted"`, `operation: "deleted"`, `size: 0`, `sha256: null`, and omit the deleted file payload from the zip. Compute sizes and hashes from the actual bytes in the patch zip. Emit exactly one bundle per response.
+`ZIP_BYTE_COUNT` and `ZIP_SHA256` describe the exact zip bytes before base64url encoding. Patch caps: zip < 25 MiB, each file < 5 MiB, and at most 1000 files.
+
+Worked example:
+
+BEGIN_PATCH_BUNDLE
+ZIP_BYTE_COUNT 144
+ZIP_SHA256 3dce3bc5690138135aca9a04e04973c7f75f36e337e1579bf63230a69fbbd050
+BASE64URL UEsDBBQAAAAAAAAAIQCdm2LOGAAAABgAAAALAAAAZXhhbXBsZS50eHRmYXZvcml0ZV9jb2xvciA9ICJibHVlIgpQSwECFAMUAAAAAAAAACEAnZtizhgAAAAYAAAACwAAAAAAAAAAAAAApIEAAAAAZXhhbXBsZS50eHRQSwUGAAAAAAEAAQA5AAAAQQAAAAAA
+END_PATCH_BUNDLE
+
+Emit exactly one bundle per response.
 ````
 
 ## 3. Patch-bundle return format (retrieved by T3)
 
-D-001 is binding: Playwright download capture is primary, and a checksummed fenced base64url block is fallback. The retriever considers only the latest completed assistant turn. It must not scan transcript history for older bundles.
+The canonical assistant-authored return channel is a checksummed fenced base64url block. The retriever still supports legacy/mock Playwright download capture for backward compatibility. It considers only the latest completed assistant turn and must not scan transcript history for older bundles.
 
 ### Primary: download-capture zip
 
@@ -168,27 +166,25 @@ The fixture download artifact affordance is `download_artifact`, rendered as `da
 
 A download artifact is eligible only when it belongs to the latest completed assistant turn (`data-source-turn-id` equals that turn's `data-turn-id`), has parseable decimal `data-byte-count`, has a 64-character lowercase hex `data-sha256`, and is the only eligible artifact for that turn. T3 captures it with Playwright's download API, saves or reads the real zip bytes, verifies actual byte length and SHA-256 against the metadata, then passes the bytes to common validation. Multiple eligible artifacts, duplicate filename collisions, malformed metadata, or a selected artifact that fails validation are failures, not opportunities to guess. If no eligible current-turn artifact exists because downloads are missing, unsupported, delayed beyond the bounded wait, or stale/wrong-turn, T3 may try the fenced fallback in the latest assistant text.
 
-### Fallback: checksummed fenced base64url block
+### Fenced: checksummed base64url block
 
-The literal fixture tokens are:
+The canonical fixture tokens are:
 
 ```text
 BEGIN_PATCH_BUNDLE
-MANIFEST_JSON: <compact-json-on-this-line>
-ZIP_BYTE_COUNT: <decimal-byte-count>
-ZIP_SHA256: <64-lowercase-hex-sha256>
-BASE64URL:
-<unpadded-base64url-zip-bytes>
+ZIP_BYTE_COUNT <decimal-byte-count>
+ZIP_SHA256 <64-lowercase-hex-sha256>
+BASE64URL <unpadded-base64url-zip-bytes>
 END_PATCH_BUNDLE
 ```
 
-The parser must require exactly one complete `BEGIN_PATCH_BUNDLE` ... `END_PATCH_BUNDLE` block in the latest assistant text when using the fallback. `MANIFEST_JSON:`, `ZIP_BYTE_COUNT:`, and `ZIP_SHA256:` are line prefixes; `BASE64URL:` is a standalone line. The base64url payload is the concatenation of subsequent non-empty lines up to `END_PATCH_BUNDLE`, allowing line wrapping, and is decoded with standard padding restoration. Missing `END_PATCH_BUNDLE` is `ResponseTruncatedError` before decode. The decoded bytes must have exact length `ZIP_BYTE_COUNT` and exact SHA-256 `ZIP_SHA256`; `MANIFEST_JSON.zip_byte_count` and `MANIFEST_JSON.zip_sha256` must equal those labels; and the embedded zip `manifest.json`, parsed as JSON after validation, must match `MANIFEST_JSON` after removing those two envelope-only fields.
+The parser must require exactly one complete `BEGIN_PATCH_BUNDLE` ... `END_PATCH_BUNDLE` block in the latest assistant text when using the fenced channel. `ZIP_BYTE_COUNT`, `ZIP_SHA256`, and `BASE64URL` accept the canonical space-separated form and the legacy colon form for backward compatibility. `MANIFEST_JSON` is optional/advisory when present: parse it as a JSON object for diagnostics only and do not cross-check it against the decoded bytes or embedded manifest. The `BASE64URL` payload is canonical inline on its key line; legacy wrapped payload lines after `BASE64URL:` are also tolerated by concatenating remaining lines and stripping whitespace. Missing `END_PATCH_BUNDLE` is `ResponseTruncatedError` before decode. The decoded bytes must have exact length `ZIP_BYTE_COUNT` and exact SHA-256 `ZIP_SHA256`.
 
 If the latest assistant text is exactly `NO_CHANGES_NEEDED` after stripping surrounding whitespace and no eligible patch bundle is present, `ask_chatgpt(files=..., dirs=...)` returns an `AskChatGPTResult` whose `patch_bundle` is `None`. If ordinary explanatory text appears without `NO_CHANGES_NEEDED` and without any valid bundle, retrieval fails with `DownloadUnsupportedError` when the download path is unavailable and no fallback block exists.
 
 ## 4. Manifest schema
 
-The canonical embedded `manifest.json` schema remains `version: 1` because the mock fixture emits `version`, `files`, `total_byte_count`, and per-file `path`, `size`, `sha256`, `status`. The protocol adds the optional `operation` field for add/modify clarity and requires it for deletions, without breaking fixture v1 inputs. Validators must accept fixture-compatible entries with `status: "changed"` and no `operation`; they must reject `status: "unchanged"`.
+The embedded `manifest.json` file is optional. If absent, validators reconstruct changed-file entries from the verified zip members and deletions are unsupported. If present, the canonical embedded schema remains `version: 1` because the mock fixture emits `version`, `files`, `total_byte_count`, and per-file `path`, `size`, `sha256`, `status`. The protocol adds the optional `operation` field for add/modify clarity and requires it for deletions, without breaking fixture v1 inputs. Validators must accept fixture-compatible entries with `status: "changed"` and no `operation`; they must reject `status: "unchanged"`.
 
 | Field | Type | Required | Constraints |
 | --- | --- | --- | --- |
@@ -200,25 +196,25 @@ The canonical embedded `manifest.json` schema remains `version: 1` because the m
 | `files[].operation` | string or absent | required for `deleted`, recommended for `changed` | For `changed`, absent, `added`, or `modified`; absent is accepted only for fixture compatibility. For `deleted`, must be `deleted`. |
 | `files[].size` | integer | yes | For `changed`, exact uncompressed payload byte length and `0 <= size <= PATCH_BUNDLE_MAX_FILE_BYTES`; for `deleted`, exactly `0`. |
 | `files[].sha256` | string or null | yes | For `changed`, exact lowercase 64-hex SHA-256 of payload bytes; for `deleted`, `null`. |
-| whole-zip `zip_byte_count` | integer | envelope yes | Exact byte length of the patch zip; provided by download artifact metadata or fenced `ZIP_BYTE_COUNT`/`MANIFEST_JSON.zip_byte_count`, not by embedded `manifest.json`. |
-| whole-zip `zip_sha256` | string | envelope yes | Exact lowercase 64-hex SHA-256 of the patch zip; provided by download artifact metadata or fenced `ZIP_SHA256`/`MANIFEST_JSON.zip_sha256`, not by embedded `manifest.json`. |
+| whole-zip `zip_byte_count` | integer | envelope yes | Exact byte length of the patch zip; provided by download artifact metadata or fenced `ZIP_BYTE_COUNT`, not by embedded `manifest.json`. |
+| whole-zip `zip_sha256` | string | envelope yes | Exact lowercase 64-hex SHA-256 of the patch zip; provided by download artifact metadata or fenced `ZIP_SHA256`, not by embedded `manifest.json`. |
 
-For `status: "changed"`, the zip must contain one regular file entry at exactly `path`. If `operation` is absent, validation preserves the fixture-compatible changed file and `apply_patch` reports the diff as `added` when the target did not exist and `modified` when it did. For `status: "deleted"`, the zip must not contain a file entry at `path`; `size` is `0`, `sha256` is `null`, and application unlinks only an existing regular file under the apply root. Unknown top-level manifest keys and unknown per-file keys are rejected after cap checks, except that fenced `MANIFEST_JSON` includes the envelope-only keys `zip_byte_count` and `zip_sha256` for comparison.
+For `status: "changed"`, the zip must contain one regular file entry at exactly `path`. If `operation` is absent, validation preserves the fixture-compatible changed file and `apply_patch` reports the diff as `added` when the target did not exist and `modified` when it did. For `status: "deleted"`, the zip must not contain a file entry at `path`; `size` is `0`, `sha256` is `null`, and application unlinks only an existing regular file under the apply root. Unknown top-level manifest keys and unknown per-file keys are rejected after cap checks. Fenced `MANIFEST_JSON`, if present in legacy responses, is advisory and is not cross-checked.
 
 ## 5. Validation order and all-or-nothing apply semantics
 
 Validation must complete for the entire bundle before any target-root mutation. T3 must never call `ZipFile.extract` or `extractall`.
 
 1. Identify the latest completed assistant turn and choose a retrieval channel. If exactly one eligible latest-turn download artifact exists, download primary is selected. If no eligible artifact exists, parse the fenced fallback from the latest assistant text. If the response is exactly `NO_CHANGES_NEEDED`, return no patch. No target-root writes occur in this phase.
-2. Build an integrity envelope. For download, parse `data-byte-count` and `data-sha256` before clicking. For fenced fallback, require a complete marker block with `MANIFEST_JSON:`, `ZIP_BYTE_COUNT:`, `ZIP_SHA256:`, and `BASE64URL:`. Missing end markers or incomplete latest turns raise `ResponseTruncatedError`.
+2. Build an integrity envelope. For download, parse `data-byte-count` and `data-sha256` before clicking. For fenced fallback, require a complete marker block with `ZIP_BYTE_COUNT`, `ZIP_SHA256`, and `BASE64URL`; tolerate the legacy colon form and optional advisory `MANIFEST_JSON`. Missing end markers or incomplete latest turns raise `ResponseTruncatedError`.
 3. Enforce prefetch and predecode caps. If declared `zip_byte_count` or download `Content-Length` exceeds `PATCH_BUNDLE_MAX_ZIP_BYTES`, fail before fetching or accepting the body when possible. If fenced base64url character count implies decoded bytes above the cap, fail before decode. Test mode must be able to set `PATCH_BUNDLE_MAX_ZIP_BYTES = 64` for the fixture `oversized` variant.
 4. Materialize patch zip bytes into memory only for the validation path. If actual byte length differs from the envelope byte count, raise `BundleIntegrityError`. If actual SHA-256 differs from the envelope digest, raise `BundleIntegrityError`.
-5. Open the zip without extracting. Reject invalid central directories, encrypted entries, duplicate names, duplicate `manifest.json`, missing `manifest.json`, directory entries other than harmless implicit parent directories, symlinks or special files as indicated by `ZipInfo.external_attr`, and any member whose declared uncompressed size exceeds caps.
-6. Read `manifest.json` only after confirming `ZipInfo.file_size <= PATCH_MANIFEST_MAX_BYTES`. Parse it as UTF-8 JSON object and validate field types, required fields, unknown keys, unique paths, `total_byte_count`, status/operation combinations, lowercase hashes, and deletion representation. For fenced fallback, compare the embedded manifest object to `MANIFEST_JSON` after removing `zip_byte_count` and `zip_sha256`.
-7. Validate the zip-entry set exactly. The set of non-manifest file entries must equal the set of manifest paths with `status: "changed"`; deleted paths must have no zip entry; no extra payloads are allowed.
+5. Open the zip without extracting. Reject invalid central directories, encrypted entries, duplicate names, duplicate `manifest.json`, directory entries other than harmless implicit parent directories, symlinks or special files as indicated by `ZipInfo.external_attr`, and any member whose declared uncompressed size exceeds caps.
+6. If embedded `manifest.json` is present, read it only after confirming `ZipInfo.file_size <= PATCH_MANIFEST_MAX_BYTES`; parse it as UTF-8 JSON object and validate field types, required fields, unknown keys, unique paths, `total_byte_count`, status/operation combinations, lowercase hashes, and deletion representation.
+7. If embedded `manifest.json` is present, validate the zip-entry set exactly: non-manifest file entries must equal manifest paths with `status: "changed"`; deleted paths must have no zip entry; no extra payloads are allowed. If embedded `manifest.json` is absent, reconstruct changed entries from all non-directory zip members after validating every member path; fail closed if there are zero members.
 8. Run lexical path validation for every manifest path and zip entry: reject empty paths, absolute paths, drive/UNC paths, NULs, backslashes, `.` components, `..` components, leading slashes, and reserved metadata paths such as `manifest.json`, `ASK_CHATGPT_BUNDLE_README.md`, and `.ask-chatgpt-tmp/`.
-9. Read each changed payload with `ZipFile.open`, after caps and entry-set checks. Let zip CRC validation run; verify `len(bytes) == size`; verify `sha256(bytes) == sha256`; sum expanded bytes and fail if the total exceeds `PATCH_BUNDLE_MAX_EXPANDED_BYTES`. CRC/decompression failures are `PatchMalformedError` unless a whole-zip hash mismatch has already been detected.
-10. Resolve every manifest path against the caller-specified apply root with the containment algorithm in section 6. Reject symlink parents, symlink final targets, non-directory parents, directory targets for file writes/deletions, and non-descendant real paths. Compute the `DiffSummary` against current filesystem state while still performing no mutation.
+9. Read each changed payload with `ZipFile.open`, after caps and entry-set checks. Let zip CRC validation run; verify `len(bytes) == size`; verify `sha256(bytes) == sha256` when a manifest declares one; sum expanded bytes and fail if the total exceeds `PATCH_BUNDLE_MAX_EXPANDED_BYTES`. CRC/decompression failures are `PatchMalformedError` unless a whole-zip hash mismatch has already been detected.
+10. Resolve every patch path against the caller-specified apply root with the containment algorithm in section 6. Reject symlink parents, symlink final targets, non-directory parents, directory targets for file writes/deletions, and non-descendant real paths. Compute the `DiffSummary` against current filesystem state while still performing no mutation.
 11. If `dry_run=True`, return the `DiffSummary` and perform no writes, chmods, deletes, directory creation, temp-file creation under root, or journal creation. If `dry_run=False`, only now enter the apply transaction.
 
 Mutation uses a staged transaction with journaled recovery. After validation, create a fresh transaction directory under `<root>/.ask-chatgpt-tmp/apply-<uuid>/`, re-check containment with no-follow operations, write staged new file bytes, backup existing regular targets that will be overwritten or deleted, and write a credential-free journal containing relative paths, operation kinds, old/new hashes, staged paths, and backup paths. Commit each file with same-filesystem atomic `os.replace` for writes and `os.unlink` for deletions; create missing parent directories only after they were validated as non-symlink paths. On any apply error, roll back from backups and remove newly created targets. On CLI startup and before every new apply, detect incomplete journals and roll back or complete the recorded transaction before accepting new work. This does not claim a single atomic multi-file filesystem primitive; it gives validation-time all-or-nothing, ordinary failure rollback, and crash recovery without ever applying unvalidated bytes.
@@ -254,7 +250,7 @@ All caps are enforced before expansion where possible and are API/CLI/test overr
 | `PATCH_BUNDLE_MAX_ZIP_BYTES` | 25 MiB | Declared and actual patch zip bytes, download `Content-Length`, fenced decoded length. |
 | `PATCH_BUNDLE_MAX_FILE_BYTES` | 5 MiB | Each changed file's uncompressed payload size from manifest and zip central directory before reading. |
 | `PATCH_BUNDLE_MAX_EXPANDED_BYTES` | 50 MiB | Sum of changed-file uncompressed sizes, zip-bomb guard before payload reads complete. |
-| `PATCH_MANIFEST_MAX_BYTES` | 1 MiB | Embedded `manifest.json` and fenced `MANIFEST_JSON` line before JSON parse. |
+| `PATCH_MANIFEST_MAX_BYTES` | 1 MiB | Embedded `manifest.json` and optional advisory fenced `MANIFEST_JSON` line before JSON parse. |
 | `PATCH_BUNDLE_MAX_BASE64URL_CHARS` | derived from `PATCH_BUNDLE_MAX_ZIP_BYTES` as `ceil(max_zip * 4 / 3) + 4` | Fenced text guard before base64url decode. |
 | `PATCH_BUNDLE_MAX_FILE_COUNT` | 1000 | Manifest entries and zip payload entries. |
 | `UPLOAD_BUNDLE_MAX_ZIP_BYTES` | 25 MiB | Outgoing zip preflight before UI upload. |
@@ -295,7 +291,7 @@ This table is the mandatory T3 test list. All failures leave the caller root unc
 | download `collision` | Multiple same-turn artifacts or duplicate filenames are ambiguous; raise `PatchMalformedError`, do not choose one. |
 | download `unsupported` | Use fenced fallback if present and valid; otherwise raise `DownloadUnsupportedError`. |
 | fenced `missing_end` | Raise existing `ResponseTruncatedError` before base64 decode. |
-| fenced `bad_hash` | `ZIP_SHA256`/`MANIFEST_JSON.zip_sha256` does not match decoded zip bytes; raise `BundleIntegrityError`. |
+| fenced `bad_hash` | `ZIP_SHA256` does not match decoded zip bytes; raise `BundleIntegrityError`. |
 | fenced `changed_and_unchanged` | Manifest contains `status: "unchanged"` without payload; raise `PatchMalformedError`. |
 | fenced `oversized` | With test override `PATCH_BUNDLE_MAX_ZIP_BYTES = 64`, raise `OversizedPayloadError` before decode/expand; ignore assistant advisory threshold fields as policy. |
 | upload `unsupported` | Upload input is absent/unsupported; raise existing `UploadUnsupportedError`. |
@@ -441,7 +437,7 @@ Stdout/stderr conventions: default ask mode writes assistant response text, and 
 
 ## 12. Rationale and reconciled conflicts
 
-Fixture tokens beat proposed alternatives. The final fallback uses literal `BEGIN_PATCH_BUNDLE`, `END_PATCH_BUNDLE`, `MANIFEST_JSON:`, `ZIP_BYTE_COUNT:`, `ZIP_SHA256:`, and standalone `BASE64URL:` because the mock fixture emits and parses exactly those tokens.
+Real-site ground truth beats the earlier fixture-only format. The canonical fenced block uses literal `BEGIN_PATCH_BUNDLE`, `END_PATCH_BUNDLE`, space-separated `ZIP_BYTE_COUNT`, `ZIP_SHA256`, and inline `BASE64URL`; the parser keeps the legacy colon form and optional advisory `MANIFEST_JSON` for backward compatibility.
 
 Manifest version stays `1`, not the integrity lens's proposed canonical `version: 2`, because the fixture and acceptance tests emit `version: 1` with `status: "changed"`. The minimal compatible refinement is to keep v1 core fields and add optional `operation` for add/modify/delete clarity. Validators accept missing `operation` only for fixture-compatible changed files and reject `status: "unchanged"`.
 
@@ -449,7 +445,7 @@ Deletion uses a manifest tombstone, not a fake zip payload: `status: "deleted"`,
 
 Download primary is honored, but fallback is used only when no eligible latest-turn artifact exists. If one eligible artifact is selected and its bytes are malformed or fail integrity, T3 fails instead of silently switching channels, because GPT was instructed to emit exactly one bundle and a corrupt primary is not safely equivalent to absence.
 
-Whole-zip integrity is an envelope, not embedded self-reference. The embedded `manifest.json` omits `zip_byte_count` and `zip_sha256`; download metadata or fenced labels carry those values. Fenced `MANIFEST_JSON` includes the envelope fields only so the parser can compare text metadata to decoded bytes and the embedded manifest.
+Whole-zip integrity is an envelope, not embedded self-reference. The embedded `manifest.json` omits `zip_byte_count` and `zip_sha256`; download metadata or fenced labels carry those values. Fenced `MANIFEST_JSON`, if present in legacy responses, is advisory only and is not compared to the embedded manifest.
 
 The public API adds `bundle_root` as an optional UC2 keyword while preserving UC1 return type exactly. This resolves the ergonomics open question about deterministic repo-relative paths without forcing existing UC1 callers to change.
 

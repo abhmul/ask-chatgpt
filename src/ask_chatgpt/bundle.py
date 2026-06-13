@@ -99,7 +99,7 @@ Read this file first. This zip is a project-context bundle prepared by `ask-chat
 
 ## Project root and path rules
 
-The archive root represents the project root named `{{PROJECT_ROOT_NAME}}`. Every project file path below is repo-root-relative. Use forward slashes only. Never use absolute paths, drive letters, leading `/`, backslashes, empty path segments, or `..`. Treat paths as case-sensitive. Patch bundles may contain only regular file entries plus `manifest.json`; do not create symlinks or special files.
+The archive root represents the project root named `{{PROJECT_ROOT_NAME}}`. Every project file path below is repo-root-relative. Use forward slashes only. Never use absolute paths, drive letters, leading `/`, backslashes, empty path segments, or `..`. Treat paths as case-sensitive. Patch bundles may contain only regular file entries; include a top-level `manifest.json` only when representing deletions. Do not create symlinks or special files.
 
 ## Bundle identity
 
@@ -131,25 +131,15 @@ If the correct response requires no file changes, reply exactly:
 NO_CHANGES_NEEDED
 ```
 
-Do not attach a zip and do not emit a fenced patch bundle in that case.
+Do not emit a fenced patch bundle in that case.
 
 ## If edits are needed: return a patch bundle, not the whole tree
 
-Return exactly one patch bundle containing only changed/deleted paths and `manifest.json`. Do not include unchanged files. Do not include this instruction file. Do not include the whole project tree.
+Return exactly one patch bundle containing only changed/added file payloads at repo-root-relative forward-slash paths. Do not include unchanged files. Do not include this instruction file. Do not include the whole project tree. Do not include `ASK_CHATGPT_BUNDLE_README.md`, absolute paths, `..`, backslashes, drive letters, symlinks, or paths outside the project root.
 
-Example: if you change `src/app.py`, add `tests/test_app.py`, delete `docs/obsolete.md`, and leave `README.md` unchanged, the patch zip must contain:
+Build a zip of only changed or added files. No `manifest.json` is required for added or modified files; the tool reconstructs per-file metadata from verified zip entries after checking the whole-zip SHA-256. If you must delete files, additionally include a top-level `manifest.json` with deletion entries and omit payloads for deleted paths.
 
-```text
-manifest.json
-src/app.py
-tests/test_app.py
-```
-
-It must not contain `README.md`, `docs/obsolete.md`, or `ASK_CHATGPT_BUNDLE_README.md`.
-
-## Patch zip manifest
-
-Every patch zip must contain one top-level `manifest.json` encoded as UTF-8 JSON. Use this schema, keeping the fixture-compatible fields `version`, `files`, `total_byte_count`, `path`, `size`, `sha256`, and `status`:
+Deletion manifest schema, only when needed:
 
 ```json
 {
@@ -163,31 +153,33 @@ Every patch zip must contain one top-level `manifest.json` encoded as UTF-8 JSON
 }
 ```
 
-For added and modified files, include the new file bytes in the zip at exactly `path`, set `status` to `changed`, set `operation` to `added` or `modified`, set `size` to the byte length, and set `sha256` to the lowercase SHA-256 of the included bytes. For deleted files, do not include a file payload, set `status` and `operation` to `deleted`, set `size` to `0`, and set `sha256` to `null`. `total_byte_count` is the sum of byte sizes for added and modified payloads; deletions contribute zero. Do not use `status: "unchanged"` in real patch bundles.
+For added and modified files, include the new file bytes in the zip at exactly `path`. For deleted files, set `status` and `operation` to `deleted`, set `size` to `0`, set `sha256` to `null`, and omit the deleted file payload from the zip. Do not use `status: "unchanged"` in real patch bundles.
 
-## Response channel priority
+## Fenced patch-bundle response format
 
-Primary/preferred: produce a downloadable `.zip` file named `patch-bundle.zip` containing the patch zip described above. If you provide a downloadable zip, do not also emit the fallback text block. In the chat message body, write only:
-
-```text
-PATCH_BUNDLE_DOWNLOAD_READY: patch-bundle.zip
-```
-
-Fallback: if you cannot produce a downloadable `.zip`, emit the same zip bytes as one base64url marker block. The marker block must be the only patch bundle in the response. Do not wrap it in Markdown triple backticks; the `BEGIN_PATCH_BUNDLE` and `END_PATCH_BUNDLE` lines are the fence. Do not put commentary inside the block. Use unpadded base64url (`A-Z`, `a-z`, `0-9`, `-`, `_`), preferably on one line.
-
-Exact fallback format:
+Emit exactly this 5-line block and no other patch bundle. Do not wrap it in Markdown triple backticks. Do not add commentary inside the block. Use a single space after each key and no colon. Put the BASE64URL payload on the same line as `BASE64URL`, one unbroken unpadded base64url token using only `A-Z`, `a-z`, `0-9`, `-`, and `_`; do not use `+`, `/`, or `=`.
 
 ```text
 BEGIN_PATCH_BUNDLE
-MANIFEST_JSON: {"files":[{"operation":"modified","path":"src/example.py","sha256":"<sha256-of-new-bytes>","size":123,"status":"changed"}],"total_byte_count":123,"version":1,"zip_byte_count":456,"zip_sha256":"<sha256-of-zip-bytes>"}
-ZIP_BYTE_COUNT: 456
-ZIP_SHA256: <sha256-of-zip-bytes>
-BASE64URL:
-<unpadded-base64url-of-the-zip-bytes>
+ZIP_BYTE_COUNT <decimal byte length of the zip>
+ZIP_SHA256 <lowercase 64-hex sha256 of the exact zip bytes>
+BASE64URL <unpadded base64url of the zip bytes, one unbroken token on this line>
 END_PATCH_BUNDLE
 ```
 
-`MANIFEST_JSON` must be compact JSON on the same line. Its `zip_byte_count` and `zip_sha256` must match `ZIP_BYTE_COUNT`, `ZIP_SHA256`, and the decoded zip bytes. Emit exactly one `BEGIN_PATCH_BUNDLE` and exactly one `END_PATCH_BUNDLE`.
+`ZIP_BYTE_COUNT` and `ZIP_SHA256` describe the exact zip bytes before base64url encoding. Patch caps: zip < 25 MiB, each file < 5 MiB, and at most 1000 files.
+
+Worked example shape from a 144-byte single-file zip:
+
+```text
+BEGIN_PATCH_BUNDLE
+ZIP_BYTE_COUNT 144
+ZIP_SHA256 3dce3bc5690138135aca9a04e04973c7f75f36e337e1579bf63230a69fbbd050
+BASE64URL UEsDBBQAAAAAAAAAIQCdm2LOGAAAABgAAAALAAAAZXhhbXBsZS50eHRmYXZvcml0ZV9jb2xvciA9ICJibHVlIgpQSwECFAMUAAAAAAAAACEAnZtizhgAAAAYAAAACwAAAAAAAAAAAAAApIEAAAAAZXhhbXBsZS50eHRQSwUGAAAAAAEAAQA5AAAAQQAAAAAA
+END_PATCH_BUNDLE
+```
+
+Emit exactly one `BEGIN_PATCH_BUNDLE` and exactly one `END_PATCH_BUNDLE`.
 """
 
 _PROMPT_INSTRUCTIONS_TEMPLATE = """I uploaded a zip project-context bundle named `{{BUNDLE_FILENAME}}`. First read `ASK_CHATGPT_BUNDLE_README.md` inside the zip. Then complete this task:
@@ -196,21 +188,27 @@ _PROMPT_INSTRUCTIONS_TEMPLATE = """I uploaded a zip project-context bundle named
 
 If no file edits are needed, reply exactly `NO_CHANGES_NEEDED` and nothing else.
 
-If file edits are needed, return exactly one patch bundle. The patch bundle must contain only `manifest.json` plus added or modified file payloads at repo-root-relative paths, with deleted files represented only in `manifest.json`. Do not return the whole tree. Do not include unchanged files. Do not include absolute paths, `..`, backslashes, symlinks, or files outside the project root.
+If file edits are needed, return exactly one fenced patch bundle. Build a zip containing only changed/added file payloads at repo-root-relative forward-slash paths. Do not return the whole tree. Do not include unchanged files, `ASK_CHATGPT_BUNDLE_README.md`, absolute paths, `..`, backslashes, drive letters, symlinks, or files outside the project root. No `manifest.json` is required for added or modified files; the tool reconstructs per-file metadata from verified zip entries. To delete files, additionally include a top-level `manifest.json` with `status: "deleted"` entries and no deleted-file payloads.
 
-Preferred response channel: attach or produce a downloadable zip named `patch-bundle.zip`. In the message body, write only `PATCH_BUNDLE_DOWNLOAD_READY: patch-bundle.zip`. Do not also include the base64 fallback if a downloadable zip is available.
-
-Fallback response channel, only if no downloadable zip can be produced: emit exactly this marker-block shape and no other patch bundle. Do not wrap it in triple backticks. Do not add commentary inside the block.
+Emit exactly this 5-line marker-block shape and no other patch bundle. Do not wrap it in triple backticks. Do not add commentary inside the block. Use a single space after each key and no colon. Put the BASE64URL payload on the same line as `BASE64URL`, one unbroken unpadded base64url token using only `A-Z`, `a-z`, `0-9`, `-`, and `_`; do not use `+`, `/`, or `=`.
 
 BEGIN_PATCH_BUNDLE
-MANIFEST_JSON: {"files":[{"operation":"modified","path":"src/example.py","sha256":"<sha256-of-new-bytes>","size":123,"status":"changed"}],"total_byte_count":123,"version":1,"zip_byte_count":456,"zip_sha256":"<sha256-of-zip-bytes>"}
-ZIP_BYTE_COUNT: 456
-ZIP_SHA256: <sha256-of-zip-bytes>
-BASE64URL:
-<unpadded-base64url-of-the-zip-bytes>
+ZIP_BYTE_COUNT <decimal byte length of the zip>
+ZIP_SHA256 <lowercase 64-hex sha256 of the exact zip bytes>
+BASE64URL <unpadded base64url of the zip bytes, one unbroken token on this line>
 END_PATCH_BUNDLE
 
-For added files use `status: "changed"` and `operation: "added"`; for modified files use `status: "changed"` and `operation: "modified"`; for deletions use `status: "deleted"`, `operation: "deleted"`, `size: 0`, `sha256: null`, and omit the deleted file payload from the zip. Compute sizes and hashes from the actual bytes in the patch zip. Emit exactly one bundle per response.
+`ZIP_BYTE_COUNT` and `ZIP_SHA256` describe the exact zip bytes before base64url encoding. Patch caps: zip < 25 MiB, each file < 5 MiB, and at most 1000 files.
+
+Worked example:
+
+BEGIN_PATCH_BUNDLE
+ZIP_BYTE_COUNT 144
+ZIP_SHA256 3dce3bc5690138135aca9a04e04973c7f75f36e337e1579bf63230a69fbbd050
+BASE64URL UEsDBBQAAAAAAAAAIQCdm2LOGAAAABgAAAALAAAAZXhhbXBsZS50eHRmYXZvcml0ZV9jb2xvciA9ICJibHVlIgpQSwECFAMUAAAAAAAAACEAnZtizhgAAAAYAAAACwAAAAAAAAAAAAAApIEAAAAAZXhhbXBsZS50eHRQSwUGAAAAAAEAAQA5AAAAQQAAAAAA
+END_PATCH_BUNDLE
+
+Emit exactly one bundle per response.
 """
 
 

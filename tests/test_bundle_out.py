@@ -124,9 +124,12 @@ def test_catalogue_readme_contains_required_protocol_content_and_is_deterministi
     assert "Never use absolute paths, drive letters, leading `/`, backslashes, empty path segments, or `..`" in readme
     assert f"| `src/alpha.py` | `src/alpha.py` | text | {len(src_bytes)} | `{hashlib.sha256(src_bytes).hexdigest()}` |" in readme
     assert f"| `docs/guide.md` | `docs/guide.md` | text | {len(docs_bytes)} | `{hashlib.sha256(docs_bytes).hexdigest()}` |" in readme
-    assert "Return exactly one patch bundle containing only changed/deleted paths and `manifest.json`" in readme
-    for token in ("BEGIN_PATCH_BUNDLE", "END_PATCH_BUNDLE", "ZIP_BYTE_COUNT", "ZIP_SHA256", "MANIFEST_JSON"):
+    assert "Return exactly one patch bundle containing only changed/added file payloads" in readme
+    assert "No `manifest.json` is required for added or modified files" in readme
+    assert "single space after each key and no colon" in readme
+    for token in ("BEGIN_PATCH_BUNDLE", "END_PATCH_BUNDLE", "ZIP_BYTE_COUNT", "ZIP_SHA256", "BASE64URL"):
         assert token in readme
+    assert "MANIFEST_JSON:" not in readme
 
 
 def test_zip_layout_is_root_relative_sorted_and_has_no_dot_prefixes(tmp_path):
@@ -180,9 +183,15 @@ def test_prompt_instructions_text_uses_protocol_tokens():
     assert "I uploaded a zip project-context bundle named `bundle.zip`" in text
     assert "First read `ASK_CHATGPT_BUNDLE_README.md` inside the zip" in text
     assert "Refactor the parser." in text
-    assert "PATCH_BUNDLE_DOWNLOAD_READY: patch-bundle.zip" in text
+    assert "PATCH_BUNDLE_DOWNLOAD_READY" not in text
     assert "BEGIN_PATCH_BUNDLE" in text
+    assert "ZIP_BYTE_COUNT <decimal byte length of the zip>" in text
+    assert "ZIP_SHA256 <lowercase 64-hex sha256 of the exact zip bytes>" in text
+    assert "BASE64URL <unpadded base64url of the zip bytes" in text
     assert "END_PATCH_BUNDLE" in text
+    assert "single space after each key and no colon" in text
+    assert "BASE64URL payload on the same line" in text
+    assert "No `manifest.json` is required for added or modified files" in text
 
 
 def test_upload_happy_path_records_bundle_metadata(mock_chatgpt, tmp_path):
