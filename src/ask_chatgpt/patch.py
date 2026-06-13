@@ -54,6 +54,7 @@ _DECIMAL_RE = re.compile(r"^[0-9]+$")
 _BASE64URL_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 _BEGIN_PATCH_BUNDLE = "BEGIN_PATCH_BUNDLE"
 _END_PATCH_BUNDLE = "END_PATCH_BUNDLE"
+_END_PATCH_BUNDLE_PREFIX_RE = re.compile(r"(?m)^\s*END_PATCH_BUNDL?\s*$")
 _MANIFEST_LINE_RE = re.compile(r"^MANIFEST_JSON\s*:?\s+(?P<value>.*\S)\s*$")
 _ZIP_BYTE_COUNT_RE = re.compile(r"^ZIP_BYTE_COUNT\s*:?\s+(?P<value>\S+)\s*$")
 _ZIP_SHA256_RE = re.compile(r"^ZIP_SHA256\s*:?\s+(?P<value>\S+)\s*$")
@@ -429,15 +430,25 @@ def _parse_fenced_patch_bundle(text: str, caps: PatchBundleCaps) -> _FencedParse
     end_count = text.count(_END_PATCH_BUNDLE)
     if begin_count == 0 and end_count == 0:
         return None
-    if begin_count == 1 and end_count == 0:
-        raise ResponseTruncatedError("missing END_PATCH_BUNDLE marker in latest assistant turn")
-    if begin_count != 1 or end_count != 1:
+    if begin_count != 1:
         raise PatchMalformedError("expected exactly one complete BEGIN_PATCH_BUNDLE/END_PATCH_BUNDLE block")
-    try:
-        after_begin = text.split(_BEGIN_PATCH_BUNDLE, 1)[1]
-        block = after_begin.split(_END_PATCH_BUNDLE, 1)[0]
-    except IndexError as exc:
-        raise PatchMalformedError("patch-bundle fence markers are malformed") from exc
+    begin_start = text.find(_BEGIN_PATCH_BUNDLE)
+    begin_end = begin_start + len(_BEGIN_PATCH_BUNDLE)
+    if end_count == 1:
+        end_start = text.find(_END_PATCH_BUNDLE, begin_end)
+    elif end_count == 0:
+        # Real drift observed 2026-06-13: GPT emitted complete, hash-valid bundles but
+        # ended the sentinel as END_PATCH_BUNDL/END_PATCH_BUND. Accept only those exact
+        # full-line prefixes; all other missing-end cases still fail as truncation before decode.
+        truncated_end_matches = [match for match in _END_PATCH_BUNDLE_PREFIX_RE.finditer(text) if match.start() > begin_end]
+        if len(truncated_end_matches) != 1:
+            raise ResponseTruncatedError("missing END_PATCH_BUNDLE marker in latest assistant turn")
+        end_start = truncated_end_matches[0].start()
+    else:
+        raise PatchMalformedError("expected exactly one complete BEGIN_PATCH_BUNDLE/END_PATCH_BUNDLE block")
+    if end_start < begin_end:
+        raise PatchMalformedError("patch-bundle fence markers are malformed")
+    block = text[begin_end:end_start]
 
     manifest_text: str | None = None
     byte_count_text: str | None = None

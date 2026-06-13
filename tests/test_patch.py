@@ -250,6 +250,17 @@ def test_parse_real_m006_truncated_missing_end_raises_truncated():
         _parse_fenced_patch_bundle(text, PatchBundleCaps())
 
 
+@pytest.mark.parametrize("drift_marker", ["END_PATCH_BUNDL", "END_PATCH_BUND"])
+def test_parse_real_drift_end_marker_prefix_decodes_verified_payload(drift_marker):
+    text = _REAL_M006_BUNDLE.replace("END_PATCH_BUNDLE", drift_marker)
+
+    result = _parse_fenced_patch_bundle(text, PatchBundleCaps())
+
+    assert result is not None
+    assert result.byte_count == 144
+    assert result.sha256 == _REAL_M006_SHA
+
+
 def test_parse_real_m006_bad_sha_raises_integrity():
     text = _REAL_M006_BUNDLE.replace(_REAL_M006_SHA, "0" * 64)
 
