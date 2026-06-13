@@ -285,7 +285,8 @@ class BrowserSession:
             latest_assistant = self._latest_assistant_turn()
             latest_is_streaming = False
             if latest_assistant is not None:
-                if latest_assistant.locator(self.selectors.selector("truncation_marker")).count() > 0:
+                truncation_selector = self._optional_selector("truncation_marker")
+                if truncation_selector is not None and latest_assistant.locator(truncation_selector).count() > 0:
                     raise ResponseTruncatedError("latest assistant turn has a truncation marker")
                 if latest_assistant.locator(self.selectors.selector("completion_marker")).count() > 0:
                     return latest_assistant
@@ -456,9 +457,18 @@ class BrowserSession:
     def _locator(self, key: str) -> Locator:
         return self._require_page().locator(self.selectors.selector(key))
 
-    def _present(self, key: str) -> bool:
+    def _optional_selector(self, key: str) -> str | None:
         try:
-            return self._locator(key).count() > 0
+            return self.selectors.selector(key)
+        except SelectorUnavailableError:
+            return None
+
+    def _present(self, key: str) -> bool:
+        selector = self._optional_selector(key)
+        if selector is None:
+            return False
+        try:
+            return self._require_page().locator(selector).count() > 0
         except PlaywrightError as exc:
             raise SelectorUnavailableError(f"selector '{key}' unavailable for channel '{self.channel}'") from exc
 
