@@ -63,7 +63,7 @@ The prompt builder still interpolates `LONG_SENTINEL`, so the real truncation pr
 ## Commit
 
 BASE_SHA: d449953af36e6f98cbf44bf660949255b4406535
-COMMIT_SHA: pending until commit; final SHA cannot be embedded in the same committed report because Git commit IDs are content-addressed over the report contents, so the final no-push commit SHA is recorded in the worker's final response.
+COMMIT_SHA: c9ae7b28b0134b313c63a619cfcb752a0c3bc9c1 (implementation/evidence commit; no push)
 
 ESTIMATE: 15 min
 ACTUAL: 15 min
