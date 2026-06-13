@@ -16,7 +16,8 @@ RECALL_PATTERN = rf"\b(?P<token>{NONCE_PREFIX}[0-9a-f]{{32}})\b"
 RECALL_PROMPT = "What was the token I asked you to remember? Reply with only the token."
 NO_TOKEN_SENTINEL = "NO_TOKEN_RECALLED"
 LONG_LINE_COUNT = 180
-LONG_SENTINEL = "__ELICIT_COMPLETE__"
+# markdown-inert (no _ * ` # ~ [] |): __..__ renders as bold and .markdown inner_text strips it on the real site (M-008b T3 finding).
+LONG_SENTINEL = "ELICIT-COMPLETE-SENTINEL"
 
 
 # M-008b-ready: these builders/verifiers are channel-agnostic. Mock tests below pass
