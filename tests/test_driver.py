@@ -492,6 +492,48 @@ class _MicroPauseCompletionState:
         raise AssertionError(f"unexpected present key: {key}")
 
 
+class _StableMarkerCompletionState(_MicroPauseCompletionState):
+    sentinel = "__TURN_COMPLETE_M008B_MARKER__"
+
+    def text(self) -> str:
+        return self.complete_text
+
+    def streaming_visible(self) -> bool:
+        return self.clock.now < 0.2
+
+    def completion_marker_visible(self) -> bool:
+        return self.clock.now >= 0.2
+
+
+class _PrematureGlobalMarkerState(_MicroPauseCompletionState):
+    sentinel = "__TURN_COMPLETE_M008B_PREMATURE_GLOBAL__"
+
+    def text(self) -> str:
+        now = self.clock.now
+        if now < 0.4:
+            return self.complete_text[:4]
+        if now < 0.8:
+            return "\n".join(self.complete_text.splitlines()[:30])
+        if now < 1.2:
+            return "\n".join(self.complete_text.splitlines()[:90])
+        return self.complete_text
+
+    def streaming_visible(self) -> bool:
+        now = self.clock.now
+        return 0.4 <= now < 1.2
+
+    def completion_marker_visible(self) -> bool:
+        return True
+
+    def latest_completion_marker_visible(self) -> bool:
+        return self.clock.now >= 1.2
+
+    def selector_count(self, selector: str) -> int:
+        if selector == "#complete":
+            return int(self.latest_completion_marker_visible())
+        return super().selector_count(selector)
+
+
 class _ImmediateAffordanceCompletionState(_MicroPauseCompletionState):
     sentinel = "__TURN_COMPLETE_M008A_AFFORDANCE__"
 
@@ -499,13 +541,13 @@ class _ImmediateAffordanceCompletionState(_MicroPauseCompletionState):
         return self.complete_text
 
     def streaming_visible(self) -> bool:
-        return False
+        return self.clock.now < 0.2
 
     def completion_marker_visible(self) -> bool:
         return False
 
     def completion_affordance_visible(self) -> bool:
-        return True
+        return self.clock.now >= 0.2
 
 
 class _GrowingUntilCompletionState(_MicroPauseCompletionState):
@@ -833,13 +875,16 @@ def test_real_send_prompt_maps_hard_fill_and_insert_failure_to_selector_error():
 
 
 def test_real_wait_for_completion_returns_after_completion_marker_visible(monkeypatch):
-    monkeypatch.setattr("ask_chatgpt.driver._POLL_INTERVAL_S", 0.01)
-    page = _CompletionPollingPage(
-        text_values=["stable answer", "stable answer"], streaming_counts=[1, 0, 0], completion_count=1
-    )
-    session = _real_completion_session(page)
+    clock = _ScriptedClock()
+    page = _ScriptedCompletionPage(clock)
+    state = _StableMarkerCompletionState(clock)
+    session = _scripted_real_completion_session(monkeypatch, state, page)
 
-    assert session.wait_for_completion(timeout_s=1.0) is page.latest_assistant
+    latest = session.wait_for_completion(timeout_s=5.0)
+
+    assert latest is state.turn
+    assert state.sentinel in latest.inner_text()
+    assert clock.now >= 3.0
     assert page.wait_timeouts
 
 
@@ -873,17 +918,33 @@ def test_real_wait_for_completion_does_not_return_midstream_micro_pause_without_
     assert returned_text.count("\n") >= 150
 
 
+def test_real_wait_for_completion_does_not_return_prematurely_when_global_marker_present(monkeypatch):
+    clock = _ScriptedClock()
+    page = _ScriptedCompletionPage(clock)
+    state = _PrematureGlobalMarkerState(clock)
+    session = _scripted_real_completion_session(monkeypatch, state, page)
+
+    latest = session.wait_for_completion(timeout_s=30.0, max_total_wait_s=60.0)
+    returned_text = latest.inner_text()
+
+    assert returned_text == state.complete_text, (
+        f"returned premature partial at t={clock.now:.1f}s length={len(returned_text)} text={returned_text!r}"
+    )
+    assert state.sentinel in returned_text
+
+
 def test_real_wait_for_completion_honors_optional_completion_affordance_when_marker_absent(monkeypatch):
     clock = _ScriptedClock()
     page = _ScriptedCompletionPage(clock)
     state = _ImmediateAffordanceCompletionState(clock)
     session = _scripted_real_completion_session(monkeypatch, state, page, include_completion_affordance=True)
 
-    latest = session.wait_for_completion(timeout_s=1.0)
+    latest = session.wait_for_completion(timeout_s=5.0)
 
     assert latest is state.turn
     assert state.sentinel in latest.inner_text()
-    assert page.wait_timeouts == []
+    assert clock.now >= 3.0
+    assert page.wait_timeouts
 
 
 def test_real_wait_for_completion_extends_deadline_while_body_text_grows(monkeypatch):
@@ -892,13 +953,13 @@ def test_real_wait_for_completion_extends_deadline_while_body_text_grows(monkeyp
     state = _GrowingUntilCompletionState(clock)
     session = _scripted_real_completion_session(monkeypatch, state, page)
 
-    latest = session.wait_for_completion(timeout_s=0.25, max_total_wait_s=5.0)
+    latest = session.wait_for_completion(timeout_s=3.5, max_total_wait_s=6.0)
     returned_text = latest.inner_text()
 
     assert returned_text == state.complete_text
     assert state.sentinel in returned_text
-    assert clock.now >= 1.2
-    assert clock.now < 5.0
+    assert clock.now >= 4.2
+    assert clock.now < 6.0
 
 
 @pytest.mark.parametrize("ceiling_s", [5.0])
@@ -923,7 +984,11 @@ def test_real_wait_for_completion_caps_progress_extensions_at_absolute_ceiling(m
 def test_real_wait_for_completion_times_out_when_body_text_never_stabilizes(monkeypatch):
     monkeypatch.setattr("ask_chatgpt.driver._POLL_INTERVAL_S", 0.005)
     changing_text = [f"partial {index}" for index in range(100)]
-    page = _CompletionPollingPage(text_values=changing_text, streaming_counts=[0])
+    page = _CompletionPollingPage(
+        text_values=changing_text,
+        streaming_counts=[1] + [0] * 200,
+        completion_count=1,
+    )
     session = _real_completion_session(page)
 
     with pytest.raises(ResponseTruncatedError, match="completion marker did not appear before timeout"):

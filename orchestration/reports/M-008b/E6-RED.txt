@@ -1,0 +1,37 @@
+COMMAND: env -u ASK_CHATGPT_REAL UV_OFFLINE=1 uv run pytest -q tests/test_driver.py::test_real_wait_for_completion_does_not_return_prematurely_when_global_marker_present
+warning: `VIRTUAL_ENV=/home/abhmul/.local/share/agent-python/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_ test_real_wait_for_completion_does_not_return_prematurely_when_global_marker_present _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7ff5dd523950>
+
+    def test_real_wait_for_completion_does_not_return_prematurely_when_global_marker_present(monkeypatch):
+        clock = _ScriptedClock()
+        page = _ScriptedCompletionPage(clock)
+        state = _PrematureGlobalMarkerState(clock)
+        session = _scripted_real_completion_session(monkeypatch, state, page)
+    
+        latest = session.wait_for_completion(timeout_s=30.0, max_total_wait_s=60.0)
+        returned_text = latest.inner_text()
+    
+>       assert returned_text == state.complete_text, (
+            f"returned premature partial at t={clock.now:.1f}s length={len(returned_text)} text={returned_text!r}"
+        )
+E       AssertionError: returned premature partial at t=0.0s length=4 text='M008'
+E       assert 'M008' == 'M008A-LINE-0...TURE_GLOBAL__'
+E         
+E         + M008
+E         - M008A-LINE-000 deterministic long completion payload keeps growing
+E         - M008A-LINE-001 deterministic long completion payload keeps growing
+E         - M008A-LINE-002 deterministic long completion payload keeps growing
+E         - M008A-LINE-003 deterministic long completion payload keeps growing
+E         - M008A-LINE-004 deterministic long completion payload keeps growing...
+E         
+E         ...Full output truncated (176 lines hidden), use '-vv' to show
+
+tests/test_driver.py:914: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_driver.py::test_real_wait_for_completion_does_not_return_prematurely_when_global_marker_present
+1 failed in 0.09s
+EXIT_CODE=1

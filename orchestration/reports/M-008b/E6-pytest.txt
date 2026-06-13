@@ -1,0 +1,13 @@
+COMMAND: env -u ASK_CHATGPT_REAL UV_OFFLINE=1 uv sync --all-groups
+warning: `VIRTUAL_ENV=/home/abhmul/.local/share/agent-python/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead
+Resolved 11 packages in 2ms
+Audited 10 packages in 0.13ms
+UV_SYNC_EXIT_CODE=0
+COMMAND: env -u ASK_CHATGPT_REAL UV_OFFLINE=1 uv run pytest -q
+warning: `VIRTUAL_ENV=/home/abhmul/.local/share/agent-python/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead
+........................................................................ [ 34%]
+........................................................................ [ 69%]
+................................................................         [100%]
+208 passed, 4 deselected in 72.10s (0:01:12)
+PYTEST_EXIT_CODE=0
+real_site executed: 0 (ASK_CHATGPT_REAL unset; pytest addopts deselect real_site)

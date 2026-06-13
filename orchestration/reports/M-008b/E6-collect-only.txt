@@ -1,0 +1,8 @@
+COMMAND: env -u ASK_CHATGPT_REAL UV_OFFLINE=1 uv run pytest --collect-only -q tests/test_truncation_real.py tests/test_continuity_real.py
+warning: `VIRTUAL_ENV=/home/abhmul/.local/share/agent-python/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead
+tests/test_truncation_real.py::test_real_long_response_is_not_client_truncated
+tests/test_continuity_real.py::test_real_semantic_continuity_in_process
+tests/test_continuity_real.py::test_real_semantic_continuity_cross_process
+
+3 tests collected in 0.05s
+EXIT_CODE=0

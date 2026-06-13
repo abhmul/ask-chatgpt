@@ -258,7 +258,7 @@ def test_cdp_attach_opens_new_tab_and_drives_mock_uc1(mock_chatgpt, throwaway_ch
     answer = "CDP attach happy path answer 4b81d5"
     prompt = "hello through cdp"
     mock_chatgpt.reset()
-    mock_chatgpt.script_next_response(answer)
+    mock_chatgpt.script_next_response(answer, streaming=True, stream_reads=1)
     before_ids = _target_ids(throwaway_chromium.endpoint)
 
     with BrowserSession(
@@ -269,7 +269,7 @@ def test_cdp_attach_opens_new_tab_and_drives_mock_uc1(mock_chatgpt, throwaway_ch
         conversation_ref = session.open_or_create_conversation(None)
         assert conversation_ref.startswith("conv-")
         session.send_prompt(prompt)
-        latest = session.wait_for_completion(timeout_s=3)
+        latest = session.wait_for_completion(timeout_s=6)
 
         expect(latest.locator(session.selectors.selector("message_body"))).to_have_text(answer, timeout=1000)
         assert mock_chatgpt.inspect()["last_prompt"] == prompt
@@ -288,7 +288,7 @@ def test_cdp_close_detaches_without_closing_preexisting_tabs_or_browser(mock_cha
     before_ids = _target_ids(throwaway_chromium.endpoint)
     answer = "CDP tab hygiene answer 9317a2"
     mock_chatgpt.reset()
-    mock_chatgpt.script_next_response(answer)
+    mock_chatgpt.script_next_response(answer, streaming=True, stream_reads=1)
     session = BrowserSession(channel="cdp", base_url=mock_chatgpt.base_url, cdp_endpoint=throwaway_chromium.endpoint)
     tool_ids: set[str] = set()
 
@@ -296,7 +296,7 @@ def test_cdp_close_detaches_without_closing_preexisting_tabs_or_browser(mock_cha
         session.start()
         session.open_or_create_conversation(None)
         session.send_prompt("prove tab hygiene")
-        latest = session.wait_for_completion(timeout_s=3)
+        latest = session.wait_for_completion(timeout_s=6)
         expect(latest.locator(session.selectors.selector("message_body"))).to_have_text(answer, timeout=1000)
         tool_target = _wait_for_page_target(
             throwaway_chromium.endpoint,

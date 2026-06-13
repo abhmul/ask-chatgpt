@@ -43,6 +43,7 @@ _REAL_NAV_TIMEOUT_MS = 60_000
 _READY_ROOT_TIMEOUT_MS = 30_000
 _POLL_INTERVAL_S = 0.1
 _REAL_COMPLETION_CEILING_S = 600.0
+_REAL_COMPLETION_STABILITY_S = 3.0
 _REAL_REQUIRED_SELECTOR_KEYS = (
     "ready_root",
     "chat_list",
@@ -325,7 +326,7 @@ class BrowserSession:
     def wait_for_completion(self, timeout_s: float = 120.0, max_total_wait_s: float | None = None) -> Locator:
         """Return the latest completed assistant turn locator.
 
-        Mock-channel strategy: poll for completion markers; when only streaming markers are present, reload ``/c/<ref>`` so the fixture advances scripted stream state, then re-check. Real/CDP completion requires positive completion evidence with the stop control absent; body-text progress extends the timeout window for long actively growing responses, capped by an absolute wall-clock ceiling.
+        Mock-fixture strategy: poll for completion markers; when only streaming markers are present, reload ``/c/<ref>`` so the fixture advances scripted stream state, then re-check. Real/CDP completion requires positive completion evidence with the stop control absent; body-text progress extends the timeout window for long actively growing responses, capped by an absolute wall-clock ceiling.
         """
 
         page = self._require_page()
@@ -337,7 +338,11 @@ class BrowserSession:
             max_total_wait = _REAL_COMPLETION_CEILING_S if max_total_wait_s is None else max(0.0, float(max_total_wait_s))
             absolute_deadline = start + max_total_wait
             deadline = min(deadline, absolute_deadline)
-        last_text = ""
+        last_text: str | None = None
+        stable_since = start
+        streaming_seen = False
+        not_streaming_since: float | None = None
+        reloads_streaming_fixture = self.channel == "mock" or (self.channel == "cdp" and _is_loopback_http_url(self._base_url))
         while True:
             self._raise_open_failures()
             if self._rate_limit_visible():
@@ -358,28 +363,48 @@ class BrowserSession:
                 if self.channel in {"real", "cdp"}:
                     latest_text = self._latest_assistant_body_text(latest_assistant)
                     now = time.monotonic()
-                    if latest_text and latest_text != last_text:
-                        deadline = max(deadline, now + timeout_window)
-                        if absolute_deadline is not None:
-                            deadline = min(deadline, absolute_deadline)
-                    last_text = latest_text
+                    if last_text is None:
+                        last_text = latest_text
+                    elif latest_text != last_text:
+                        stable_since = now
+                        if latest_text:
+                            deadline = max(deadline, now + timeout_window)
+                            if absolute_deadline is not None:
+                                deadline = min(deadline, absolute_deadline)
+                        last_text = latest_text
                     streaming_visible = self._present("streaming_marker")
+                    if streaming_visible:
+                        streaming_seen = True
+                        not_streaming_since = None
+                    elif not_streaming_since is None:
+                        not_streaming_since = now
                     completion_affordance_selector = self._optional_selector("completion_affordance")
+                    completion_visible = completion_present_on_latest
                     if completion_affordance_selector is not None:
-                        completion_visible = (
-                            latest_assistant.locator(completion_affordance_selector).count() > 0
-                            or self._present("completion_affordance")
-                        )
-                    else:
-                        completion_visible = completion_present_on_latest or self._present("completion_marker")
-                    if not streaming_visible and completion_visible:
+                        completion_visible = completion_visible or latest_assistant.locator(completion_affordance_selector).count() > 0
+                    if (
+                        streaming_seen
+                        and not streaming_visible
+                        and completion_visible
+                        and not_streaming_since is not None
+                        and (now - not_streaming_since) >= _REAL_COMPLETION_STABILITY_S
+                        and (now - stable_since) >= _REAL_COMPLETION_STABILITY_S
+                    ):
                         return latest_assistant
+            elif self.channel in {"real", "cdp"}:
+                now = time.monotonic()
+                streaming_visible = self._present("streaming_marker")
+                if streaming_visible:
+                    streaming_seen = True
+                    not_streaming_since = None
+                elif not_streaming_since is None:
+                    not_streaming_since = now
 
             now = time.monotonic()
             if now >= deadline:
                 raise ResponseTruncatedError("completion marker did not appear before timeout")
 
-            if (latest_is_streaming or (latest_assistant is None and self._present("streaming_marker"))) and self.channel == "mock":
+            if reloads_streaming_fixture and (latest_is_streaming or (latest_assistant is None and self._present("streaming_marker"))):
                 conversation_ref = self._active_conversation_ref or self._try_read_active_conversation_ref()
                 if conversation_ref:
                     page.goto(self._conversation_url(conversation_ref), wait_until="load", timeout=_DEFAULT_NAVIGATION_TIMEOUT_MS)
