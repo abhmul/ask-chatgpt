@@ -2,10 +2,12 @@ import hashlib
 import json
 import zipfile
 from io import BytesIO
+from types import SimpleNamespace
 from urllib.request import Request, urlopen
 
 import pytest
 
+import ask_chatgpt.bundle as bundle_module
 from ask_chatgpt.bundle import (
     ASK_CHATGPT_BUNDLE_README,
     UploadBundleCaps,
@@ -15,6 +17,7 @@ from ask_chatgpt.bundle import (
 )
 from ask_chatgpt.driver import BrowserSession
 from ask_chatgpt.errors import BundleIntegrityError, OversizedPayloadError, PathEscapeError, UploadUnsupportedError
+from ask_chatgpt.selector_map import SelectorMap
 
 
 def _script(mock_chatgpt, payload: dict) -> dict:
@@ -39,6 +42,65 @@ def _make_project(root):
 def _zip_names(bundle):
     with zipfile.ZipFile(BytesIO(bundle.content)) as archive:
         return archive.namelist()
+
+
+class _FakeUploadLocator:
+    def __init__(self, *, count: int = 1, visible: bool = True, on_set_input_files=None) -> None:
+        self._count = count
+        self._visible = visible
+        self._on_set_input_files = on_set_input_files
+
+    def count(self) -> int:
+        return self._count
+
+    @property
+    def first(self):
+        return self
+
+    def set_input_files(self, files, **kwargs) -> None:
+        if self._on_set_input_files is not None:
+            self._on_set_input_files(files, kwargs)
+
+    def get_attribute(self, _name: str, **_kwargs) -> str | None:
+        return None
+
+    def is_visible(self, **_kwargs) -> bool:
+        return self._visible
+
+
+class _FakeRealUploadPage:
+    def __init__(self, *, chip_visible: bool) -> None:
+        self.uploads: list[tuple[object, dict]] = []
+        self.wait_timeouts: list[int] = []
+        self._chip_visible = chip_visible
+
+    def locator(self, selector: str):
+        if selector == "#upload":
+            return _FakeUploadLocator(on_set_input_files=self._record_upload)
+        if selector == bundle_module._UPLOAD_STATUS_SELECTOR:
+            return _FakeUploadLocator(count=0)
+        if selector == 'text="real-chip.zip"':
+            return _FakeUploadLocator(count=1 if self._chip_visible else 0, visible=self._chip_visible)
+        raise AssertionError(f"unexpected selector: {selector}")
+
+    def get_by_text(self, text: str, *, exact: bool = False):
+        assert text == "real-chip.zip"
+        assert exact is True
+        return _FakeUploadLocator(count=1 if self._chip_visible else 0, visible=self._chip_visible)
+
+    def wait_for_timeout(self, timeout_ms: int) -> None:
+        self.wait_timeouts.append(timeout_ms)
+
+    def _record_upload(self, files, kwargs) -> None:
+        self.uploads.append((files, kwargs))
+
+
+def _fake_real_upload_session(page: _FakeRealUploadPage):
+    return SimpleNamespace(
+        channel="real",
+        page=page,
+        selectors=SelectorMap(channel="unit", selectors={"upload_input": "#upload"}, attributes={}),
+    )
 
 
 def test_catalogue_readme_contains_required_protocol_content_and_is_deterministic(tmp_path):
@@ -145,6 +207,25 @@ def test_upload_happy_path_records_bundle_metadata(mock_chatgpt, tmp_path):
     }
     assert confirmation.status == "ok"
     assert confirmation.sha256 == inspected["last_upload"]["sha256"]
+
+
+def test_real_upload_confirms_with_visible_filename_chip_when_mock_status_is_absent(monkeypatch):
+    monkeypatch.setattr(bundle_module, "_REAL_UPLOAD_CHIP_TIMEOUT_S", 0.1)
+    page = _FakeRealUploadPage(chip_visible=True)
+
+    confirmation = upload_bundle(_fake_real_upload_session(page), b"zip bytes", filename="real-chip.zip", timeout_s=0.01)
+
+    assert confirmation.status == "ok"
+    assert confirmation.filename == "real-chip.zip"
+    assert page.uploads
+
+
+def test_real_upload_without_status_or_filename_chip_times_out(monkeypatch):
+    monkeypatch.setattr(bundle_module, "_REAL_UPLOAD_CHIP_TIMEOUT_S", 0.01)
+    page = _FakeRealUploadPage(chip_visible=False)
+
+    with pytest.raises(UploadUnsupportedError, match="upload did not confirm before timeout"):
+        upload_bundle(_fake_real_upload_session(page), b"zip bytes", filename="real-chip.zip", timeout_s=0.01)
 
 
 @pytest.mark.parametrize(

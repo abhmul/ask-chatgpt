@@ -26,7 +26,7 @@ def write_populated_real_map(maps_dir):
     return maps_dir
 
 
-def install_fake_real_playwright(monkeypatch, redirected_url, launch_kwargs_log=None):
+def install_fake_real_playwright(monkeypatch, redirected_url, launch_kwargs_log=None, goto_kwargs_log=None):
     goto_calls = []
 
     class FakePage:
@@ -35,6 +35,8 @@ def install_fake_real_playwright(monkeypatch, redirected_url, launch_kwargs_log=
 
         def goto(self, url, **kwargs):
             goto_calls.append(url)
+            if goto_kwargs_log is not None:
+                goto_kwargs_log.append(dict(kwargs))
             self.url = redirected_url
             return None
 
@@ -76,6 +78,139 @@ def install_fake_real_playwright(monkeypatch, redirected_url, launch_kwargs_log=
 
     monkeypatch.setattr(driver, "sync_playwright", lambda: FakePlaywrightStarter())
     return goto_calls
+
+
+class _StartFakeLocator:
+    def count(self):
+        return 0
+
+
+class _StartFakePage:
+    def __init__(self, goto_calls, redirected_url):
+        self.url = "about:blank"
+        self._goto_calls = goto_calls
+        self._redirected_url = redirected_url
+        self.routes = []
+
+    def goto(self, url, **kwargs):
+        self._goto_calls.append((url, dict(kwargs)))
+        self.url = self._redirected_url
+        return None
+
+    def route(self, pattern, handler):
+        self.routes.append((pattern, handler))
+
+    def locator(self, _selector):
+        return _StartFakeLocator()
+
+    def title(self):
+        return "ChatGPT"
+
+    def close(self):
+        pass
+
+
+class _StartFakeContext:
+    def __init__(self, goto_calls, redirected_url):
+        self._goto_calls = goto_calls
+        self._redirected_url = redirected_url
+        self.pages = []
+        self.routes = []
+        self.permissions = []
+
+    def new_page(self):
+        page = _StartFakePage(self._goto_calls, self._redirected_url)
+        self.pages.append(page)
+        return page
+
+    def route(self, pattern, handler):
+        self.routes.append((pattern, handler))
+
+    def grant_permissions(self, permissions, *, origin):
+        self.permissions.append((tuple(permissions), origin))
+
+    def close(self):
+        pass
+
+
+class _StartFakeBrowser:
+    def __init__(self, context):
+        self.contexts = [context]
+        self._context = context
+
+    def new_context(self, **_kwargs):
+        return self._context
+
+    def close(self):
+        pass
+
+
+def install_fake_start_playwright(monkeypatch, redirected_url):
+    goto_calls = []
+    contexts = []
+
+    class FakeChromium:
+        def launch(self, **_kwargs):
+            context = _StartFakeContext(goto_calls, redirected_url)
+            contexts.append(context)
+            return _StartFakeBrowser(context)
+
+        def launch_persistent_context(self, **_kwargs):
+            context = _StartFakeContext(goto_calls, redirected_url)
+            contexts.append(context)
+            return context
+
+        def connect_over_cdp(self, _endpoint, **_kwargs):
+            context = _StartFakeContext(goto_calls, redirected_url)
+            contexts.append(context)
+            return _StartFakeBrowser(context)
+
+    class FakePlaywright:
+        def __init__(self):
+            self.chromium = FakeChromium()
+
+        def stop(self):
+            pass
+
+    class FakePlaywrightStarter:
+        def start(self):
+            return FakePlaywright()
+
+    monkeypatch.setattr(driver, "sync_playwright", lambda: FakePlaywrightStarter())
+    return goto_calls
+
+
+@pytest.mark.parametrize(
+    ("channel", "expected_timeout_ms"),
+    [("mock", 5_000), ("real", 60_000), ("cdp", 60_000)],
+)
+def test_start_navigation_timeout_is_long_only_for_real_and_cdp(tmp_path, monkeypatch, channel, expected_timeout_ms):
+    redirected_url = driver.REAL_BASE_URL if channel == "real" else "http://127.0.0.1:9"
+    goto_calls = install_fake_start_playwright(monkeypatch, redirected_url)
+    if channel == "real":
+        session = driver.BrowserSession(
+            channel="real",
+            profile_path=tmp_path / "profile",
+            maps_dir=write_populated_real_map(tmp_path / "maps"),
+        )
+        expected_url = driver.REAL_BASE_URL
+    elif channel == "cdp":
+        session = driver.BrowserSession(
+            channel="cdp",
+            base_url="http://127.0.0.1:9",
+            cdp_endpoint="http://127.0.0.1:9222",
+        )
+        expected_url = "http://127.0.0.1:9"
+    else:
+        session = driver.BrowserSession(channel="mock", base_url="http://127.0.0.1:9")
+        expected_url = "http://127.0.0.1:9"
+
+    try:
+        session.start()
+    finally:
+        session.close()
+
+    assert goto_calls == [(expected_url, {"wait_until": "load", "timeout": expected_timeout_ms})]
 
 
 def test_sparse_real_selector_map_preflight_tolerates_unmapped_optional_keys(tmp_path):

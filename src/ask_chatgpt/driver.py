@@ -39,8 +39,10 @@ from ask_chatgpt.selector_map import SelectorMap, load_selector_map
 REAL_BASE_URL = "https://chatgpt.com"
 _DEFAULT_CDP_ENDPOINT = "http://127.0.0.1:9222"
 _DEFAULT_NAVIGATION_TIMEOUT_MS = 5_000
+_REAL_NAV_TIMEOUT_MS = 60_000
 _READY_ROOT_TIMEOUT_MS = 30_000
 _POLL_INTERVAL_S = 0.1
+_REAL_COMPLETION_STABLE_S = 2.0
 _REAL_REQUIRED_SELECTOR_KEYS = (
     "ready_root",
     "chat_list",
@@ -124,7 +126,7 @@ class BrowserSession:
                     f"Unsupported channel '{self.channel}'. Operator action: choose 'mock' for tests, 'real' for operator-runbook launch, or 'cdp' for operator-owned browser attach."
                 )
             self.page = page
-            page.goto(self._base_url, wait_until="load", timeout=_DEFAULT_NAVIGATION_TIMEOUT_MS)
+            page.goto(self._base_url, wait_until="load", timeout=self._navigation_timeout_ms())
             if self.channel in {"real", "cdp"}:
                 self._raise_login_required_for_auth_redirect(page.url)
             if self.channel == "cdp":
@@ -185,7 +187,7 @@ class BrowserSession:
         if conversation_ref:
             try:
                 response = page.goto(
-                    self._conversation_url(conversation_ref), wait_until="load", timeout=_DEFAULT_NAVIGATION_TIMEOUT_MS
+                    self._conversation_url(conversation_ref), wait_until="load", timeout=self._navigation_timeout_ms()
                 )
             except PlaywrightError as exc:
                 raise AskChatGPTError("Browser navigation failed while opening the conversation. Operator action: retry or inspect the UI.") from exc
@@ -251,34 +253,76 @@ class BrowserSession:
 
         self._raise_open_failures()
         composer = self._require_present("composer")
-        try:
-            composer.fill(text, timeout=_DEFAULT_NAVIGATION_TIMEOUT_MS)
-        except PlaywrightError as exc:
-            raise SelectorUnavailableError(f"selector 'composer' unavailable for channel '{self.channel}'") from exc
+        if self.channel in {"real", "cdp"}:
+            self._send_prompt_real_mechanics(text, composer)
+        else:
+            try:
+                composer.fill(text, timeout=_DEFAULT_NAVIGATION_TIMEOUT_MS)
+            except PlaywrightError as exc:
+                raise SelectorUnavailableError(f"selector 'composer' unavailable for channel '{self.channel}'") from exc
 
-        send_button_selector = self.selectors.selector("send_button")
-        try:
-            self._require_page().wait_for_selector(
-                send_button_selector, timeout=_DEFAULT_NAVIGATION_TIMEOUT_MS, state="attached"
-            )
-            send_button = self._require_present("send_button")
-            send_button.click(timeout=_DEFAULT_NAVIGATION_TIMEOUT_MS)
-        except PlaywrightError as exc:
-            raise SelectorUnavailableError(f"selector 'send_button' unavailable for channel '{self.channel}'") from exc
+            send_button_selector = self.selectors.selector("send_button")
+            try:
+                self._require_page().wait_for_selector(
+                    send_button_selector, timeout=_DEFAULT_NAVIGATION_TIMEOUT_MS, state="attached"
+                )
+                send_button = self._require_present("send_button")
+                send_button.click(timeout=_DEFAULT_NAVIGATION_TIMEOUT_MS)
+            except PlaywrightError as exc:
+                raise SelectorUnavailableError(f"selector 'send_button' unavailable for channel '{self.channel}'") from exc
         self._wait_for_load_state(ignore_timeout=True)
         if self._rate_limit_visible():
             raise self._rate_limited_error()
         self._raise_open_failures()
         self._active_conversation_ref = self._try_read_active_conversation_ref() or self._active_conversation_ref
 
+    def _send_prompt_real_mechanics(self, text: str, composer: Locator) -> None:
+        page = self._require_page()
+        try:
+            composer.click(timeout=_DEFAULT_NAVIGATION_TIMEOUT_MS)
+        except PlaywrightError as exc:
+            raise SelectorUnavailableError(f"selector 'composer' unavailable for channel '{self.channel}'") from exc
+        try:
+            composer.fill(text, timeout=_DEFAULT_NAVIGATION_TIMEOUT_MS)
+        except PlaywrightError as fill_exc:
+            try:
+                page.keyboard.press("Control+A")
+                page.keyboard.insert_text(text)
+            except PlaywrightError as insert_exc:
+                raise SelectorUnavailableError(f"selector 'composer' unavailable for channel '{self.channel}'") from insert_exc
+
+        submitted = False
+        send_button_selector = self._optional_selector("send_button")
+        if send_button_selector is not None:
+            try:
+                page.wait_for_selector(send_button_selector, timeout=_DEFAULT_NAVIGATION_TIMEOUT_MS, state="attached")
+            except PlaywrightTimeoutError:
+                submitted = False
+            except PlaywrightError as exc:
+                raise SelectorUnavailableError(f"selector 'send_button' unavailable for channel '{self.channel}'") from exc
+            else:
+                try:
+                    send_button = self._require_present("send_button")
+                    send_button.click(timeout=_DEFAULT_NAVIGATION_TIMEOUT_MS)
+                    submitted = True
+                except (PlaywrightError, SelectorUnavailableError):
+                    submitted = False
+        if not submitted:
+            try:
+                page.keyboard.press("Enter")
+            except PlaywrightError as exc:
+                raise AskChatGPTError("Browser prompt submission failed. Operator action: retry or inspect the UI.") from exc
+
     def wait_for_completion(self, timeout_s: float = 10.0) -> Locator:
         """Return the latest completed assistant turn locator.
 
-        Mock-channel strategy: poll for completion markers; when only streaming markers are present, reload ``/c/<ref>`` so the fixture advances scripted stream state, then re-check. Real-channel completion signals are an operator-runbook unknown (memo §7 item 6), so this mock-specific reload-poll behavior must not be treated as a real-site signal.
+        Mock-channel strategy: poll for completion markers; when only streaming markers are present, reload ``/c/<ref>`` so the fixture advances scripted stream state, then re-check. Real/CDP completion additionally accepts a latest assistant turn whose stop control is gone and whose body text has stabilized.
         """
 
         page = self._require_page()
         deadline = time.monotonic() + max(0.0, float(timeout_s))
+        last_text = ""
+        stable_since: float | None = None
         while True:
             self._raise_open_failures()
             if self._rate_limit_visible():
@@ -292,9 +336,24 @@ class BrowserSession:
                 truncation_selector = self._optional_selector("truncation_marker")
                 if truncation_selector is not None and latest_assistant.locator(truncation_selector).count() > 0:
                     raise ResponseTruncatedError("latest assistant turn has a truncation marker")
-                if latest_assistant.locator(self.selectors.selector("completion_marker")).count() > 0:
-                    return latest_assistant
+                completion_present_on_latest = latest_assistant.locator(self.selectors.selector("completion_marker")).count() > 0
                 latest_is_streaming = latest_assistant.locator(self.selectors.selector("streaming_marker")).count() > 0
+                if self.channel not in {"real", "cdp"} and completion_present_on_latest:
+                    return latest_assistant
+                if self.channel in {"real", "cdp"}:
+                    latest_text = self._latest_assistant_body_text(latest_assistant)
+                    now = time.monotonic()
+                    if latest_text and latest_text == last_text:
+                        if stable_since is None:
+                            stable_since = now
+                    else:
+                        last_text = latest_text
+                        stable_since = None
+                    streaming_visible = self._present("streaming_marker")
+                    completion_visible = completion_present_on_latest or self._present("completion_marker")
+                    text_stable = stable_since is not None and now - stable_since >= _REAL_COMPLETION_STABLE_S
+                    if not streaming_visible and (completion_visible or text_stable):
+                        return latest_assistant
 
             now = time.monotonic()
             if now >= deadline:
@@ -458,6 +517,9 @@ class BrowserSession:
             return unquote(segments[1])
         return None
 
+    def _navigation_timeout_ms(self) -> int:
+        return _REAL_NAV_TIMEOUT_MS if self.channel in {"real", "cdp"} else _DEFAULT_NAVIGATION_TIMEOUT_MS
+
     def _locator(self, key: str) -> Locator:
         return self._require_page().locator(self.selectors.selector(key))
 
@@ -556,6 +618,18 @@ class BrowserSession:
         if count < 1:
             return None
         return assistant_turns.nth(count - 1)
+
+    def _latest_assistant_body_text(self, latest_assistant: Locator) -> str:
+        body_selector = self._optional_selector("message_body")
+        if body_selector is not None:
+            try:
+                return self._require_page().locator(body_selector).last.inner_text(timeout=1000)
+            except PlaywrightError:
+                pass
+        try:
+            return latest_assistant.inner_text(timeout=1000)
+        except PlaywrightError:
+            return ""
 
     def _rate_limit_visible(self) -> bool:
         return self._present("rate_limit_marker")

@@ -34,6 +34,7 @@ UPLOAD_BUNDLE_MAX_FILE_COUNT = 1000
 _CREATED_AT_ISO8601 = "1970-01-01T00:00:00Z"
 _ZIP_DATE_TIME = (1980, 1, 1, 0, 0, 0)
 _UPLOAD_STATUS_SELECTOR = '[data-testid="mock-upload-status"]'
+_REAL_UPLOAD_CHIP_TIMEOUT_S = 90.0
 
 Pathish = str | os.PathLike[str]
 
@@ -332,7 +333,12 @@ def upload_bundle(
     except PlaywrightError as exc:
         raise UploadUnsupportedError(f"upload input rejected file; upload basename={upload_name}") from exc
 
-    status, reason = _wait_for_upload_status(page, timeout_s=timeout_s)
+    status, reason = _wait_for_upload_status(
+        page,
+        timeout_s=timeout_s,
+        upload_name=upload_name,
+        channel=getattr(session, "channel", None),
+    )
     if status == "ok":
         return UploadConfirmation(
             filename=upload_name,
@@ -639,25 +645,76 @@ def _timeout_ms(timeout_s: float) -> int:
     return max(0, int(float(timeout_s) * 1000))
 
 
-def _wait_for_upload_status(page: Any, *, timeout_s: float) -> tuple[str, str | None]:
+def _wait_for_upload_status(
+    page: Any,
+    *,
+    timeout_s: float,
+    upload_name: str | None = None,
+    channel: str | None = None,
+) -> tuple[str, str | None]:
     deadline = time.monotonic() + max(0.0, float(timeout_s))
     last_error: Exception | None = None
+    real_like = channel in {"real", "cdp"}
     while True:
+        status_present = False
         try:
             status_locator = page.locator(_UPLOAD_STATUS_SELECTOR).first
             if status_locator.count() > 0:
+                status_present = True
                 status = status_locator.get_attribute("data-upload-status", timeout=250) or ""
                 reason = status_locator.get_attribute("data-reason", timeout=250)
                 if status and status != "idle":
                     return status, reason
         except PlaywrightError as exc:
             last_error = exc
+        if real_like and upload_name and not status_present:
+            if _wait_for_upload_filename_chip(
+                page,
+                upload_name,
+                timeout_s=max(float(timeout_s), _REAL_UPLOAD_CHIP_TIMEOUT_S),
+            ):
+                return "ok", "filename chip visible"
+            raise UploadUnsupportedError("upload did not confirm before timeout")
         if time.monotonic() >= deadline:
             detail = "upload did not confirm before timeout"
             if last_error is not None:
                 detail += "; status locator unavailable"
             raise UploadUnsupportedError(detail)
         page.wait_for_timeout(50)
+
+
+def _wait_for_upload_filename_chip(page: Any, upload_name: str, *, timeout_s: float) -> bool:
+    deadline = time.monotonic() + max(0.0, float(timeout_s))
+    while True:
+        if _upload_filename_chip_visible(page, upload_name):
+            return True
+        now = time.monotonic()
+        if now >= deadline:
+            return False
+        page.wait_for_timeout(int(min(0.5, max(0.0, deadline - now)) * 1000))
+
+
+def _upload_filename_chip_visible(page: Any, upload_name: str) -> bool:
+    try:
+        locator = page.get_by_text(upload_name, exact=True)
+        if _visible_locator_exists(locator):
+            return True
+    except (AttributeError, PlaywrightError):
+        pass
+    try:
+        locator = page.locator(f"text={json.dumps(upload_name)}")
+        return _visible_locator_exists(locator)
+    except PlaywrightError:
+        return False
+
+
+def _visible_locator_exists(locator: Any) -> bool:
+    try:
+        if locator.count() < 1:
+            return False
+        return bool(locator.first.is_visible(timeout=250))
+    except PlaywrightError:
+        return False
 
 
 __all__ = [

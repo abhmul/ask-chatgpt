@@ -1,8 +1,9 @@
 import json
 from pathlib import Path
+import time
 
 import pytest
-from playwright.sync_api import TimeoutError as PlaywrightTimeoutError, expect
+from playwright.sync_api import Error as PlaywrightError, TimeoutError as PlaywrightTimeoutError, expect
 
 from ask_chatgpt.driver import BrowserSession, REAL_BASE_URL
 from ask_chatgpt.errors import (
@@ -98,9 +99,11 @@ class _DelayedReadyPage:
         self.wait_for_selector_calls: list[tuple[str, dict]] = []
         self.load_wait_count = 0
         self.goto_calls: list[str] = []
+        self.goto_call_kwargs: list[dict] = []
 
     def goto(self, url: str, **_kwargs):
         self.goto_calls.append(url)
+        self.goto_call_kwargs.append(dict(_kwargs))
         self.url = url
         self.ref = url.rstrip("/").rsplit("/", 1)[-1]
         self.ready_attached = False
@@ -178,6 +181,165 @@ class _SendButtonAfterFillPage:
         self.send_click_count += 1
 
 
+class _RealSendMechanicsLocator:
+    def __init__(self, page: "_RealSendMechanicsPage", name: str, *, count: int = 1) -> None:
+        self._page = page
+        self._name = name
+        self._count = count
+
+    def count(self) -> int:
+        return self._count
+
+    @property
+    def first(self):
+        return self
+
+    def click(self, **_kwargs) -> None:
+        self._page.events.append(("click", self._name))
+        if self._name == "send":
+            self._page.send_click_count += 1
+
+    def fill(self, text: str, **_kwargs) -> None:
+        self._page.events.append(("fill", text))
+        if self._page.fill_raises:
+            raise PlaywrightError("contenteditable fill failed")
+        self._page.filled_texts.append(text)
+
+    def get_attribute(self, _attr: str) -> str | None:
+        return None
+
+
+class _RecordingKeyboard:
+    def __init__(self, page: "_RealSendMechanicsPage") -> None:
+        self._page = page
+
+    def press(self, key: str) -> None:
+        self._page.events.append(("press", key))
+
+    def insert_text(self, text: str) -> None:
+        self._page.events.append(("insert_text", text))
+        if self._page.insert_raises:
+            raise PlaywrightError("insert_text failed")
+
+
+class _RealSendMechanicsPage:
+    def __init__(self, *, send_button_present: bool, fill_raises: bool = False, insert_raises: bool = False) -> None:
+        self.url = "https://chatgpt.com/"
+        self.send_button_present = send_button_present
+        self.fill_raises = fill_raises
+        self.insert_raises = insert_raises
+        self.keyboard = _RecordingKeyboard(self)
+        self.events: list[tuple] = []
+        self.filled_texts: list[str] = []
+        self.send_click_count = 0
+        self.wait_for_selector_calls: list[tuple[str, dict]] = []
+
+    def locator(self, selector: str):
+        if selector == "#composer":
+            return _RealSendMechanicsLocator(self, "composer")
+        if selector == "#send":
+            return _RealSendMechanicsLocator(self, "send", count=1 if self.send_button_present else 0)
+        if selector in {"#not-found", "#login", "#rate-limit"}:
+            return _RealSendMechanicsLocator(self, selector, count=0)
+        raise KeyError(selector)
+
+    def wait_for_selector(self, selector: str, **kwargs) -> None:
+        self.wait_for_selector_calls.append((selector, dict(kwargs)))
+        if selector == "#send" and self.send_button_present:
+            return
+        raise PlaywrightTimeoutError("send button absent")
+
+    def wait_for_load_state(self, *_args, **_kwargs) -> None:
+        self.events.append(("wait_for_load_state",))
+
+
+class _CompletionLocator:
+    def __init__(
+        self,
+        *,
+        count: int = 0,
+        count_fn=None,
+        items: list["_CompletionLocator"] | None = None,
+        children: dict[str, "_CompletionLocator"] | None = None,
+        text_values: list[str] | None = None,
+    ) -> None:
+        self._count = count
+        self._count_fn = count_fn
+        self._items = [] if items is None else items
+        self._children = {} if children is None else children
+        self._text_values = text_values
+        self._text_index = 0
+
+    def count(self) -> int:
+        if self._count_fn is not None:
+            return int(self._count_fn())
+        return self._count
+
+    @property
+    def first(self):
+        return self
+
+    @property
+    def last(self):
+        return self
+
+    def nth(self, index: int):
+        return self._items[index]
+
+    def locator(self, selector: str):
+        return self._children.get(selector, _CompletionLocator(count=0))
+
+    def inner_text(self, **_kwargs) -> str:
+        if not self._text_values:
+            return ""
+        index = min(self._text_index, len(self._text_values) - 1)
+        self._text_index += 1
+        return self._text_values[index]
+
+
+class _CountSequence:
+    def __init__(self, values: list[int]) -> None:
+        self._values = values
+        self._index = 0
+
+    def __call__(self) -> int:
+        index = min(self._index, len(self._values) - 1)
+        self._index += 1
+        return self._values[index]
+
+
+class _CompletionPollingPage:
+    def __init__(self, *, text_values: list[str], streaming_counts: list[int], completion_count: int = 0) -> None:
+        self.url = "https://chatgpt.com/c/unit"
+        self.wait_timeouts: list[int] = []
+        self.latest_assistant = _CompletionLocator(
+            count=1,
+            children={
+                "#complete": _CompletionLocator(count=completion_count),
+                "#streaming": _CompletionLocator(count=0),
+            },
+        )
+        self._locators = {
+            "#not-found": _CompletionLocator(count=0),
+            "#login": _CompletionLocator(count=0),
+            "#rate-limit": _CompletionLocator(count=0),
+            "#assistant": _CompletionLocator(count=1, items=[self.latest_assistant]),
+            "#body": _CompletionLocator(count=1, text_values=text_values),
+            "#complete": _CompletionLocator(count=completion_count),
+            "#streaming": _CompletionLocator(count_fn=_CountSequence(streaming_counts)),
+        }
+
+    def locator(self, selector: str):
+        try:
+            return self._locators[selector]
+        except KeyError as exc:
+            raise AssertionError(f"unexpected selector: {selector}") from exc
+
+    def wait_for_timeout(self, timeout_ms: int) -> None:
+        self.wait_timeouts.append(timeout_ms)
+        time.sleep(timeout_ms / 1000)
+
+
 def _real_unit_session(page) -> BrowserSession:
     session = BrowserSession(channel="real", base_url=REAL_BASE_URL)
     session.selectors = SelectorMap(
@@ -190,6 +352,43 @@ def _real_unit_session(page) -> BrowserSession:
             "login_wall": "#login",
         },
         attributes={"conversation_ref": "data-conversation-ref"},
+    )
+    session.page = page
+    return session
+
+
+def _real_send_mechanics_session(page: _RealSendMechanicsPage) -> BrowserSession:
+    session = BrowserSession(channel="real", base_url=REAL_BASE_URL)
+    session.selectors = SelectorMap(
+        channel="unit",
+        selectors={
+            "composer": "#composer",
+            "send_button": "#send",
+            "conversation_not_found": "#not-found",
+            "login_wall": "#login",
+            "rate_limit_marker": "#rate-limit",
+        },
+        attributes={},
+    )
+    session.page = page
+    return session
+
+
+def _real_completion_session(page: _CompletionPollingPage) -> BrowserSession:
+    session = BrowserSession(channel="real", base_url=REAL_BASE_URL)
+    session.selectors = SelectorMap(
+        channel="unit",
+        selectors={
+            "conversation_not_found": "#not-found",
+            "login_wall": "#login",
+            "rate_limit_marker": "#rate-limit",
+            "truncation_marker": "",
+            "assistant_message": "#assistant",
+            "message_body": "#body",
+            "completion_marker": "#complete",
+            "streaming_marker": "#streaming",
+        },
+        attributes={},
     )
     session.page = page
     return session
@@ -303,6 +502,7 @@ def test_open_existing_conversation_waits_for_delayed_real_ready_root_before_req
     assert session.open_or_create_conversation("existing-delayed-ref") == "existing-delayed-ref"
 
     assert page.goto_calls == ["https://chatgpt.com/c/existing-delayed-ref"]
+    assert page.goto_call_kwargs == [{"wait_until": "load", "timeout": 60_000}]
     assert page.wait_for_selector_calls == [
         ("#ready", {"timeout": 30_000, "state": "attached"}),
     ]
@@ -354,6 +554,76 @@ def test_send_prompt_fills_composer_before_waiting_for_send_button_after_fill():
     assert page.wait_for_selector_calls == [("#send", {"timeout": 5_000, "state": "attached"}, True)]
     assert page.send_click_count == 1
     assert page.load_wait_count == 1
+
+
+def test_real_send_prompt_focuses_before_fill_and_enters_when_send_button_absent():
+    page = _RealSendMechanicsPage(send_button_present=False)
+    session = _real_send_mechanics_session(page)
+
+    session.send_prompt("hello real")
+
+    assert page.events[:2] == [("click", "composer"), ("fill", "hello real")]
+    assert ("press", "Enter") in page.events
+    assert ("click", "send") not in page.events
+    assert page.send_click_count == 0
+
+
+def test_real_send_prompt_clicks_send_button_when_it_is_present():
+    page = _RealSendMechanicsPage(send_button_present=True)
+    session = _real_send_mechanics_session(page)
+
+    session.send_prompt("hello click")
+
+    assert page.events[:2] == [("click", "composer"), ("fill", "hello click")]
+    assert ("click", "send") in page.events
+    assert ("press", "Enter") not in page.events
+    assert page.send_click_count == 1
+
+
+def test_real_send_prompt_uses_keyboard_insert_text_when_contenteditable_fill_fails():
+    page = _RealSendMechanicsPage(send_button_present=False, fill_raises=True)
+    session = _real_send_mechanics_session(page)
+
+    session.send_prompt("fallback text")
+
+    assert page.events[:4] == [
+        ("click", "composer"),
+        ("fill", "fallback text"),
+        ("press", "Control+A"),
+        ("insert_text", "fallback text"),
+    ]
+    assert ("press", "Enter") in page.events
+
+
+def test_real_send_prompt_maps_hard_fill_and_insert_failure_to_selector_error():
+    page = _RealSendMechanicsPage(send_button_present=False, fill_raises=True, insert_raises=True)
+    session = _real_send_mechanics_session(page)
+
+    with pytest.raises(SelectorUnavailableError, match="selector 'composer' unavailable"):
+        session.send_prompt("no fill")
+
+    assert ("press", "Enter") not in page.events
+
+
+def test_real_wait_for_completion_returns_after_stop_gone_and_body_text_stable(monkeypatch):
+    monkeypatch.setattr("ask_chatgpt.driver._REAL_COMPLETION_STABLE_S", 0.01)
+    monkeypatch.setattr("ask_chatgpt.driver._POLL_INTERVAL_S", 0.01)
+    page = _CompletionPollingPage(text_values=["stable answer", "stable answer", "stable answer"], streaming_counts=[1, 0, 0, 0])
+    session = _real_completion_session(page)
+
+    assert session.wait_for_completion(timeout_s=1.0) is page.latest_assistant
+    assert page.wait_timeouts
+
+
+def test_real_wait_for_completion_times_out_when_body_text_never_stabilizes(monkeypatch):
+    monkeypatch.setattr("ask_chatgpt.driver._REAL_COMPLETION_STABLE_S", 0.01)
+    monkeypatch.setattr("ask_chatgpt.driver._POLL_INTERVAL_S", 0.005)
+    changing_text = [f"partial {index}" for index in range(100)]
+    page = _CompletionPollingPage(text_values=changing_text, streaming_counts=[0])
+    session = _real_completion_session(page)
+
+    with pytest.raises(ResponseTruncatedError, match="completion marker did not appear before timeout"):
+        session.wait_for_completion(timeout_s=0.05)
 
 
 def test_selector_map_missing_and_empty_keys_fail_closed(tmp_path):
