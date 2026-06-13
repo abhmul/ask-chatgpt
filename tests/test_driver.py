@@ -534,6 +534,15 @@ class _PrematureGlobalMarkerState(_MicroPauseCompletionState):
         return super().selector_count(selector)
 
 
+class _GlobalOnlyMarkerCompletionState(_MicroPauseCompletionState):
+    sentinel = "__TURN_COMPLETE_M008B_GLOBAL_ONLY_MARKER__"
+
+    def selector_count(self, selector: str) -> int:
+        if selector == "#complete":
+            return 0
+        return super().selector_count(selector)
+
+
 class _ImmediateAffordanceCompletionState(_MicroPauseCompletionState):
     sentinel = "__TURN_COMPLETE_M008A_AFFORDANCE__"
 
@@ -930,6 +939,20 @@ def test_real_wait_for_completion_does_not_return_prematurely_when_global_marker
     assert returned_text == state.complete_text, (
         f"returned premature partial at t={clock.now:.1f}s length={len(returned_text)} text={returned_text!r}"
     )
+    assert state.sentinel in returned_text
+
+
+def test_real_wait_for_completion_completes_when_marker_is_global_only_not_in_turn(monkeypatch):
+    clock = _ScriptedClock()
+    page = _ScriptedCompletionPage(clock)
+    state = _GlobalOnlyMarkerCompletionState(clock)
+    session = _scripted_real_completion_session(monkeypatch, state, page)
+
+    latest = session.wait_for_completion(timeout_s=30.0, max_total_wait_s=60.0)
+    returned_text = latest.inner_text()
+
+    assert state.selector_count("#complete") == 0
+    assert returned_text == state.complete_text
     assert state.sentinel in returned_text
 
 

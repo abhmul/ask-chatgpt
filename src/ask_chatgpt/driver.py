@@ -378,10 +378,15 @@ class BrowserSession:
                         not_streaming_since = None
                     elif not_streaming_since is None:
                         not_streaming_since = now
+                    # completion_marker (copy-turn-action button) lives OUTSIDE the assistant turn element on the real DOM (verified M-008b), so the global presence check is required; premature completion is prevented by streaming_seen + sustained stop-absence + text stability, NOT by scoping.
+                    completion_visible = completion_present_on_latest or self._present("completion_marker")
                     completion_affordance_selector = self._optional_selector("completion_affordance")
-                    completion_visible = completion_present_on_latest
                     if completion_affordance_selector is not None:
-                        completion_visible = completion_visible or latest_assistant.locator(completion_affordance_selector).count() > 0
+                        completion_visible = (
+                            completion_visible
+                            or latest_assistant.locator(completion_affordance_selector).count() > 0
+                            or self._present("completion_affordance")
+                        )
                     if (
                         streaming_seen
                         and not streaming_visible
