@@ -1,0 +1,11 @@
+=== M-008a authoritative pytest run ===
+date(host): 2026-06-13T10:45:44-05:00
+head: 05d67e8
+ASK_CHATGPT_REAL=[<unset>]
+ASK_CHATGPT_STATE_DIR=[<unset>]
+=== uv run pytest -q ===
+warning: `VIRTUAL_ENV=/home/abhmul/.local/share/agent-python/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead
+........................................................................ [ 34%]
+........................................................................ [ 69%]
+..............................................................           [100%]
+206 passed, 1 deselected in 67.92s (0:01:07)
