@@ -22,7 +22,7 @@ No-run/no-network confirmation:
 - Did NOT touch `127.0.0.1:9222`, browser CDP, or network endpoints.
 - `git status --short src tests` produced no output; no `src/` or `tests/` files changed.
 
-Commit sha: e95d6fcec7c8be9c819a0556ef76cafd07026e60
+Commit sha: 22feeca8d91dadd5dc44553427ecdfed56686110
 
 ESTIMATE: 90m
 ACTUAL: 80m
