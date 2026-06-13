@@ -181,3 +181,22 @@ Real-site proof over **CDP attach** to the operator's signed-in Chromium (prefli
 No stealth (grep clean in `src/`); CDP attach-only + detach-not-quit (only owned-tab `close()`); login never automated; challenge/logout fail-closed; **no leakage** (no unredacted `/c/<id>`, credentials, cookies, tokens, or signed URLs in artifacts); **tier purity** preserved (`real_site`+`ASK_CHATGPT_REAL=1` double-gate; default `uv run pytest` = 209 passed / 4 deselected / **0 real_site**). Human-paced, audited, no message cap; never pushed.
 
 VERDICT: **PASS** — UC1 truncation and falsifiable (memory-immune) continuity are real-PROVEN over CDP; UC2 real-file CAPTURE is real-PROVEN (structural changed-files-only); cross-process registry recall was observed but not durably artifacted; both M-008a completion concerns resolved. Scoped follow-ups: durable cross-process artifact + full UC2 real apply+diff (+ content-correctness). An independent adversarial verifier (orchestration/reports/M-008b/T6-adversarial-verify.md) returned CONFIRM-WITH-CAVEATS; the caveats are incorporated as the precise scope above.
+
+---
+
+# M-008b INDEPENDENT GATE (2026-06-13, team-lead non-producer panel) — PASS; WORKSTREAM A COMPLETE
+
+The team lead ran an independent N=3 read-only panel (distinct from the manager's producer-side T6) over the committed artifacts at head `a48c3f6`, plus a personal read of the completion fix (`driver.py:wait_for_completion`). All three lenses PASS:
+
+- **Real evidence (artifact-checked):** UC1 truncation artifact = 180 strictly-ordered lines + the markdown-inert `ELICIT-COMPLETE-SENTINEL` + 7296 bytes + `strict_exact_match` (the exact-equality classifier hard-FAILS on any clip). Continuity: exact 44-char nonce recalled 3/3 with a provably nonce-free recall prompt; control returns `unknown`; memory-immune Temporary Chats. UC2: a real Playwright Download event captured a valid 146-byte zip with one top-level `example.txt` (structural changed-files-only).
+- **Falsifiability + honesty:** the normal-chat cross-chat-Memory leak was DISCLOSED as an honest negative and neutralized — the differential (same account/Memory, a fresh Temp Chat does NOT recall) proves recall came from conversation history, not Memory; not circular. The written verdict is properly scoped (no clean "UC2 real round-trip PASS" overclaim; gaps stated).
+- **Completion fix + safety:** correct-by-construction against the premature short-clip — the only real/cdp success return is gated on `streaming_seen AND not streaming_visible AND completion_visible AND stop-absent ≥3s AND text-stable ≥3s`; a missed stop button fails CLOSED (never returns partial). `_REAL_COMPLETION_CEILING_S=600` bounds total wait and fails closed; dead `_REAL_COMPLETION_STABLE_S` removed; no regression (209 passed/4 deselected); no stealth, no leakage, CDP detach-not-quit, login never automated, tier double-gate intact.
+
+GATE: **PASSED.** Workstream A (M-008a prompt fixes + M-008b real verification) is COMPLETE and honestly verified; the retracted M-006/M-007 real claims are replaced.
+
+**Disclosed residual follow-ups (non-blocking):**
+1. UC2 real apply+diff + content-correctness (red→blue) not run on the real bytes (capture proven only) — populate `real.json:download_artifact` (verified selector recorded) + run real apply.
+2. Cross-process registry recall observed but not durably artifacted (re-run saving subprocess stdout).
+3. Completion FAIL-CLOSED liveness edge: a genuinely-complete FAST short response whose stop-button lifetime is < one 0.1s poll spuriously raises `ResponseTruncatedError`; real-validated only 3/3 on short recalls — widen the short-response sample / consider faster early polling. (Safe, not a clip.)
+4. Code-interpreter-turn completion intermittently times out (1/2 capture runs).
+5. Account cross-chat Memory is ON — a clean normal-chat continuity control needs Memory disabled (optional, operator).
