@@ -1,8 +1,17 @@
 # Backlog — ask-chatgpt (future work)
 
-The core directive (M-001..M-007) is complete: all three README use cases are mock- and real-proven. These are operator-flagged enhancements, not yet scheduled.
+The core directive (M-001..M-007) is mock-proven (198 tests); some real-site claims were RETRACTED 2026-06-13 (see `VERIFICATION.md` CORRECTION + `orchestration/NEXT-SESSION-compacted.md`). Next session picks up A (prompt fixes + corrected real-site verification M-008) and B-1 (add-ons).
 
-## B-1 — General ChatGPT add-on / tools support (operator, 2026-06-13)
+## A — Corrected real-site verification (M-008) — PRIORITY (operator, 2026-06-13)
+
+Root cause of the bad real-site results was prompt design, not the site:
+- **"Downloads don't work" was circular.** The patch-bundle prompt asked for a base64url TEXT blob → GPT returned text → no download affordance (there's no file to download). FIX: rewrite the prompt to ask ChatGPT to return changed files as a **downloadable ZIP FILE** (no base64 in the primary path; base64 = fallback). Then capture the real file via Playwright.
+- **Continuity test was circular** (recall prompt contained the answer) → redo falsifiable: nonce in turn 1 only; turn 2 asks with it absent; fresh-conversation control must FAIL; cross-process CLI variant.
+- **Response truncation:** a short nonce came back clipped — test that `->text` returns long responses COMPLETE (affects UC1 core); fix the reader if it clips.
+- Adversarially review EVERY GPT-facing prompt. Full plan in `orchestration/NEXT-SESSION-compacted.md` Workstream A.
+
+
+## B-1 — General ChatGPT add-on / tools support (operator, 2026-06-13) — SCHEDULED for next session
 
 Support ChatGPT's add-ons/tools (Deep Research, and others) via **ONE general, extensible mechanism — not a Deep-Research-specific feature.** Deep Research is the first consumer; the abstraction is "select a ChatGPT tool/mode, run it, then read its possibly-differently-formatted, possibly-long-running, possibly-multi-phase output." Operator rationale: a general tool interface is cleaner and more robust than N special cases — do not over-engineer for Deep Research.
 
@@ -18,7 +27,7 @@ Design notes when scoped:
 
 ## B-3 — Real UC2 matrix breadth
 
-Real UC2 is proven for the **modified-single-file** round-trip; **added/deleted/multi-file are mock-proven only.** Extend to real if desired (the README obligation is already satisfied).
+Real UC2 **content** is proven only for the **modified-single-file** round-trip via base64 (now superseded — see A: re-prove via a real downloadable file). Added/deleted/multi-file are mock-proven only. Extend to real after A lands.
 
 ## B-4 — Launcher singleton guard (apparatus)
 

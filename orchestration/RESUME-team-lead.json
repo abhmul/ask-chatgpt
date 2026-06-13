@@ -1,6 +1,6 @@
 {
   "handoff_type": "team-lead-resume",
-  "as_of": "2026-06-13 ~01:08 — DIRECTIVE COMPLETE (M-001..M-007); team idle awaiting operator git push",
+  "as_of": "2026-06-13 — REAL-SITE CLAIMS PARTIALLY RETRACTED; handing off to a compacted session. READ orchestration/NEXT-SESSION-compacted.md FIRST (authoritative pickup). Mock half intact (198 tests); real continuity+bundle need corrected tests because the GPT-facing prompts were flawed (base64 directive killed the download path; recall prompt gave the answer). Next: fix prompts + M-008 corrected verification + B-1 add-ons (Deep Research).",
   "team": "ask-chatgpt",
   "branch": "main",
   "note": "Resume protocol: read THIS, then orchestration/team.json, orchestration/state/lead.state.json (DIRECTIVE_STATUS COMPLETE + apparatus_lessons), VERIFICATION.md (VERDICT PASS), docs/DECISIONS.md (D-001, D-002). Re-verify from ground truth: git log; tmux ls (expect none); uv run pytest -q (expect 198 passed / 1 deselected); mesh inbox.",
