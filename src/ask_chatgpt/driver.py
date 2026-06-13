@@ -39,6 +39,7 @@ from ask_chatgpt.selector_map import SelectorMap, load_selector_map
 REAL_BASE_URL = "https://chatgpt.com"
 _DEFAULT_CDP_ENDPOINT = "http://127.0.0.1:9222"
 _DEFAULT_NAVIGATION_TIMEOUT_MS = 5_000
+_READY_ROOT_TIMEOUT_MS = 30_000
 _POLL_INTERVAL_S = 0.1
 _REAL_REQUIRED_SELECTOR_KEYS = (
     "ready_root",
@@ -191,17 +192,20 @@ class BrowserSession:
             if response is not None and response.status == 404:
                 raise SessionNotFoundError("conversation-not-found response while opening stored conversation")
             self._raise_open_failures()
+            self._wait_for_ready_root()
             self._require_present("ready_root")
             self._require_present("composer")
             self._active_conversation_ref = self._read_active_conversation_ref()
             return self._active_conversation_ref
 
         self._raise_open_failures()
+        self._wait_for_ready_root()
         self._require_present("ready_root")
         self._require_present("composer")
         self._require_present("new_chat_button").click(timeout=_DEFAULT_NAVIGATION_TIMEOUT_MS)
         self._wait_for_load_state()
         self._raise_open_failures()
+        self._wait_for_ready_root()
         self._require_present("ready_root")
         self._require_present("composer")
         self._active_conversation_ref = self._try_read_active_conversation_ref() or ""
@@ -247,12 +251,20 @@ class BrowserSession:
 
         self._raise_open_failures()
         composer = self._require_present("composer")
-        send_button = self._require_present("send_button")
         try:
             composer.fill(text, timeout=_DEFAULT_NAVIGATION_TIMEOUT_MS)
-            send_button.click(timeout=_DEFAULT_NAVIGATION_TIMEOUT_MS)
         except PlaywrightError as exc:
             raise SelectorUnavailableError(f"selector 'composer' unavailable for channel '{self.channel}'") from exc
+
+        send_button_selector = self.selectors.selector("send_button")
+        try:
+            self._require_page().wait_for_selector(
+                send_button_selector, timeout=_DEFAULT_NAVIGATION_TIMEOUT_MS, state="attached"
+            )
+            send_button = self._require_present("send_button")
+            send_button.click(timeout=_DEFAULT_NAVIGATION_TIMEOUT_MS)
+        except PlaywrightError as exc:
+            raise SelectorUnavailableError(f"selector 'send_button' unavailable for channel '{self.channel}'") from exc
         self._wait_for_load_state(ignore_timeout=True)
         if self._rate_limit_visible():
             raise self._rate_limited_error()
@@ -474,6 +486,25 @@ class BrowserSession:
             raise SelectorUnavailableError(f"selector '{key}' unavailable for channel '{self.channel}'")
         return locator.first
 
+    def _wait_for_ready_root(self, *, timeout_ms: int = _READY_ROOT_TIMEOUT_MS) -> None:
+        if self.channel not in {"real", "cdp"}:
+            return
+        page = self._require_page()
+        selector = self.selectors.selector("ready_root")
+        try:
+            page.wait_for_selector(selector, timeout=timeout_ms, state="attached")
+        except PlaywrightTimeoutError as exc:
+            title = _page_title_for_error(page)
+            path_shape = _url_path_shape(page.url)
+            raise SelectorUnavailableError(
+                "ChatGPT app did not become ready: selector 'ready_root' did not attach "
+                f"within {timeout_ms} ms for channel '{self.channel}' "
+                f"(title={title!r}, path_shape={path_shape!r}). Operator action: wait for SPA hydration, "
+                "resolve any login/challenge UI, or update the ready_root selector map."
+            ) from exc
+        except PlaywrightError as exc:
+            raise SelectorUnavailableError(f"selector 'ready_root' unavailable for channel '{self.channel}'") from exc
+
     def _raise_open_failures(self) -> None:
         if self._present("conversation_not_found"):
             raise SessionNotFoundError("conversation-not-found marker visible")
@@ -543,6 +574,29 @@ class BrowserSession:
         except PlaywrightTimeoutError:
             if not ignore_timeout:
                 raise AskChatGPTError("Browser load did not finish before timeout. Operator action: inspect the UI and retry.") from None
+
+
+def _page_title_for_error(page: Page) -> str:
+    try:
+        title = " ".join(page.title().split())
+    except PlaywrightError:
+        return "<unavailable>"
+    if not title:
+        return "<empty>"
+    if len(title) > 120:
+        return title[:117] + "..."
+    return title
+
+
+def _url_path_shape(url: str) -> str:
+    segments = [segment for segment in urlparse(str(url)).path.split("/") if segment]
+    if not segments:
+        return "/"
+    public_route_segments = {"api", "auth", "backend-api", "c", "g", "gpts", "login", "share"}
+    shaped = [segment.lower() if segment.lower() in public_route_segments else "<segment>" for segment in segments[:5]]
+    if len(segments) > 5:
+        shaped.append("...")
+    return "/" + "/".join(shaped)
 
 
 def _is_profile_lock_launch_error(exc: BaseException) -> bool:
