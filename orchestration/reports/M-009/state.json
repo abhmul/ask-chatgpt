@@ -1,27 +1,18 @@
 {
   "mission": "M-009",
   "objective": "Harden ask-chatgpt for agent use: real UC2 closeout + real model-selection + short-response completion edge + consumer usage guide. REAL SITE over CDP.",
-  "constraints": [
-    "CDP attach ONLY (preflight passed); never launch a browser",
-    "No stealth; login never automated; challenge/logout -> STOP HUMAN-ACTION-NEEDED, poll read-only ~10min",
-    "Own tabs only; close()=detach never quit",
-    "Human-paced, no message cap, no spam; per-message audit log; redact /c/<id>; never log creds/cookies/tokens",
-    "Default tier mock-only; uv sync --all-groups; RED-first behavior changes; keep 209 mock tests green",
-    "Single pi editor for package-source edits; manager authors probe scripts + reports; NEVER git push"
-  ],
+  "status": "DONE — GATE: AWAITING-TEAM-LEAD-SPOTCHECK",
   "queue": [
-    {"id": "T1", "title": "Real UC2 round-trip closeout", "status": "in_progress", "blocker": "production download path is mock-shaped (requires data-* integrity metadata real <button> lacks); needs opaque-real mode OR honest fail"},
-    {"id": "T2", "title": "Short-response completion edge", "status": "pending", "note": "M-008b shows stop-button visible ~7s; edge likely theoretical; probe via production path; fix RED-first only if it bites"},
-    {"id": "T3", "title": "Real model-selection wiring", "status": "pending", "note": "model_menu/model_option empty -> fail-closed; need CDP discovery + populate + prove via UI state"},
-    {"id": "T4", "title": "docs/USAGE.md consumer guide", "status": "pending", "note": "offline; AFTER T1-T3; reflect real-proven state; no overclaim"},
-    {"id": "T5", "title": "Verify + handoff", "status": "pending", "note": "honest verify.md; handoff GATE AWAITING-TEAM-LEAD-SPOTCHECK"}
+    {"id": "T1", "title": "Real UC2 round-trip closeout", "status": "done", "result": "real-PROVEN PASS (opaque-real download mode + keystone completion fix); content_correct red->blue; commits e386bc4,eb26c9a"},
+    {"id": "T2", "title": "Short-response completion edge", "status": "done", "result": "fixed RED-first + real 4/4, 0 spurious truncations; commit eb26c9a"},
+    {"id": "T3", "title": "Real model-selection wiring", "status": "done", "result": "honest FAIL-CLOSED — picker not mappable in current UI; explicit model request raises SelectorUnavailableError before send; documented; commit 7ac9304"},
+    {"id": "T4", "title": "docs/USAGE.md consumer guide", "status": "done", "result": "written + independently overclaim-checked (1 concern fixed); commit c3947d9"},
+    {"id": "T5", "title": "Verify + handoff", "status": "done", "result": "verify.md + MISSION-009-handoff.json + audit log; GATE AWAITING-TEAM-LEAD-SPOTCHECK"}
   ],
-  "artifacts": {
-    "discovery.md": "produced (manager); trust: ground-truth from source read",
-    "real-audit-log.md": "pending (per-message, redacted)",
-    "verify.md": "pending",
-    "MISSION-009-handoff.json": "pending"
-  },
+  "suite": "212 passed, 4 deselected (manager + independent pi re-run)",
   "blockers": [],
-  "cdp_preflight": "PASS Chrome/149.0.7827.53 @ 127.0.0.1:9222"
+  "cdp_preflight": "PASS Chrome/149.0.7827.53 @ 127.0.0.1:9222",
+  "cdp_unreachable": false,
+  "human_action_needed": false,
+  "git_pushed": false
 }

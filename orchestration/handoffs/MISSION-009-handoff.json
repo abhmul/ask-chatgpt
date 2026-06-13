@@ -1,0 +1,74 @@
+{
+  "mission": "M-009",
+  "title": "Harden ask-chatgpt for agent use: real UC2 closeout + real model-selection + short-response completion + consumer usage guide (REAL SITE over CDP)",
+  "manager": "headless Opus under claude-orchestrator-watch",
+  "status": "DONE",
+  "end_timestamp": "2026-06-13T16:52:18-05:00",
+  "cdp_preflight": "PASS (127.0.0.1:9222, Chrome/149; attach-only, never launched)",
+  "cdp_unreachable": false,
+  "human_action_needed": false,
+  "git_pushed": false,
+  "gate": "AWAITING-TEAM-LEAD-SPOTCHECK",
+  "per_item": {
+    "T1_real_uc2_roundtrip": {
+      "status": "real-PROVEN (PASS)",
+      "evidence": "orchestration/reports/M-009/T1-uc2-roundtrip.json: shipped config (download_selector_injected=null), retrieve_outcome=retrieved, bundle_source=download, 161B, content_correct=true (favorite_color red->blue, sibling favorite_food unchanged). Closes M-008b follow-up #1.",
+      "production_fixes": [
+        "keystone never-saw-streaming completion (driver.py) — fixes the retrieve double-wait truncation; commit eb26c9a",
+        "opaque-real download mode (patch.py) + real.json download_artifact populated; commit e386bc4"
+      ],
+      "trust": "verified-independently (manager re-derived from artifacts + real probe; opaque test + suite green)"
+    },
+    "T2_short_response_completion": {
+      "status": "fixed RED-first + real-confirmed (PASS)",
+      "evidence": "T2-short-response.json: 4/4 returned (PING/hi/7/OK), spurious_truncations=[]; +2 new unit tests; guard tests (_MicroPauseCompletionState,_PrematureGlobalMarkerState) stay green. Addresses M-008b follow-up #3.",
+      "trust": "verified-independently (manager re-ran full suite 212/4; RED proven first)"
+    },
+    "T3_real_model_selection": {
+      "status": "honest FAIL-CLOSED (partial, documented)",
+      "evidence": "T3-model-findings.md: current ChatGPT UI exposes no targetable model switcher (full 37-testid inventory; only non-clickable <span>ChatGPT</span> + reasoning-effort control). model_menu/model_option stay EMPTY (no real.json change). VERIFIED: explicit model request over real CDP raises SelectorUnavailableError BEFORE send (never silently wrong-model). Default no-model path works. Commit 7ac9304.",
+      "trust": "verified (manager real probe + read-only enumeration)"
+    },
+    "T4_usage_guide": {
+      "status": "written + independently overclaim-checked (PASS after one fix)",
+      "evidence": "docs/USAGE.md; independent pi verifier T5-usage-overclaim-verify.md (8 dimensions, 7 OK + 1 concern FIXED: error-table exit-code wording). No residual overclaim.",
+      "trust": "verified-independently (non-producer pi verifier)"
+    },
+    "T5_verify_handoff": {
+      "status": "DONE",
+      "evidence": "orchestration/reports/M-009/verify.md + this handoff + real-audit-log.md (clean, redacted)."
+    }
+  },
+  "commits": {
+    "T2_keystone": "eb26c9a",
+    "T1_opaque_download": "e386bc4",
+    "T3_model_failclosed": "7ac9304",
+    "T4_T5_docs_verify": "c3947d9"
+  },
+  "suite": "uv run pytest -q => 212 passed, 4 deselected (manager + independent pi re-run); baseline 209 +2 never-saw-streaming +1 opaque-UC2; fail-closed test updated in place",
+  "conformance": "no stealth; CDP attach-only + detach-not-quit; login never automated; tier purity (real_site + ASK_CHATGPT_REAL=1 double-gate, 0 real_site in default run); no leakage (account identifier scrubbed mid-run, leaked report deleted, probe hardened; final grep clean); human-paced, audited, no message cap; never pushed",
+  "key_artifacts": [
+    "orchestration/reports/M-009/discovery.md",
+    "orchestration/reports/M-009/verify.md",
+    "orchestration/reports/M-009/T1-uc2-roundtrip.json",
+    "orchestration/reports/M-009/T2-short-response.json",
+    "orchestration/reports/M-009/T3-model-findings.md",
+    "orchestration/reports/M-009/T5-usage-overclaim-verify.md",
+    "orchestration/reports/M-009/real-audit-log.md",
+    "docs/USAGE.md",
+    "scripts/m009_real_probe.py"
+  ],
+  "recommended_next_missions": [
+    "Real model selection (T3 follow-up): revisit when the model switcher is reachable; capture trigger + per-model option selectors over CDP; select_model must OPEN the render-on-open dropdown BEFORE enumerating model_option (today it enumerates before menu.click, which fits the mock <select> not a real Radix menu).",
+    "Deep Research / general ChatGPT add-ons (deferred per contract).",
+    "Optional: harden code-interpreter-turn completion (M-008b follow-up #4); durable cross-process registry stdout artifact (M-008b follow-up #2)."
+  ],
+  "telemetry": {
+    "mission_estimate_minutes": 135,
+    "mission_actual_minutes_approx": 75,
+    "note": "pi worker ESTIMATE/ACTUAL lines are in their per-task reports (T2-keystone, T1-opaque, T5-verify); real timestamps used throughout (date -Iseconds / audit ISO)."
+  },
+  "paradigm_signals": [
+    "Three production paths were mock-shaped vs the real DOM: (1) wait_for_completion double-wait needed streaming_seen relaxation; (2) download scan required integrity metadata the real bare button lacks; (3) select_model enumerates options before opening the menu. Pattern: mock fixtures encode a self-describing/always-in-DOM shape the real ChatGPT surface does not provide — treat each mock-proven real path as unproven until a real CDP probe exercises the PRODUCTION code, not a bespoke probe."
+  ]
+}
