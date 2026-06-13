@@ -12,6 +12,7 @@ from ask_chatgpt.bundle import (
     ASK_CHATGPT_BUNDLE_README,
     UploadBundleCaps,
     build_bundle,
+    generate_catalogue_readme,
     generate_prompt_instructions,
     upload_bundle,
 )
@@ -42,6 +43,26 @@ def _make_project(root):
 def _zip_names(bundle):
     with zipfile.ZipFile(BytesIO(bundle.content)) as archive:
         return archive.namelist()
+
+
+_FORBIDDEN_MODEL_FALLBACK_TERMS = (
+    "base64",
+    "base64url",
+    "begin_patch_bundle",
+    "end_patch_bundle",
+    "fenced",
+    "marker block",
+    "5-line block",
+    "paste",
+)
+
+
+def _assert_model_text_requests_downloadable_zip_without_fallback_terms(text: str) -> None:
+    lowered = text.lower()
+    for term in _FORBIDDEN_MODEL_FALLBACK_TERMS:
+        assert term not in lowered
+    assert "downloadable `.zip` file" in text
+    assert "download link" in lowered
 
 
 class _FakeUploadLocator:
@@ -124,11 +145,13 @@ def test_catalogue_readme_contains_required_protocol_content_and_is_deterministi
     assert "Never use absolute paths, drive letters, leading `/`, backslashes, empty path segments, or `..`" in readme
     assert f"| `src/alpha.py` | `src/alpha.py` | text | {len(src_bytes)} | `{hashlib.sha256(src_bytes).hexdigest()}` |" in readme
     assert f"| `docs/guide.md` | `docs/guide.md` | text | {len(docs_bytes)} | `{hashlib.sha256(docs_bytes).hexdigest()}` |" in readme
-    assert "Return exactly one patch bundle containing only changed/added file payloads" in readme
-    assert "No `manifest.json` is required for added or modified files" in readme
-    assert "single space after each key and no colon" in readme
-    for token in ("BEGIN_PATCH_BUNDLE", "END_PATCH_BUNDLE", "ZIP_BYTE_COUNT", "ZIP_SHA256", "BASE64URL"):
-        assert token in readme
+    assert "Create exactly one actual downloadable `.zip` file" in readme
+    assert "provide the download link to that file" in readme
+    assert "with no wrapping directory" in readme
+    assert "A top-level `manifest.json` is optional for added or modified files" in readme
+    assert '"status": "deleted"' in readme
+    assert "Patch caps: zip < 25 MiB, each file < 5 MiB, and at most 1000 files" in readme
+    _assert_model_text_requests_downloadable_zip_without_fallback_terms(readme)
     assert "MANIFEST_JSON:" not in readme
 
 
@@ -177,21 +200,32 @@ def test_size_type_guard_rejects_oversized_and_disallowed_entries(tmp_path):
         build_bundle(files=["directory-as-file"], root=root)
 
 
-def test_prompt_instructions_text_uses_protocol_tokens():
+def test_model_facing_bundle_outputs_request_downloadable_zip_without_parser_fallback_terms():
+    prompt = generate_prompt_instructions("Refactor the parser.", bundle_filename="bundle.zip")
+    catalogue = generate_catalogue_readme(
+        (),
+        project_root_name="sample-project",
+        bundle_id="bundle-id",
+        created_at_iso8601="2026-06-13T00:00:00Z",
+    )
+
+    for text in (prompt, catalogue):
+        _assert_model_text_requests_downloadable_zip_without_fallback_terms(text)
+
+
+def test_prompt_instructions_text_requests_downloadable_zip():
     text = generate_prompt_instructions("Refactor the parser.", bundle_filename="bundle.zip")
 
     assert "I uploaded a zip project-context bundle named `bundle.zip`" in text
     assert "First read `ASK_CHATGPT_BUNDLE_README.md` inside the zip" in text
     assert "Refactor the parser." in text
     assert "PATCH_BUNDLE_DOWNLOAD_READY" not in text
-    assert "BEGIN_PATCH_BUNDLE" in text
-    assert "ZIP_BYTE_COUNT <decimal byte length of the zip>" in text
-    assert "ZIP_SHA256 <lowercase 64-hex sha256 of the exact zip bytes>" in text
-    assert "BASE64URL <unpadded base64url of the zip bytes" in text
-    assert "END_PATCH_BUNDLE" in text
-    assert "single space after each key and no colon" in text
-    assert "BASE64URL payload on the same line" in text
-    assert "No `manifest.json` is required for added or modified files" in text
+    assert "create exactly one actual downloadable `.zip` file" in text
+    assert "provide the download link to that file" in text
+    assert "The `.zip` must contain only changed or added file payloads" in text
+    assert "A top-level `manifest.json` is optional for added or modified files" in text
+    assert '"status": "deleted"' in text
+    assert "Return exactly one downloadable `.zip` file per response" in text
 
 
 def test_upload_happy_path_records_bundle_metadata(mock_chatgpt, tmp_path):
