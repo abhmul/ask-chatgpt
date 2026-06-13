@@ -13,7 +13,7 @@
     "model_option": "",
     "model_option_disabled": "",
     "assistant_message": "[data-message-author-role=\"assistant\"]",
-    "message_body": "[data-message-author-role=\"assistant\"] .markdown",
+    "message_body": ".markdown",
     "streaming_marker": "button[data-testid=\"stop-button\"]",
     "completion_marker": "button[data-testid=\"copy-turn-action-button\"]",
     "copy_button": "button[data-testid=\"copy-turn-action-button\"]",
