@@ -97,6 +97,15 @@ class BrowserSession:
     def active_conversation_ref(self) -> str | None:
         return self._active_conversation_ref
 
+    def refresh_active_conversation_ref(self) -> str | None:
+        """Refresh the active conversation ref from the current page, if one is readable."""
+
+        ref = self._try_read_active_conversation_ref()
+        if ref:
+            self._active_conversation_ref = ref
+            return ref
+        return None
+
     def __enter__(self) -> BrowserSession:
         return self.start()
 

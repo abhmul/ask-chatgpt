@@ -465,6 +465,45 @@ def test_read_active_conversation_ref_falls_back_to_url_when_attribute_unavailab
     assert session._read_active_conversation_ref() == "url-ref-123"
 
 
+def test_refresh_active_conversation_ref_updates_from_settled_url_after_empty_start():
+    session = BrowserSession(channel="mock", base_url="http://127.0.0.1:9")
+    session.selectors = SelectorMap(
+        channel="unit",
+        selectors={"ready_root": "#ready"},
+        attributes={"conversation_ref": "data-conversation-ref"},
+    )
+    page = _FakePage(
+        url="https://chatgpt.com/",
+        locators={"#ready": _FakeLocator(attributes={})},
+    )
+    session.page = page
+    session._active_conversation_ref = ""
+
+    assert session.active_conversation_ref == ""
+
+    page.url = "https://chatgpt.com/c/settled-ref"
+
+    assert session.refresh_active_conversation_ref() == "settled-ref"
+    assert session.active_conversation_ref == "settled-ref"
+
+
+def test_refresh_active_conversation_ref_fail_closed_when_url_never_settles():
+    session = BrowserSession(channel="mock", base_url="http://127.0.0.1:9")
+    session.selectors = SelectorMap(
+        channel="unit",
+        selectors={"ready_root": "#ready"},
+        attributes={"conversation_ref": "data-conversation-ref"},
+    )
+    session.page = _FakePage(
+        url="https://chatgpt.com/",
+        locators={"#ready": _FakeLocator(attributes={})},
+    )
+    session._active_conversation_ref = ""
+
+    assert session.refresh_active_conversation_ref() is None
+    assert session.active_conversation_ref == ""
+
+
 def test_open_or_create_new_conversation_tolerates_no_ref_until_after_send():
     session = BrowserSession(channel="mock", base_url="http://127.0.0.1:9")
     new_chat = _FakeLocator()

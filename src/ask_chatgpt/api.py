@@ -60,18 +60,20 @@ def ask_chatgpt(
             turn = session.wait_for_completion(timeout_s=timeout_s)
             if session.page is None:
                 raise AskChatGPTError("Browser page is unavailable after completion. Operator action: retry or inspect the browser session.")
+            session.refresh_active_conversation_ref()
             text = read_response(turn, session.page, session.selectors, order=reader_order)
 
             if session_identifier is not None:
                 active_ref = session.active_conversation_ref or active_ref
-                resolved_registry.set(
-                    session_identifier,
-                    ConversationRef(
-                        conversation_ref=active_ref,
-                        url=session.page.url,
-                        model_settings=deepcopy(model_settings),
-                    ),
-                )
+                if active_ref:
+                    resolved_registry.set(
+                        session_identifier,
+                        ConversationRef(
+                            conversation_ref=active_ref,
+                            url=session.page.url,
+                            model_settings=deepcopy(model_settings),
+                        ),
+                    )
             return text
 
     return _ask_chatgpt_with_bundle(
@@ -125,17 +127,19 @@ def _ask_chatgpt_with_bundle(
         text = read_response(turn, session.page, session.selectors, order=reader_sequence)
         retrieved = retrieve_patch_bundle(session, timeout_s=timeout_s, reader_order=reader_sequence)
         patch_bundle = None if retrieved is None else retrieved[1]
+        session.refresh_active_conversation_ref()
 
         if session_identifier is not None:
             active_ref = session.active_conversation_ref or active_ref
-            resolved_registry.set(
-                session_identifier,
-                ConversationRef(
-                    conversation_ref=active_ref,
-                    url=session.page.url,
-                    model_settings=deepcopy(model_settings),
-                ),
-            )
+            if active_ref:
+                resolved_registry.set(
+                    session_identifier,
+                    ConversationRef(
+                        conversation_ref=active_ref,
+                        url=session.page.url,
+                        model_settings=deepcopy(model_settings),
+                    ),
+                )
         return AskChatGPTResult(text=text, patch_bundle=patch_bundle)
 
 
