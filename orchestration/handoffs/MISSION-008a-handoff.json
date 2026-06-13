@@ -1,0 +1,109 @@
+{
+  "mission": "MISSION-008a",
+  "title": "Fix GPT-facing prompts (downloadable .zip; base64 parser-only) + completion/truncation hardening (UC1 core) + falsifiable continuity harness — MOCK-proven, NO real site",
+  "status": "DONE",
+  "gate": "AWAITING-TEAM-LEAD-ADVERSARIAL-VERIFY+SPOTCHECK",
+  "manager": "headless Opus claude -p under claude-orchestrator-watch.sh",
+  "editor": "pi (GPT-5.5) single editor; editing legs serialized",
+  "base_commit": "e254845",
+  "end_timestamp": "2026-06-13T11:04:16-05:00",
+
+  "summary": "All five tasks complete on the mock/build half. The two operator root-cause defects are fixed and proven falsifiable on the mock: (1) the bundle patch-return prompt now asks for one actual downloadable .zip file with ZERO base64 wording (base64 retained as a silent parser-only fallback); (2) the continuity test is non-circular (nonce planted turn-1-only, ABSENT from the recall prompt) with a genuinely-failing fresh-conversation control, plus a cross-process registry-continuity variant. T1 hardened the real/cdp completion path so a mid-stream micro-pause no longer returns a clipped turn (text-stable-alone no longer signals done; completion requires positive affordance evidence; progress-aware timeout). NO real-site contact occurred.",
+
+  "commits_no_push": {
+    "T1": "87a0ee8 — harden real/cdp completion (no text-stable-only return) + progress-aware timeout",
+    "T2": "c71c96a — rewrite bundle prompt+catalogue to ask for a downloadable .zip (base64=parser-only)",
+    "T3": "484cacf — falsifiable continuity harness + truncation-elicitation (mock-proven)",
+    "T4": "05d67e8 — PROMPTS-FOR-REVIEW.md (verbatim prompts + adversarial annotations)",
+    "T5": "f6fe981 — best-of-N verification (3 lenses) over authoritative pytest -> VERDICT PASS",
+    "note": "Never pushed (operator pushes). orchestration/state/lead.state.json carries a pre-existing team-lead modification; intentionally NOT included in any M-008a commit."
+  },
+
+  "authoritative_result": {
+    "command": "uv run pytest -q",
+    "result": "206 passed, 1 deselected in 67.92s",
+    "artifact": "orchestration/reports/M-008a/authoritative-pytest.txt",
+    "baseline_plus_new": "198 baseline + 8 new mission tests = 206",
+    "real_site": "ASK_CHATGPT_REAL unset; 1 deselected is the only real_site sample (tests/test_real_tier_gating.py via pyproject -m 'not real_site'); ZERO real_site collected/executed",
+    "head": "05d67e8 at run time (T5 commit f6fe981 adds only reports)"
+  },
+
+  "what_was_verified": {
+    "method": "Best-of-N over ONE authoritative pytest. Three distinct non-producer lenses run as independent READ-ONLY pi workers (disjoint contracts, none re-ran the heavy suite), corroborated by the manager's own ground-truth analysis (manager did not produce the code/prompts). No claude subagents (launcher omits Agent/Task tool by design).",
+    "lensA_correctness_repro": "PASS — orchestration/reports/M-008a/T5-lensA.md (suite green, new tests non-vacuous with line cites, T1 RED genuine: pre-fix returned clipped 5359-char body missing terminal sentinel, fix removed text_stable path).",
+    "lensB_prompt_quality_falsifiability": "PASS — orchestration/reports/M-008a/T5-lensB.md (re-ran grep -> zero base64 wording in bundle.py; recall prompt has no nonce/prefix/suffix; continuity control byte-identical + conversation-scoped -> genuinely fails; truncation verifier strict). MANDATORY operator-required lens.",
+    "lensC_safety_parser_tier": "PASS — orchestration/reports/M-008a/T5-lensC.md (patch.py unchanged this mission; fenced parser intact; validate-first download path no extractall; zip-slip/validate-before-mutate/dry-run preserved; real.json fail-closed download_artifact:'' and no completion_affordance value invented; socket guard + real_site double-gate intact; no credential/conversation-id/real-nonce leakage).",
+    "manager_corroboration": "Manager independently re-derived: zero base64 in bundle.py (grep), recall prompt nonce-absent, real.json untouched, patch.py untouched, server.py recall mode conversation-scoped+opt-in, and ran targeted tests (T2 guard+download+fenced 3 passed; T3 continuity 3 passed) plus the authoritative full run."
+  },
+
+  "deliverables": {
+    "code": [
+      "src/ask_chatgpt/driver.py (T1 completion hardening)",
+      "src/ask_chatgpt/bundle.py (T2 rewritten model-facing templates)",
+      "docs/bundle-protocol.md (T2 download-primary; base64 documented parser-only)",
+      "tests/test_driver.py (T1 6 real/cdp completion tests)",
+      "tests/test_bundle_out.py (T2 downloadable-zip guard test)",
+      "tests/fixtures/mock_chatgpt/server.py (T3 opt-in recall mode)",
+      "tests/test_continuity_mock.py (T3 continuity + control + cross-process + truncation completeness)"
+    ],
+    "reports": [
+      "orchestration/reports/M-008a/PROMPTS-FOR-REVIEW.md (T4)",
+      "orchestration/reports/M-008a/verify.md (T5 synthesis + VERDICT PASS)",
+      "orchestration/reports/M-008a/T5-lensA.md / T5-lensB.md / T5-lensC.md",
+      "orchestration/reports/M-008a/authoritative-pytest.txt",
+      "orchestration/reports/M-008a/T1-worker-report.md / T2-worker-report.md / T3-worker-report.md"
+    ],
+    "trust": "All artifacts independently verified by the 3-lens panel + manager ground-truth re-derivation. Producer-side gate PASS; awaiting team-lead non-producer panel + spot check."
+  },
+
+  "telemetry": {
+    "ESTIMATE": "150m",
+    "ACTUAL": "~75m wall-clock (derived from host report END timestamps 09:49->11:04; pi minute self-reports are HALLUCINATED and were discarded per known apparatus lesson)",
+    "flag_threshold": "300m (not approached)",
+    "REWORK-CAUSE": {
+      "T1": "none",
+      "T2": "other (worker self-reported a one-line test-assertion casing fix; no functional rework)",
+      "T3": "none",
+      "T5": "none"
+    },
+    "END": "2026-06-13T11:04:16-05:00"
+  },
+
+  "constraints_honored": [
+    "NO real-site contact: ASK_CHATGPT_REAL never set; 127.0.0.1:9222 never touched; real.json never populated.",
+    "Default tier purity: autouse loopback socket guard + real_site double-gate intact; 206 passed / 1 deselected / 0 real_site collected.",
+    "uv sync via project venv; never touched shared agent venv (~/.local/share/agent-python/.venv); the benign VIRTUAL_ENV mismatch warning confirms uv used the project .venv.",
+    "Single editor for shared-tree mutations; editing legs (T1,T2,T3) serialized; verification lenses were read-only.",
+    "RED-first for T1 behavior change (captured RED).",
+    "Committed working slices only; NEVER pushed.",
+    "Every GPT-facing prompt adversarially reviewed (T4 + Lens B)."
+  ],
+
+  "honest_scope_and_non_blocking_notes": [
+    "Mock-only: continuity, truncation, and the download-return prompt are proven on the loopback mock; real behavior is M-008b. Harness helpers are channel-agnostic so M-008b flips channel=cdp without rewriting assertions.",
+    "Bundle prompt presumes a file-tool-capable ChatGPT surface; if the real surface cannot create a downloadable file the honest outcome is DownloadUnsupportedError (the base64 parser tolerance is a silent safety net, not an invited fallback). M-008b must run on a file-capable surface and discover/populate the real download_artifact selector.",
+    "wait_for_completion default timeout changed 10s -> 120s and is now progress-aware (deadline extends while body text grows). Production callers pass their own timeout_s; the 120s default is a safety floor for direct callers. M-008b may consider a hard ceiling for pathological never-completing streams. Non-defect; flagged for awareness.",
+    "Cosmetic: _REAL_COMPLETION_STABLE_S (driver.py:45) is now an orphaned constant (the text-stable logic was removed). Harmless; can be cleaned in a future leg."
+  ],
+
+  "blockers": "none",
+
+  "recommended_next": {
+    "mission": "M-008b (real legs over CDP) — operator waived manual sign-off; on team-lead spot-check pass, dispatch with no operator halt.",
+    "preconditions": "Operator's CDP browser up at 127.0.0.1:9222 (Profile 1, signed into chatgpt.com); preflight before any real leg, stop cleanly (CDP_UNREACHABLE) if down. Use a file-output-capable ChatGPT surface.",
+    "legs": [
+      "Discover + populate real.json download_artifact selector (and optional completion_affordance) from the live UI; keep fail-closed until verified.",
+      "UC2 real round-trip via the DOWNLOAD path (prompt now asks for a downloadable .zip): verify a real download affordance appears and Playwright captures the file; validate+apply+diff-match.",
+      "Real falsifiable continuity: flip tests/test_continuity_mock.py helpers to channel=cdp (plant turn-1 nonce, recall turn-2 with nonce absent, fresh-conversation control must fail, cross-process).",
+      "Real response-truncation: send the truncation-elicitation prompt over cdp; assert the long response returns COMPLETE (all ordered lines + terminal sentinel) — exercises the T1 completion hardening on the real site.",
+      "Re-issue an honest VERIFICATION.md verdict; human-paced, audited, NO message cap."
+    ]
+  },
+
+  "complexity_or_paradigm_signals": [
+    "The download-capture retrieve path (patch.py) and the mock download affordance (server.py) ALREADY EXISTED before this mission. T2's real work was therefore prompt + doc rewrite, not new plumbing — the operator's 'downloads don't work' was a PROMPT-DESIGN problem (circular base64 instruction), confirmed from ground truth. This validates the operator root-cause.",
+    "Genuine continuity testing on a mock required modeling memory: an opt-in, conversation-scoped recall mode that derives turn-2 recall from stored history (mock receives only the token PATTERN, never the nonce). Without it, a control cannot genuinely fail and the test is circular."
+  ],
+
+  "resume_state": "Mission COMPLETE; nothing in-flight. No pi workers running. If reopened, all deliverables exist on disk at the commits above; the gate awaits the team-lead adversarial panel + spot check, then M-008b."
+}
