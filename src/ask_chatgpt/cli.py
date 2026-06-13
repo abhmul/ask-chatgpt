@@ -65,6 +65,7 @@ def main(argv: list[str] | None = None) -> int:
             channel=args.channel,
             base_url=args.base_url,
             profile_path=args.profile_path,
+            cdp_endpoint=args.cdp_endpoint,
             timeout_s=args.timeout,
             files=args.files or None,
             dirs=args.dirs or None,
@@ -108,8 +109,9 @@ def _build_parser() -> argparse.ArgumentParser:
     mode.add_argument("--apply", action="store_true", help="apply a returned patch bundle to --root")
     mode.add_argument("--dry-run", action="store_true", help="validate and summarize a returned patch bundle without writes")
     parser.add_argument("--root", metavar="DIR", type=Path, help="explicit apply root and bundle root for patch modes")
-    parser.add_argument("--channel", choices=("real", "mock"), default="real", help="browser channel; tests use mock with --base-url")
+    parser.add_argument("--channel", choices=("real", "mock", "cdp"), default="real", help="browser channel; tests use mock with --base-url")
     parser.add_argument("--base-url", metavar="URL", help="mock/local base URL")
+    parser.add_argument("--cdp-endpoint", metavar="URL", default="http://127.0.0.1:9222", help="CDP endpoint for channel=cdp")
     parser.add_argument("--profile-path", metavar="PATH", type=Path, help="browser profile path passed through without inspection")
     parser.add_argument("--timeout", metavar="SECONDS", type=float, default=30.0, help="completion timeout in seconds")
     return parser

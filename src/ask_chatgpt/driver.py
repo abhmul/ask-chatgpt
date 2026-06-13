@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 import time
 from typing import Any
-from urllib.parse import quote, urlparse
+from urllib.parse import quote, unquote, urlparse
 
 from playwright.sync_api import (
     Browser,
@@ -212,7 +212,7 @@ class BrowserSession:
         self._raise_open_failures()
         self._require_present("ready_root")
         self._require_present("composer")
-        self._active_conversation_ref = self._read_active_conversation_ref()
+        self._active_conversation_ref = self._try_read_active_conversation_ref() or ""
         return self._active_conversation_ref
 
     def select_model(self, model_settings: dict | None) -> None:
@@ -447,6 +447,12 @@ class BrowserSession:
         ref = str(conversation_ref)
         return f"{self._base_url}/c/{quote(ref, safe='')}"
 
+    def _conversation_ref_from_url(self, url: str) -> str | None:
+        segments = [segment for segment in urlparse(url).path.split("/") if segment]
+        if len(segments) >= 2 and segments[0] == "c" and segments[1]:
+            return unquote(segments[1])
+        return None
+
     def _locator(self, key: str) -> Locator:
         return self._require_page().locator(self.selectors.selector(key))
 
@@ -474,11 +480,18 @@ class BrowserSession:
 
     def _read_active_conversation_ref(self) -> str:
         root = self._require_present("ready_root")
-        attr = self.selectors.attribute("conversation_ref")
-        ref = root.get_attribute(attr)
-        if not ref:
-            raise SessionNotFoundError("active conversation reference attribute is empty")
-        return ref
+        try:
+            attr = self.selectors.attribute("conversation_ref")
+        except SelectorUnavailableError:
+            attr = None
+        if attr:
+            ref = root.get_attribute(attr)
+            if ref:
+                return ref
+        ref = self._conversation_ref_from_url(self._require_page().url)
+        if ref:
+            return ref
+        raise SessionNotFoundError("active conversation reference attribute is empty")
 
     def _try_read_active_conversation_ref(self) -> str | None:
         try:

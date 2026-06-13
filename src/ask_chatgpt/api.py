@@ -35,6 +35,7 @@ def ask_chatgpt(
     channel: str = "real",
     base_url: str | None = None,
     profile_path: str | Path | None = None,
+    cdp_endpoint: str | None = None,
     registry: SessionRegistry | None = None,
     reader_order: Iterable[ResponseReader] | None = None,
     timeout_s: float = 30.0,
@@ -52,7 +53,7 @@ def ask_chatgpt(
         stored_ref = resolved_registry.get(session_identifier) if session_identifier is not None else None
         conversation_ref = stored_ref.conversation_ref if stored_ref is not None else None
 
-        with BrowserSession(channel=channel, base_url=base_url, profile_path=profile_path) as session:
+        with BrowserSession(channel=channel, base_url=base_url, profile_path=profile_path, cdp_endpoint=cdp_endpoint) as session:
             active_ref = session.open_or_create_conversation(conversation_ref)
             session.select_model(model_settings)
             session.send_prompt(str(prompt))
@@ -80,6 +81,7 @@ def ask_chatgpt(
         channel=channel,
         base_url=base_url,
         profile_path=profile_path,
+        cdp_endpoint=cdp_endpoint,
         registry=registry,
         reader_order=reader_order,
         timeout_s=timeout_s,
@@ -97,6 +99,7 @@ def _ask_chatgpt_with_bundle(
     channel: str,
     base_url: str | None,
     profile_path: str | Path | None,
+    cdp_endpoint: str | None,
     registry: SessionRegistry | None,
     reader_order: Iterable[ResponseReader] | None,
     timeout_s: float,
@@ -111,7 +114,7 @@ def _ask_chatgpt_with_bundle(
     stored_ref = resolved_registry.get(session_identifier) if session_identifier is not None else None
     conversation_ref = stored_ref.conversation_ref if stored_ref is not None else None
 
-    with BrowserSession(channel=channel, base_url=base_url, profile_path=profile_path) as session:
+    with BrowserSession(channel=channel, base_url=base_url, profile_path=profile_path, cdp_endpoint=cdp_endpoint) as session:
         active_ref = session.open_or_create_conversation(conversation_ref)
         session.select_model(model_settings)
         upload_bundle(session, bundle, timeout_s=timeout_s)

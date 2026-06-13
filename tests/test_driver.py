@@ -13,10 +13,43 @@ from ask_chatgpt.errors import (
     SelectorUnavailableError,
     SessionNotFoundError,
 )
-from ask_chatgpt.selector_map import load_selector_map
+from ask_chatgpt.selector_map import SelectorMap, load_selector_map
 
 
 EMPTY_REAL_SELECTOR_MAPS_DIR = Path(__file__).parent / "fixtures" / "selector_maps" / "empty"
+
+
+class _FakeLocator:
+    def __init__(self, *, count: int = 1, attributes: dict[str, str | None] | None = None) -> None:
+        self._count = count
+        self._attributes = {} if attributes is None else attributes
+        self.click_count = 0
+
+    def count(self) -> int:
+        return self._count
+
+    @property
+    def first(self):
+        return self
+
+    def click(self, **_kwargs) -> None:
+        self.click_count += 1
+
+    def get_attribute(self, attr: str) -> str | None:
+        return self._attributes.get(attr)
+
+
+class _FakePage:
+    def __init__(self, *, url: str, locators: dict[str, _FakeLocator]) -> None:
+        self.url = url
+        self._locators = locators
+        self.wait_count = 0
+
+    def locator(self, selector: str) -> _FakeLocator:
+        return self._locators[selector]
+
+    def wait_for_load_state(self, *_args, **_kwargs) -> None:
+        self.wait_count += 1
 
 
 def test_driver_happy_path_returns_latest_completed_turn(mock_chatgpt):
@@ -49,6 +82,75 @@ def test_driver_streaming_completion_reload_polls_until_complete(mock_chatgpt):
 
         expect(latest.locator(session.selectors.selector("message_body"))).to_have_text(answer, timeout=1000)
         assert mock_chatgpt.inspect()["conversations"][session.active_conversation_ref]["turns"][-1]["complete"] is True
+
+
+def test_conversation_ref_from_url_derives_c_path_and_decodes():
+    session = BrowserSession(channel="mock", base_url="http://127.0.0.1:9")
+
+    assert session._conversation_ref_from_url("https://chatgpt.com/c/abc123") == "abc123"
+    assert session._conversation_ref_from_url("https://chatgpt.com/") is None
+    assert session._conversation_ref_from_url("http://127.0.0.1:9999/c/loop-ref") == "loop-ref"
+    assert session._conversation_ref_from_url("https://chatgpt.com/c/abc%2Fdef%20x") == "abc/def x"
+
+
+def test_read_active_conversation_ref_prefers_dom_attribute_over_url():
+    session = BrowserSession(channel="mock", base_url="http://127.0.0.1:9")
+    session.selectors = SelectorMap(
+        channel="unit",
+        selectors={"ready_root": "#ready"},
+        attributes={"conversation_ref": "data-conversation-ref"},
+    )
+    session.page = _FakePage(
+        url="https://chatgpt.com/c/url-ref",
+        locators={"#ready": _FakeLocator(attributes={"data-conversation-ref": "dom-ref"})},
+    )
+
+    assert session._read_active_conversation_ref() == "dom-ref"
+
+
+def test_read_active_conversation_ref_falls_back_to_url_when_attribute_unavailable():
+    session = BrowserSession(channel="mock", base_url="http://127.0.0.1:9")
+    session.selectors = SelectorMap(
+        channel="unit",
+        selectors={"ready_root": "#ready"},
+        attributes={"conversation_ref": ""},
+    )
+    session.page = _FakePage(
+        url="https://chatgpt.com/c/url-ref-123",
+        locators={"#ready": _FakeLocator(attributes={})},
+    )
+
+    assert session._read_active_conversation_ref() == "url-ref-123"
+
+
+def test_open_or_create_new_conversation_tolerates_no_ref_until_after_send():
+    session = BrowserSession(channel="mock", base_url="http://127.0.0.1:9")
+    new_chat = _FakeLocator()
+    session.selectors = SelectorMap(
+        channel="unit",
+        selectors={
+            "ready_root": "#ready",
+            "composer": "#composer",
+            "new_chat_button": "#new-chat",
+            "conversation_not_found": "#not-found",
+            "login_wall": "#login",
+        },
+        attributes={"conversation_ref": ""},
+    )
+    session.page = _FakePage(
+        url="https://chatgpt.com/",
+        locators={
+            "#ready": _FakeLocator(),
+            "#composer": _FakeLocator(),
+            "#new-chat": new_chat,
+            "#not-found": _FakeLocator(count=0),
+            "#login": _FakeLocator(count=0),
+        },
+    )
+
+    assert session.open_or_create_conversation(None) == ""
+    assert session.active_conversation_ref == ""
+    assert new_chat.click_count == 1
 
 
 def test_selector_map_missing_and_empty_keys_fail_closed(tmp_path):

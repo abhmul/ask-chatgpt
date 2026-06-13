@@ -1,7 +1,21 @@
+import json
+from pathlib import Path
+
 import pytest
 
 import ask_chatgpt.driver as driver
 from ask_chatgpt.errors import SelectorUnavailableError
+
+
+REAL_SELECTOR_MAP = Path(__file__).resolve().parents[1] / "src" / "ask_chatgpt" / "selector_maps" / "real.json"
+
+
+def test_real_download_artifact_selector_is_fail_closed_to_force_fenced_fallback():
+    payload = json.loads(REAL_SELECTOR_MAP.read_text(encoding="utf-8"))
+
+    assert payload["selectors"]["download_artifact"] == ""
+    assert len(payload["selectors"]) == 20
+    assert len(payload["attributes"]) == 2
 
 
 def test_real_start_fails_closed_before_playwright_start_and_navigation(tmp_path, monkeypatch):

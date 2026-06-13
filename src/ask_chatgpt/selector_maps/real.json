@@ -17,7 +17,7 @@
     "streaming_marker": "button[data-testid=\"stop-button\"]",
     "completion_marker": "button[data-testid=\"copy-turn-action-button\"]",
     "copy_button": "button[data-testid=\"copy-turn-action-button\"]",
-    "download_artifact": "button[aria-label*=\"Download\"]",
+    "download_artifact": "",
     "upload_input": "input[type=\"file\"]",
     "login_wall": "",
     "conversation_not_found": "",
