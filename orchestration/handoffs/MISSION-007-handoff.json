@@ -1,0 +1,39 @@
+{
+  "mission": "M-007",
+  "status": "DONE",
+  "verdict": "PASS",
+  "manager_pid": 387114,
+  "estimate": "ESTIMATE: M-007 120m",
+  "actual": "ACTUAL: M-007 86m",
+  "end_timestamp": "2026-06-13T01:08:49-05:00",
+  "rework_cause": ["spec-gap: T3 real END-marker drift -> commit 9b7fd30 (SHA-anchored tolerance; no fail-open hole)"],
+  "objective": "UC2 bundle round-trip GREEN on real site over CDP (fenced base64url) + mock still green + GAP-15 conversation_ref persistence fixed.",
+  "what_verified": [
+    "Mock suite: fresh uv sync --all-groups; full uv run pytest = 198 passed / 1 deselected / exit 0 (authoritative T4 evidence; independently re-derived by Lens A).",
+    "UC2 REAL (over CDP): UC2_DIFF_OK — tiny bundle out -> GPT canonical fenced base64url bundle (source=fenced, 144-byte zip, matching SHA-256) -> retrieve -> apply -> example.txt red->blue, siblings unchanged (Lens A decoded the payload itself).",
+    "GAP-15 REAL: GAP15_CONTINUITY_OK — same session_identifier resolved the same persisted settled-URL ref (same_ref:true); fail-closed proven (no empty-ref persist).",
+    "Safety (Lens C adversarial): no stealth (independent grep); CDP detach-not-quit + operator-tab/browser preservation tested; login never automated; challenge fail-closed; no credential/identifier/conversation-id leakage (redacted); patch-apply validate-before-mutate PRESERVED under manifest-optional reconstruction (path/type/cap/symlink-parent rejected before write, integrity SHA+bytecount anchored, no extractall, dry-run writes nothing); drift commit 9b7fd30 has NO fail-open hole; socket guard intact; default tier ZERO real_site.",
+    "Spec (Lens B): UC2 obligation met mock+real; fenced base64url is the documented real bundle mechanism (bundle-protocol.md + runbook updated); GAP-15 conforms; tier discipline intact."
+  ],
+  "artifacts": [
+    {"path": "commit 5c26977", "trust": "verified-independently (Lens A/B/C + mock suite)"},
+    {"path": "commit 90e4f86", "trust": "verified-independently"},
+    {"path": "commit 9b7fd30", "trust": "verified-independently (Lens C adversarial: safe, SHA-anchored)"},
+    {"path": "commit 4a68100", "trust": "doc (runbook) — Lens B confirmed alignment"},
+    {"path": "orchestration/reports/M-007/{T0-design.md,T1.md,T2.md,T3.md,T4-evidence.md,verify.md}", "trust": "mission record"},
+    {"path": "VERIFICATION.md (M-007 section)", "trust": "ledger updated: UC2 real-PASS (scoped), GAP-15 fixed"},
+    {"path": "tmp/real-accept-m007-20260613T003803-0500/ + tmp/real-audit-20260613T003803-0500/messages.log + tmp/verify-m007/", "trust": "raw evidence (gitignored, uncommitted)"}
+  ],
+  "blockers": [],
+  "non_blocking_followups": [
+    "Real UC2 coverage scoped to modified-single-file; added/deleted/multi-file proven on mock only -> exercise added/deleted/multi-file on the real site in a follow-up mission.",
+    "END-marker drift (clipped trailing sentinel, intact hash-valid payload) root cause uncharacterized: GPT defect vs completion-timing read-race. Tolerance is safe (SHA+bytecount anchored). Consider a completion-stability characterization/tweak.",
+    "Cosmetic: docs/bundle-protocol.md:100 vs bundle.py:160 BASE64URL wording (same semantics) — one-line tidy."
+  ],
+  "complexity_signals": [
+    "Fenced misalignment was deeper than punctuation (real GPT zip lacked embedded manifest.json) -> manifest-optional reconstruction designed via best-of-N before the single editor; safety anchor moved from trusted manifest to whole-zip SHA-256 + per-member zip-name validation (strictly safer in isolation).",
+    "Mock server settles the conversation URL synchronously so it CANNOT reproduce GAP-15 (false-green risk) -> the RED proof used fake-page/fake-session harnesses, not the mock server.",
+    "Real continuity needed a SHORT nonce (long-nonce seeds errored/truncated; a copy-reader retry hit an unavailable copy-button selector)."
+  ],
+  "resume_state": "MISSION COMPLETE — PASS. All source committed (5c26977, 90e4f86, 9b7fd30, 4a68100) + closeout commit for the orchestration record + VERIFICATION.md. Singleton lock released. Operator action: review + git push (manager never pushes)."
+}

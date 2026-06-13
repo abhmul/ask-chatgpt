@@ -99,3 +99,33 @@ Final mission verdict. The full best-of-N real-site verification ran — T4a/T4b
 NO stealth/anti-detection anywhere (independent grep clean; plain `connect_over_cdp`, no UA/fingerprint spoofing); CDP attach to the operator's signed-in browser; login/logout never automated; Cloudflare/human-verification handled by a challenge-pause (never circumvented); budget 24/30 ledger lines (30 never exceeded; log-before-send conservatism — actual sends ≈11 < ledger); ZERO credential/account-identifier/token/raw-conversation-id leakage in committed artifacts; `tmp/` (may hold local registry refs) gitignored + uncommitted.
 
 VERDICT: PARTIAL — real-site tier ENABLED + independently VERIFIED; **UC1 + UC3 real-PASS** (text + continuity, API and CLI); **UC2 real-PARTIAL but ACHIEVABLE** — a post-T4 characterization corrected the earlier "fenced not viable" hypothesis (ChatGPT DID emit a valid fenced base64-zip bundle with matching SHA-256, and a clean unified diff); UC2's gap is prompt↔parser↔DOM format-alignment, a tractable follow-up, NOT a fundamental limit or defect. tier-purity + CDP-safety + D-002-conformance (no stealth) + mock acceptance (169) all PASS. Recommended follow-ups: (1) bring UC2 to green via fenced-format alignment OR a unified-diff channel; (2) fix GAP-15 registry persistence. NOTE: the "≤30 budget" wording above is superseded by operator correction af09077 (no message cap; rule = human-paced + no programmatic spamming).
+
+---
+
+# M-007 (2026-06-13) — UC2 real-green (fenced-format alignment) + GAP-15 fixed: FINAL — PASS
+
+Supersedes M-006's UC2 real-PARTIAL and the open GAP-15. Flow: best-of-N design (N=3 parser/safety/prompt lenses → synthesis `orchestration/reports/M-007/T0-design.md`) → single-editor RED-first impl (T1, T2) → real-site CDP acceptance (T3) → best-of-N verification (3 independent non-producer lenses — correctness, spec-conformance, safety/adversarial — ALL PASS) over an authoritative `uv run pytest` = **198 passed / 1 deselected / exit 0**. Full synthesis: `orchestration/reports/M-007/verify.md`.
+
+## UC2 + GAP-15 (mock-proven + real-proven over CDP)
+| item | evidence | verdict |
+|---|---|---|
+| UC2 mock round-trip — canonical fenced (manifest-less reconstruction) parse→validate→apply→diff-match | `tests/test_patch.py` (`test_bare_zip_real_m006_payload_roundtrips`, `…reconstructs_and_applies_modified_and_added`, `test_fenced_real_bare_format_roundtrips_via_reconstruction`), `tests/test_uc2_roundtrip.py`; `tmp/verify-m007/pytest-full.txt` | PASS |
+| UC2 real round-trip over CDP — fenced bundle out→retrieve→apply→diff-match (modified-file) | `orchestration/reports/M-007/T3.md` `UC2_DIFF_OK`; `tmp/real-accept-m007-20260613T003803-0500/uc2/{response.txt,patch-bundle.zip,apply-summary.json}`; source `fenced`, 144-byte zip, matching SHA-256; `example.txt` red→blue, siblings unchanged | **PASS (real)** |
+| GAP-15 — `conversation_ref` settled-`/c/<id>`-URL refresh post-completion before registry `set()`, fail-closed (no empty-ref persist), both text+bundle paths | `src/ask_chatgpt/driver.py:100` `refresh_active_conversation_ref`; `api.py:63,68,130,134`; `tests/test_api_cdp_public_path.py`, `tests/test_driver.py`; real `gap15-retry-3/summary-redacted.json` `same_ref:true` | **FIXED / PASS (real)** |
+
+## Alignment + safety (panel-verified)
+| item | evidence | verdict |
+|---|---|---|
+| Canonical fenced format aligned across prompt↔parser↔protocol-doc↔runbook (space-keyed, inline BASE64URL, embedded `manifest.json` OPTIONAL); fenced base64url is now the DOCUMENTED real bundle mechanism | `src/ask_chatgpt/bundle.py`, `patch.py`; `docs/bundle-protocol.md` §1/§4/§12; `docs/runbooks/real-site-acceptance.md` | PASS |
+| Patch-apply validate-before-mutate PRESERVED under manifest-optional reconstruction (path-traversal/absolute/backslash/drive/symlink-entry+parent/encrypted/special/reserved rejected before any write, sourced from zip member names; integrity anchored on `sha256(decoded)==ZIP_SHA256`+byte-count; no `extractall`; dry-run writes nothing) | `src/ask_chatgpt/patch.py` (`_reconstruct_entries_from_zip`, `_validate_zip_info_basic`, apply transaction); `tests/test_patch.py` security suite | PASS |
+| Real-drift END-marker prefix tolerance (`9b7fd30`) — accepts a clipped full-line sentinel only when the full marker is absent and exactly one such line follows BEGIN; integrity still enforced unconditionally → NO fail-open hole | `git show 9b7fd30`; drift + truncation tests; Lens C adversarial trace (6 cases) | PASS (safe) |
+| Tier purity (default loopback-mock-only, ZERO real_site collected, `ASK_CHATGPT_REAL=1`+`real_site` double-gate); NO stealth (independent grep clean); CDP detach-not-quit + operator-tab/browser preservation; login never automated; challenge fail-closed; ZERO credential/identifier/`/c/<id>` leakage (redacted) | `pyproject.toml:20`; `tests/conftest.py`; `driver.py`; `tests/test_driver_cdp_attach.py`; `orchestration/reports/M-007/T4-evidence.md` | PASS |
+
+## Honest scope + non-blocking follow-ups
+- **Real UC2 scope:** proven real for the **modified-single-file** round-trip; **added/deleted/multi-file proven on the mock only** (reconstruction add+modify; manifest-bearing deletions). README UC2 obligation satisfied; not full real-matrix coverage.
+- **END-marker drift root cause** uncharacterized (GPT vs a completion-timing read-race) — tolerance is safe (SHA-anchored) regardless; consider a completion-stability follow-up.
+- Cosmetic `docs/bundle-protocol.md:100` vs `bundle.py:160` BASE64URL wording nit (same semantics).
+
+Commits (no push): `5c26977` T1 · `90e4f86` T2 · `9b7fd30` T3 drift · `4a68100` T3 runbook.
+
+VERDICT: PASS — UC2 bundle round-trip GREEN on the real site over CDP (fenced base64url) and on the mock (198 passed / 1 deselected); GAP-15 conversation_ref persistence FIXED (settled-URL refresh, fail-closed). Tier-purity, no-stealth, CDP tab-hygiene, login-never-automated, no-leakage, and patch-apply validate-before-mutate (preserved under manifest-optional reconstruction) all independently PASS. Real coverage scoped to modified-file; added/deleted/multi-file proven on mock — non-blocking follow-up.

@@ -1,0 +1,29 @@
+{
+  "mission": "M-007",
+  "title": "UC2 real-green (fenced-format alignment) + GAP-15 conversation_ref persistence",
+  "status": "DONE",
+  "verdict": "PASS",
+  "manager_pid": 387114,
+  "started": "2026-06-12T23:43:03-05:00",
+  "ended": "2026-06-13T01:08:49-05:00",
+  "estimate_minutes": 120,
+  "actual_minutes": 86,
+  "rework_cause": ["spec-gap: T3 real END-marker drift -> commit 9b7fd30 (SHA-anchored tolerance, no fail-open)"],
+  "objective": "UC2 (bundle round-trip) GREEN on the real site over CDP via the fenced base64url path; mock round-trip still green; GAP-15 conversation_ref persistence fixed.",
+  "outcome": "ACHIEVED + independently verified (best-of-N 3-lens panel ALL PASS). UC2 GREEN on real site (fenced base64url, over CDP) + mock (198 passed / 1 deselected). GAP-15 fixed (settled-/c/<id>-URL refresh post-completion before registry set(), fail-closed). VERDICT: PASS.",
+  "queue": [
+    {"id": "T0-design", "status": "done", "out": "orchestration/reports/M-007/T0-design.md"},
+    {"id": "T1", "status": "done", "commit": "5c26977", "result": "mock 191; tolerant parser + manifest-optional reconstruction + aligned prompt + mock fixture."},
+    {"id": "T2", "status": "done", "commit": "90e4f86", "result": "mock 196; conversation_ref settled-URL refresh + fail-closed (both paths)."},
+    {"id": "T3", "status": "done", "result": "real CDP: UC2_DIFF_OK + GAP15_CONTINUITY_OK; 8 msgs; drift commit 9b7fd30 + runbook 4a68100; mock 198.", "report": "orchestration/reports/M-007/T3.md"},
+    {"id": "T4", "status": "done", "method": "evidence runner (pi) + 3 parallel lenses (correctness/spec/safety) ALL PASS + manager synthesis", "result": "198 passed/1 deselected; tier-purity/no-stealth/CDP-safety/no-leakage/validate-before-mutate all PASS; drift tolerance safe.", "out": "orchestration/reports/M-007/{T4-evidence.md,verify.md}; VERIFICATION.md M-007 section"}
+  ],
+  "commits": ["5c26977 T1 fenced-format alignment", "90e4f86 T2 GAP-15 persistence", "9b7fd30 T3 real-drift END-marker tolerance", "4a68100 T3 runbook", "<closeout> M-007 orchestration record + VERIFICATION.md"],
+  "blockers": [],
+  "non_blocking_followups": [
+    "Real UC2 coverage scoped to modified-single-file; added/deleted/multi-file proven on mock only -> exercise on real site in a follow-up.",
+    "END-marker drift root cause uncharacterized (GPT vs completion-timing read-race); tolerance safe regardless -> consider completion-stability follow-up.",
+    "Cosmetic doc nit: docs/bundle-protocol.md:100 vs bundle.py:160 BASE64URL wording (same semantics)."
+  ],
+  "resume": "MISSION COMPLETE. Nothing to resume. Lock released at closeout."
+}
