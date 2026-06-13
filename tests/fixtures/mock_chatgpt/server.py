@@ -39,6 +39,8 @@ _DOWNLOAD_MODES = frozenset({"ok", "missing", "delayed", "wrong_older", "corrupt
 _FENCED_MODES = frozenset({"ok", "canonical", "missing_end", "bad_hash", "changed_and_unchanged", "oversized"})
 _LAYOUT_VARIANTS = frozenset({"stable", "virtualized"})
 _UPLOAD_MODES = frozenset({"ok", "unsupported", "reject_size_type", "corrupt"})
+_RECALL_MODES = frozenset({"planted_token"})
+_RECALL_NO_TOKEN_SENTINEL = "NO_TOKEN_RECALLED"
 _DEFAULT_STREAM_READS = 2
 _DEFAULT_PATCH_FILES = {
     "src/mock_changed.txt": "synthetic changed file from mock ChatGPT fixture\n",
@@ -410,7 +412,9 @@ class MockChatGPTState:
                     )
                 if "copy_mode" in script.extra:
                     conversation.copy_mode = _validated_copy_mode(script.extra.get("copy_mode"))
-                assistant_text = script.text
+                assistant_text = _recall_text_from_history(script.extra, conversation.turns[:-1])
+                if assistant_text is None:
+                    assistant_text = script.text
                 if "fenced_mode" in script.extra:
                     assistant_text = _text_with_fenced_bundle(assistant_text, script.extra.get("fenced_mode"), script.extra)
                 assistant_turn = Turn(
@@ -817,6 +821,49 @@ def _text_with_fenced_bundle(prefix: str, mode_value: Any, extra: dict[str, Any]
     )
     clean_prefix = str(prefix).rstrip()
     return fenced_text if not clean_prefix else clean_prefix + "\n\n" + fenced_text
+
+
+def _recall_text_from_history(extra: dict[str, Any], prior_turns: list[Turn]) -> str | None:
+    mode = _optional_str(extra.get("recall_mode"))
+    if mode is None:
+        return None
+    normalized_mode = mode.strip().lower()
+    if normalized_mode not in _RECALL_MODES:
+        raise ValueError(f"unsupported recall_mode: {mode}")
+    if normalized_mode == "planted_token":
+        return _recall_planted_token(extra.get("recall_pattern"), prior_turns)
+    raise ValueError(f"unsupported recall_mode: {mode}")
+
+
+def _recall_planted_token(pattern_value: Any, prior_turns: list[Turn]) -> str:
+    pattern_text = _optional_str(pattern_value)
+    if pattern_text is None:
+        raise ValueError("recall_pattern is required for recall_mode='planted_token'")
+    try:
+        pattern = re.compile(pattern_text)
+    except re.error as exc:
+        raise ValueError(f"invalid recall_pattern: {exc}") from exc
+
+    for turn in reversed(prior_turns):
+        matches = list(pattern.finditer(turn.text))
+        for match in reversed(matches):
+            token = _token_from_recall_match(match)
+            if token:
+                return token
+    return _RECALL_NO_TOKEN_SENTINEL
+
+
+def _token_from_recall_match(match: re.Match[str]) -> str:
+    group_names = match.re.groupindex
+    if "token" in group_names:
+        value = match.group("token")
+        if value:
+            return value
+    if match.groups():
+        for value in match.groups():
+            if value:
+                return value
+    return match.group(0)
 
 
 def _upload_basename(filename: str) -> str:
