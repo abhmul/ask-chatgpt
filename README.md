@@ -15,7 +15,7 @@ Three use cases define done:
 
 ## Acceptance shape (binding intent; the team refines into per-mission criteria)
 
-- Each use case has an automated end-to-end acceptance against a **local mock ChatGPT** (loopback fixture; the DEFAULT test suite never contacts chatgpt.com/openai), plus a **real-site half** proving it against chatgpt.com on the operator's account. Since 2026-06-12 (operator consent; `docs/DECISIONS.md` D-002) the real-site half may be agent-driven via an opt-in `real_site` test tier — marker + `ASK_CHATGPT_REAL=1` double-gated, hard message budget, headed, audited; the manual runbooks remain the operator-run alternative.
+- Each use case has an automated end-to-end acceptance against a **local mock ChatGPT** (loopback fixture; the DEFAULT test suite never contacts chatgpt.com/openai), plus a **real-site half** proving it against chatgpt.com on the operator's account. Since 2026-06-12 (operator consent; `docs/DECISIONS.md` D-002) the real-site half may be agent-driven via an opt-in `real_site` test tier — marker + `ASK_CHATGPT_REAL=1` double-gated, human-paced (no programmatic spamming), headed, audited; the manual runbooks remain the operator-run alternative.
 - Round-trip file test: bundle out → (mock) GPT edits → patch bundle back → applied locally → diff matches expectation.
 - Honest failure modes: login required, session not found, upload/download unsupported, response truncated — each named actionably.
 
