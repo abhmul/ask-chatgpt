@@ -68,30 +68,34 @@ VERDICT: PASS
 
 ---
 
-# M-006 (2026-06-12) — Real-site enablement (D-002): INTERIM status — tier-plumbing verified, real-site BLOCKED on operator sign-in
+# M-006 (2026-06-12) — Real-site enablement (D-002): FINAL — real tier ENABLED + verified; UC1/UC3 real-PASS, UC2 real-PARTIAL (D-001)
 
-This section is an **interim** manager status, not a final mission verdict. The mission's full best-of-N real-site verification (T4a–d) has not run because the real-site half is blocked on an operator-owned sign-in.
+Final mission verdict. The full best-of-N real-site verification ran — T4a/T4b/T4c independent non-producers, ALL PASS — over an authoritative `uv run pytest` (169 passed / 1 deselected / exit 0). Full detail + recommendation: `orchestration/reports/M-006/verify.md`. This SUPERSEDES the earlier interim "BLOCKED on operator sign-in" status: that "logged out" diagnosis was a Playwright-LAUNCH artifact (chatgpt.com Cloudflare-blocks launched browsers); the mission pivoted to operator-consented **CDP attach** (D-002 addendum) to the operator's own signed-in Chromium.
 
-## Automated / tier-plumbing half (T1) — DONE, manager-gate-verified (mock-proven)
-
-Commit `3693388` adds the opt-in real test tier and real-channel safety plumbing:
-
+## Tier plumbing + CDP channel (T1, T1b, T2c–T2h) — mock-proven, T4a panel-verified
 | item | evidence | verdict |
 |---|---|---|
-| `real_site` pytest marker + default deselection (`-m 'not real_site'`) | `pyproject.toml` `[tool.pytest.ini_options]`; authoritative `uv run pytest` shows `1 deselected` (the sample real_site test) | PASS (manager-gate) |
-| `ASK_CHATGPT_REAL=1` double-gate + guard test (default run collects ZERO real_site tests) | `tests/conftest.py` `pytest_collection_modifyitems`; subprocess collect-only guard test; `tests/test_real_tier_gating.py` | PASS (manager-gate) |
-| real-tier browser-level domain allowlist (abort+log off-domain, host-only logging) | `src/ask_chatgpt/real_allowlist.py`; `tests/test_real_allowlist.py` | PASS (manager-gate) |
-| profile-lock preflight → named `ProfileLockedError` (before any browser side effect) | `src/ask_chatgpt/errors.py`; `src/ask_chatgpt/driver.py`; `tests/test_driver_real_preflight.py` | PASS (manager-gate) |
-| logged-out URL/redirect heuristic → `LoginRequiredError` (selector-independent) | `src/ask_chatgpt/driver.py`; `tests/test_driver_real_preflight.py` | PASS (manager-gate) |
-| `executable_path` knob for the real channel | `src/ask_chatgpt/driver.py` | PASS (manager-gate) |
-| default-tier purity preserved (socket guard intact; `real.json` still all-empty fail-closed; D2 fail-closed unbroken) | `src/ask_chatgpt/selector_maps/real.json` unchanged (all-empty); authoritative suite `132 passed, 1 deselected, exit 0` | PASS (manager-gate) |
+| `real_site` marker + default deselection + `ASK_CHATGPT_REAL=1` double-gate | `pyproject.toml`; `tests/conftest.py`; `tests/test_real_tier_gating.py`; clean run `1 deselected` | PASS |
+| default-tier purity: autouse loopback socket guard intact; clean `uv run pytest` = 169 passed, ZERO real_site collected | `tests/conftest.py`; `tmp/verify-m006/T4-evidence.txt` | PASS |
+| real-tier browser-level domain allowlist (abort+log off-domain; +`cdn.auth0.com` from discovery) | `src/ask_chatgpt/real_allowlist.py`; `tests/test_real_allowlist.py` | PASS |
+| CDP attach channel (`channel="cdp"`, `connect_over_cdp`, brand-new tab, `close()`=detach-not-quit, login+challenge detection) | `src/ask_chatgpt/driver.py`; `tests/test_driver_cdp_attach.py` | PASS |
+| public api/CLI `channel=cdp` + URL-derived `conversation_ref`; optional-marker tolerance; real readiness/send/completion/upload mechanics | `src/ask_chatgpt/{api,cli,driver,readers,patch,bundle}.py`; `orchestration/reports/M-006/T4a.md` | PASS |
+| `real.json` populated (verified selectors only); fail-closed schema preserved (REQUIRED hard-fail; OPTIONAL degrade) | `src/ask_chatgpt/selector_maps/real.json`; `T4a.md` | PASS |
 
-Trust: **manager-gate-verified from ground truth** (non-producer manager re-derived the diff scope, confirmed real.json all-empty, confirmed symbols, and ran the authoritative suite). A full independent best-of-N panel was **not** run; it is deferred to the resume's T4 (which verifies T1+T2+T3 together) or may be run standalone if the real-site half will not resume.
+## Real-site acceptance (T2 discovery + T3 UC1–3 over CDP) — real-proven where stated
+| item | evidence | verdict |
+|---|---|---|
+| T2 selector discovery over the operator's signed-in CDP browser (7/12 msgs; priority selectors stable; tab-hygiene clean; no leakage) | `orchestration/reports/M-006/discovery.md`, `real-selectors-proposed.json` | PASS (real) |
+| UC1 — `ask_chatgpt()` real text + continuity (URL-derived ref) + model fail-closed probe | `orchestration/reports/M-006/T3.md` UC1 | PASS (real) |
+| UC3 — `ask-chatgpt` CLI real text + `--session` continuity | `T3.md` UC3 | PASS (real) |
+| UC2 — CLI bundle out → retrieve → apply | `T3.md` UC2 — `DownloadUnsupportedError`: no real Download event + no parseable fenced bundle | PARTIAL (real) — D-001 BLOCK |
 
-## Real-site half (T2 discovery, T2b install, T3 acceptance, T4 verify) — BLOCKED, UNPROVEN
+## D-001 revisit (real) + findings
+- DOM-primary text read: CONFIRMED real (UC1/UC3 via `.markdown`). KEEP.
+- Download-primary + fenced-base64-zip bundle: NOT viable on the real site (no Playwright `Download` event; an LLM cannot emit a byte-exact base64 zip + SHA-256). RECOMMEND revising the UC2 bundle channel — a true download/artifact integration Playwright can capture+validate, OR a text-native deterministic edit format (unified diff / structured JSON edit ops); retain fenced-base64 only for mock/precomputed producers.
+- GAP-15: new-CDP-chat `conversation_ref` persists empty (sampled before the URL settles to `/c/<id>`); continuity proven via a tmp URL-derived repair; production fix = refresh the ref post-completion before registry `set()`.
 
-T2 launched a **real headed Chromium successfully** (executable_path=/usr/bin/chromium, user_data_dir=~/.config/chromium, Default profile, DISPLAY=:0; **no** Playwright-1.60/Chromium-149 protocol mismatch; profile unlocked) but found **chatgpt.com logged out** and stopped without automating login. **0 of 30 real messages spent.** Real selectors, completion signals, DOM extraction, copy fallback, upload/download affordances, session pinning, model selection, and failure-message detectability **remain UNPROVEN on the real site**.
+## Conformance (T4b) — PASS
+NO stealth/anti-detection anywhere (independent grep clean; plain `connect_over_cdp`, no UA/fingerprint spoofing); CDP attach to the operator's signed-in browser; login/logout never automated; Cloudflare/human-verification handled by a challenge-pause (never circumvented); budget 24/30 ledger lines (30 never exceeded; log-before-send conservatism — actual sends ≈11 < ledger); ZERO credential/account-identifier/token/raw-conversation-id leakage in committed artifacts; `tmp/` (may hold local registry refs) gitignored + uncommitted.
 
-Resume requires an **operator action**: sign into chatgpt.com in the ~/.config/chromium Default profile, close Chromium, then resume MISSION-006. Detail + full resume path: `orchestration/handoffs/MISSION-006-handoff.json` and `orchestration/state/M-006-state.json`.
-
-M-006-INTERIM: TIER-PLUMBING PASS (manager-gate); REAL-SITE BLOCKED (operator sign-in)
+VERDICT: PARTIAL — real-site tier ENABLED + independently VERIFIED; **UC1 + UC3 real-PASS** (text + continuity, API and CLI); **UC2 real-PARTIAL** (documented D-001 design limitation, not a defect/regression/safety issue); tier-purity + CDP-safety + D-002-conformance (no stealth) + mock acceptance (169) all PASS. Recommended follow-up: revise the UC2 real bundle channel (D-001) and fix GAP-15 registry persistence.
