@@ -1,24 +1,24 @@
 {
   "channel": "real",
   "version": 1,
-  "note": "Template only: real ChatGPT selectors are resolved by the operator observation runbook at docs/runbooks/observe-chatgpt-unknowns.md. Empty values intentionally fail closed.",
+  "note": "Populated from M-006 T2 CDP discovery (verified selectors only); empty values intentionally fail closed.",
   "selectors": {
-    "ready_root": "",
-    "chat_list": "",
-    "chat_item": "",
-    "new_chat_button": "",
-    "composer": "",
-    "send_button": "",
+    "ready_root": "main:has(#prompt-textarea)",
+    "chat_list": "nav:has(a[href^=\"/c/\"])",
+    "chat_item": "nav a[href^=\"/c/\"]",
+    "new_chat_button": "a[aria-label=\"New chat\"]",
+    "composer": "#prompt-textarea",
+    "send_button": "button[data-testid=\"send-button\"]",
     "model_menu": "",
     "model_option": "",
     "model_option_disabled": "",
-    "assistant_message": "",
-    "message_body": "",
-    "streaming_marker": "",
-    "completion_marker": "",
-    "copy_button": "",
-    "download_artifact": "",
-    "upload_input": "",
+    "assistant_message": "[data-message-author-role=\"assistant\"]",
+    "message_body": "[data-message-author-role=\"assistant\"] .markdown",
+    "streaming_marker": "button[data-testid=\"stop-button\"]",
+    "completion_marker": "button[data-testid=\"copy-turn-action-button\"]",
+    "copy_button": "button[data-testid=\"copy-turn-action-button\"]",
+    "download_artifact": "button[aria-label*=\"Download\"]",
+    "upload_input": "input[type=\"file\"]",
     "login_wall": "",
     "conversation_not_found": "",
     "truncation_marker": "",
@@ -26,6 +26,6 @@
   },
   "attributes": {
     "conversation_ref": "",
-    "turn_id": ""
+    "turn_id": "data-message-id"
   }
 }

@@ -9,6 +9,8 @@ from urllib.parse import urlparse
 DEFAULT_REAL_ALLOWED_DOMAINS: tuple[str, ...] = (
     "chatgpt.com",
     "openai.com",
+    # cdn.auth0.com came from M-006 T2 discovery; keep host-specific.
+    "cdn.auth0.com",
     "oaistatic.com",
     "oaiusercontent.com",
 )

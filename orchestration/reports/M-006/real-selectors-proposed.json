@@ -1,24 +1,24 @@
 {
   "channel": "real",
   "version": 1,
-  "note": "M-006 T2 proposed selectors. This run was blocked at logged-out preflight before discovery; all selector and attribute values remain empty fail-closed.",
+  "note": "M-006 T2 proposed real-site selectors from CDP-attached operator-owned Chromium; source real.json was not edited.",
   "selectors": {
-    "ready_root": "",
-    "chat_list": "",
-    "chat_item": "",
-    "new_chat_button": "",
-    "composer": "",
-    "send_button": "",
+    "ready_root": "main:has(#prompt-textarea)",
+    "chat_list": "nav:has(a[href^=\"/c/\"])",
+    "chat_item": "nav a[href^=\"/c/\"]",
+    "new_chat_button": "a[aria-label=\"New chat\"]",
+    "composer": "#prompt-textarea",
+    "send_button": "button[data-testid=\"send-button\"]",
     "model_menu": "",
     "model_option": "",
     "model_option_disabled": "",
-    "assistant_message": "",
-    "message_body": "",
-    "streaming_marker": "",
-    "completion_marker": "",
-    "copy_button": "",
-    "download_artifact": "",
-    "upload_input": "",
+    "assistant_message": "[data-message-author-role=\"assistant\"]",
+    "message_body": "[data-message-author-role=\"assistant\"] .markdown",
+    "streaming_marker": "button[data-testid=\"stop-button\"]",
+    "completion_marker": "button[data-testid=\"copy-turn-action-button\"]",
+    "copy_button": "button[data-testid=\"copy-turn-action-button\"]",
+    "download_artifact": "button[aria-label*=\"Download\"]",
+    "upload_input": "input[type=\"file\"]",
     "login_wall": "",
     "conversation_not_found": "",
     "truncation_marker": "",
@@ -26,31 +26,62 @@
   },
   "attributes": {
     "conversation_ref": "",
-    "turn_id": ""
+    "turn_id": "data-message-id"
   },
-  "_justifications": {},
+  "_justifications": {
+    "attributes.turn_id": "Stable per-assistant-turn id attribute was present; only the attribute name was recorded.",
+    "selectors.assistant_message": "Stable data attribute identifies assistant-authored message containers.",
+    "selectors.chat_item": "Conversation history items are stable links whose href path starts with /c/; titles are not read.",
+    "selectors.chat_list": "Navigation landmark containing /c/ conversation links is stable and title-free.",
+    "selectors.completion_marker": "Turn action/copy control appeared after streaming completed; pair with stop-button disappearance and stable wait.",
+    "selectors.composer": "Stable composer id used by ChatGPT for the prompt input.",
+    "selectors.copy_button": "Stable data-testid for per-turn copy action.",
+    "selectors.download_artifact": "Accessible Download-labelled button is a stable artifact affordance.",
+    "selectors.message_body": "Assistant message Markdown body uses stable semantic markdown container.",
+    "selectors.new_chat_button": "Accessible New chat link label is stable and non-class based.",
+    "selectors.ready_root": "Main app region containing the stable prompt composer indicates logged-in chat readiness.",
+    "selectors.send_button": "Stable data-testid for the prompt submit control.",
+    "selectors.streaming_marker": "Stable stop/streaming control observed only while generation was active.",
+    "selectors.upload_input": "Native file input is a stable upload hook and can be hidden behind the attach control."
+  },
   "_unverified": [
-    {"key": "ready_root", "why": "Blocked at logged-out preflight before logged-in UI discovery."},
-    {"key": "chat_list", "why": "Blocked at logged-out preflight before logged-in UI discovery."},
-    {"key": "chat_item", "why": "Blocked at logged-out preflight before logged-in UI discovery."},
-    {"key": "new_chat_button", "why": "Blocked at logged-out preflight before logged-in UI discovery."},
-    {"key": "composer", "why": "Blocked at logged-out preflight before logged-in UI discovery."},
-    {"key": "send_button", "why": "Blocked at logged-out preflight before logged-in UI discovery; zero prompt sends."},
-    {"key": "model_menu", "why": "Blocked before model picker could be opened."},
-    {"key": "model_option", "why": "Blocked before model picker could be opened."},
-    {"key": "model_option_disabled", "why": "Blocked before model picker could be opened."},
-    {"key": "assistant_message", "why": "Blocked before any disposable chat prompt could be sent."},
-    {"key": "message_body", "why": "Blocked before any disposable chat prompt could be sent."},
-    {"key": "streaming_marker", "why": "Blocked before any disposable chat prompt could be sent."},
-    {"key": "completion_marker", "why": "Blocked before any disposable chat prompt could be sent."},
-    {"key": "copy_button", "why": "Blocked before assistant response/copy affordance discovery."},
-    {"key": "download_artifact", "why": "Blocked before synthetic download-affordance test."},
-    {"key": "upload_input", "why": "Blocked before logged-in upload-affordance discovery."},
-    {"key": "login_wall", "why": "Left empty by contract; do not install a real login-wall selector from this leg."},
-    {"key": "conversation_not_found", "why": "Blocked before bogus-conversation URL check."},
-    {"key": "truncation_marker", "why": "Not triggered by contract; do not force giant generations."},
-    {"key": "rate_limit_marker", "why": "Not triggered by contract; never provoke rate limits."},
-    {"key": "conversation_ref", "why": "Blocked before any active disposable conversation URL was created."},
-    {"key": "turn_id", "why": "Blocked before assistant turn DOM could be observed."}
-  ]
+    {
+      "key": "attributes.conversation_ref",
+      "why": "No stable DOM attribute carrying the conversation ref was verified; observed source is the URL path shape /c/<redacted-uuid>."
+    },
+    {
+      "key": "selectors.conversation_not_found",
+      "why": "Bogus /c/<redacted-uuid> navigation did not expose a stable not-found marker during bounded 0-message observation; left empty fail-closed."
+    },
+    {
+      "key": "selectors.login_wall",
+      "why": "Not verified because login/logout is never automated; URL/auth-wall heuristics are used instead."
+    },
+    {
+      "key": "selectors.model_menu",
+      "why": "No safe stable model-menu selector was found after bounded 0-message discovery; left empty fail-closed rather than risking account/profile controls."
+    },
+    {
+      "key": "selectors.model_option",
+      "why": "Model picker was not safely opened; options left empty fail-closed."
+    },
+    {
+      "key": "selectors.model_option_disabled",
+      "why": "No disabled model option was safely observed in the opened model picker."
+    },
+    {
+      "key": "selectors.rate_limit_marker",
+      "why": "Not verified because this leg never provokes rate limits."
+    },
+    {
+      "key": "selectors.truncation_marker",
+      "why": "Not verified because giant/truncating generations are out of scope for this leg."
+    }
+  ],
+  "_meta": {
+    "task": "M-006 T2 CDP discovery",
+    "status": "DONE",
+    "messages_used": 7,
+    "conversation_url_policy": "Only path-shape URLs are recorded; real conversation ids are not written."
+  }
 }
