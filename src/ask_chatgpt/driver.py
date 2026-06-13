@@ -42,7 +42,7 @@ _DEFAULT_NAVIGATION_TIMEOUT_MS = 5_000
 _REAL_NAV_TIMEOUT_MS = 60_000
 _READY_ROOT_TIMEOUT_MS = 30_000
 _POLL_INTERVAL_S = 0.1
-_REAL_COMPLETION_STABLE_S = 2.0
+_REAL_COMPLETION_CEILING_S = 600.0
 _REAL_REQUIRED_SELECTOR_KEYS = (
     "ready_root",
     "chat_list",
@@ -322,15 +322,21 @@ class BrowserSession:
             except PlaywrightError as exc:
                 raise AskChatGPTError("Browser prompt submission failed. Operator action: retry or inspect the UI.") from exc
 
-    def wait_for_completion(self, timeout_s: float = 120.0) -> Locator:
+    def wait_for_completion(self, timeout_s: float = 120.0, max_total_wait_s: float | None = None) -> Locator:
         """Return the latest completed assistant turn locator.
 
-        Mock-channel strategy: poll for completion markers; when only streaming markers are present, reload ``/c/<ref>`` so the fixture advances scripted stream state, then re-check. Real/CDP completion requires positive completion evidence with the stop control absent; body-text progress extends the timeout window for long actively growing responses.
+        Mock-channel strategy: poll for completion markers; when only streaming markers are present, reload ``/c/<ref>`` so the fixture advances scripted stream state, then re-check. Real/CDP completion requires positive completion evidence with the stop control absent; body-text progress extends the timeout window for long actively growing responses, capped by an absolute wall-clock ceiling.
         """
 
         page = self._require_page()
         timeout_window = max(0.0, float(timeout_s))
-        deadline = time.monotonic() + timeout_window
+        start = time.monotonic()
+        deadline = start + timeout_window
+        absolute_deadline = None
+        if self.channel in {"real", "cdp"}:
+            max_total_wait = _REAL_COMPLETION_CEILING_S if max_total_wait_s is None else max(0.0, float(max_total_wait_s))
+            absolute_deadline = start + max_total_wait
+            deadline = min(deadline, absolute_deadline)
         last_text = ""
         while True:
             self._raise_open_failures()
@@ -354,6 +360,8 @@ class BrowserSession:
                     now = time.monotonic()
                     if latest_text and latest_text != last_text:
                         deadline = max(deadline, now + timeout_window)
+                        if absolute_deadline is not None:
+                            deadline = min(deadline, absolute_deadline)
                     last_text = latest_text
                     streaming_visible = self._present("streaming_marker")
                     completion_affordance_selector = self._optional_selector("completion_affordance")

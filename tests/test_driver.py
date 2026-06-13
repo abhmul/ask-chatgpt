@@ -524,6 +524,33 @@ class _GrowingUntilCompletionState(_MicroPauseCompletionState):
         return self.clock.now >= 1.2
 
 
+class _NeverCompletesGrowingState(_MicroPauseCompletionState):
+    sentinel = "__TURN_INCOMPLETE_M008B_UNBOUNDED__"
+
+    def text(self) -> str:
+        return f"partial response keeps growing at t={self.clock.now:.1f}s"
+
+    def streaming_visible(self) -> bool:
+        return True
+
+    def completion_marker_visible(self) -> bool:
+        return False
+
+    def completion_affordance_visible(self) -> bool:
+        return False
+
+
+class _CeilingSafetyValvePage(_ScriptedCompletionPage):
+    def __init__(self, clock: _ScriptedClock, *, max_waits: int = 100) -> None:
+        super().__init__(clock)
+        self.max_waits = max_waits
+
+    def wait_for_timeout(self, timeout_ms: int) -> None:
+        if len(self.wait_timeouts) >= self.max_waits:
+            raise RuntimeError("unbounded: no ceiling")
+        super().wait_for_timeout(timeout_ms)
+
+
 def _scripted_real_completion_session(
     monkeypatch,
     state: _MicroPauseCompletionState,
@@ -865,12 +892,32 @@ def test_real_wait_for_completion_extends_deadline_while_body_text_grows(monkeyp
     state = _GrowingUntilCompletionState(clock)
     session = _scripted_real_completion_session(monkeypatch, state, page)
 
-    latest = session.wait_for_completion(timeout_s=0.25)
+    latest = session.wait_for_completion(timeout_s=0.25, max_total_wait_s=5.0)
     returned_text = latest.inner_text()
 
     assert returned_text == state.complete_text
     assert state.sentinel in returned_text
     assert clock.now >= 1.2
+    assert clock.now < 5.0
+
+
+@pytest.mark.parametrize("ceiling_s", [5.0])
+def test_real_wait_for_completion_caps_progress_extensions_at_absolute_ceiling(monkeypatch, ceiling_s):
+    monkeypatch.setattr("ask_chatgpt.driver._POLL_INTERVAL_S", 0.5)
+    clock = _ScriptedClock()
+    page = _CeilingSafetyValvePage(clock)
+    state = _NeverCompletesGrowingState(clock)
+    session = _scripted_real_completion_session(monkeypatch, state, page)
+
+    with pytest.raises(ResponseTruncatedError, match="completion marker did not appear before timeout"):
+        try:
+            session.wait_for_completion(timeout_s=2.0, max_total_wait_s=ceiling_s)
+        except TypeError as exc:
+            if "max_total_wait_s" not in str(exc):
+                raise
+            session.wait_for_completion(timeout_s=2.0)
+
+    assert ceiling_s <= clock.now <= ceiling_s + 0.5
 
 
 def test_real_wait_for_completion_times_out_when_body_text_never_stabilizes(monkeypatch):

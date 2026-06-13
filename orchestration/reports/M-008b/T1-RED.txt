@@ -1,0 +1,64 @@
+warning: `VIRTUAL_ENV=/home/abhmul/.local/share/agent-python/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_ test_real_wait_for_completion_caps_progress_extensions_at_absolute_ceiling[5.0] _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f843108be10>
+ceiling_s = 5.0
+
+    @pytest.mark.parametrize("ceiling_s", [5.0])
+    def test_real_wait_for_completion_caps_progress_extensions_at_absolute_ceiling(monkeypatch, ceiling_s):
+        monkeypatch.setattr("ask_chatgpt.driver._POLL_INTERVAL_S", 0.5)
+        clock = _ScriptedClock()
+        page = _CeilingSafetyValvePage(clock)
+        state = _NeverCompletesGrowingState(clock)
+        session = _scripted_real_completion_session(monkeypatch, state, page)
+    
+        with pytest.raises(ResponseTruncatedError, match="completion marker did not appear before timeout"):
+            try:
+>               session.wait_for_completion(timeout_s=2.0, max_total_wait_s=ceiling_s)
+E               TypeError: BrowserSession.wait_for_completion() got an unexpected keyword argument 'max_total_wait_s'
+
+tests/test_driver.py:914: TypeError
+
+During handling of the above exception, another exception occurred:
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f843108be10>
+ceiling_s = 5.0
+
+    @pytest.mark.parametrize("ceiling_s", [5.0])
+    def test_real_wait_for_completion_caps_progress_extensions_at_absolute_ceiling(monkeypatch, ceiling_s):
+        monkeypatch.setattr("ask_chatgpt.driver._POLL_INTERVAL_S", 0.5)
+        clock = _ScriptedClock()
+        page = _CeilingSafetyValvePage(clock)
+        state = _NeverCompletesGrowingState(clock)
+        session = _scripted_real_completion_session(monkeypatch, state, page)
+    
+        with pytest.raises(ResponseTruncatedError, match="completion marker did not appear before timeout"):
+            try:
+                session.wait_for_completion(timeout_s=2.0, max_total_wait_s=ceiling_s)
+            except TypeError as exc:
+                if "max_total_wait_s" not in str(exc):
+                    raise
+>               session.wait_for_completion(timeout_s=2.0)
+
+tests/test_driver.py:918: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/ask_chatgpt/driver.py:380: in wait_for_completion
+    page.wait_for_timeout(int(min(_POLL_INTERVAL_S, max(0.0, deadline - now)) * 1000))
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <tests.test_driver._CeilingSafetyValvePage object at 0x7f843111d550>
+timeout_ms = 500
+
+    def wait_for_timeout(self, timeout_ms: int) -> None:
+        if len(self.wait_timeouts) >= self.max_waits:
+>           raise RuntimeError("unbounded: no ceiling")
+E           RuntimeError: unbounded: no ceiling
+
+tests/test_driver.py:550: RuntimeError
+=========================== short test summary info ============================
+FAILED tests/test_driver.py::test_real_wait_for_completion_caps_progress_extensions_at_absolute_ceiling[5.0]
+1 failed, 31 deselected in 0.11s
+
+EXIT_CODE=1
