@@ -139,3 +139,19 @@ The operator inspected the real chat transcript and found two real-site claims w
 - **UC2 real round-trip — DOWNGRADE to "tiny-bundle only; not robust."** Content correctness holds (decoded `patch-bundle.zip` = `example.txt` → `favorite_color = "blue"`). But GPT returned a base64url TEXT blob in chat, not a file; combined with the truncation above, base64-in-chat will clip for real-size bundles (base64 ≈ +33%). Not proven sufficient beyond a trivial single-file edit; real file-download capture (or a chunking/integrity-resync strategy) is unresolved (M-006 found no Playwright Download event).
 
 Net corrected status: mock half intact; real half = structural continuity + tiny-bundle UC2 content correctness proven; **semantic continuity and robust/real-size bundle return are UNPROVEN and need corrected tests.** Tracked for redo (see also `docs/BACKLOG.md`).
+
+---
+
+# M-008a INDEPENDENT GATE (2026-06-13, team-lead non-producer panel) — PASS, 2 concerns routed to M-008b
+
+Operator waived manual prompt sign-off; the gate is adversarial verifiers + a team-lead spot check. The team lead ran an independent N=3 read-only panel (distinct from the producing manager's T5) over the committed code at head `5e230ee`, plus a personal spot-read of every rewritten GPT-facing prompt.
+
+**Prompts (the core fix) — PASS.** The bundle prompt now asks for one actual downloadable `.zip` file with a download link and explicitly forbids inline/text representation; ZERO base64/marker wording in any GPT-facing string (grep-confirmed; guard test `tests/test_bundle_out.py:203`). Continuity is non-circular: the turn-2 recall prompt contains no nonce/prefix/suffix, the fresh-conversation CONTROL genuinely fails (mock recall is conversation-scoped), and a cross-process CLI variant proves registry-carried continuity. Truncation elicitation uses a terminal sentinel + exact-ordered-line check; the driver-level RED at `tests/test_driver.py:832` provably fails against the old logic (non-vacuous). Safety intact: the download path applies the full zip-slip + sha + caps gauntlet (source-agnostic, re-run at apply); base64 parser tolerance retained in `patch.py` but purged from model-facing text; tier double-gate empirically deselects+skips `real_site` by default; `real.json:download_artifact` still fail-closed; no credential/conversation-id leakage; no real-site contact.
+
+**Completion hardening — SOUND, 2 concerns (→ M-008b):**
+1. The fix replaced "text-stable OR completion-marker" with **completion-marker ONLY** (`not streaming_visible AND completion_visible`, driver.py:367). Eliminates the micro-pause clip with no fail-open, but makes correctness **wholly dependent on the real `completion_marker` (copy-turn-action button) reliably appearing at end-of-turn** — unverifiable offline. If that button is delayed/hover-gated/virtualized live, a complete turn flips from "clipped" to a false `ResponseTruncatedError` after the no-progress window. **M-008b must validate completion_marker reliability on the real site as the #1 risk before trusting the truncation fix; restore a hardened stability fallback if it is unreliable.**
+2. The progress-aware timeout extends the deadline on every text change with **no absolute wall-clock ceiling** → a pathologically-oscillating body could wait unbounded. **M-008b: add an absolute ceiling (defense-in-depth) + remove the now-dead `_REAL_COMPLETION_STABLE_S` (driver.py:45).**
+
+Non-blocking: the M-008a handoff mis-attributes the (pre-existing M-003/M-007) download-capture retrieve path to M-008a; that code is unchanged and safe — provenance note only.
+
+GATE: **PASSED** — prompts independently verified; the completion concerns are real-site-validation items, appropriately M-008b's job. Proceeding to M-008b (real legs over CDP), no operator halt per the waiver.
