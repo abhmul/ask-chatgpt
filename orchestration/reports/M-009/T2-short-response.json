@@ -1,0 +1,37 @@
+{
+  "results": [
+    {
+      "label": "short-ping",
+      "outcome": "returned",
+      "seconds": 24.31,
+      "text": "PING",
+      "text_len": 4
+    },
+    {
+      "label": "short-hi",
+      "outcome": "returned",
+      "seconds": 22.83,
+      "text": "hi",
+      "text_len": 2
+    },
+    {
+      "label": "short-num",
+      "outcome": "returned",
+      "seconds": 20.64,
+      "text": "7",
+      "text_len": 1
+    },
+    {
+      "label": "short-ok",
+      "outcome": "returned",
+      "seconds": 22.48,
+      "text": "OK",
+      "text_len": 2
+    }
+  ],
+  "summary": {
+    "prompts": 4,
+    "returned": 4,
+    "spurious_truncations": []
+  }
+}

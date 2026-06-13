@@ -127,8 +127,8 @@ class DiffSummary:
 class _DownloadCandidate:
     locator: Locator
     filename: str
-    byte_count: int
-    sha256: str
+    byte_count: int | None
+    sha256: str | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -326,16 +326,33 @@ def _scan_download_artifacts(turn: Locator, selectors: Any) -> _DownloadScan:
     for index in range(count):
         link = links.nth(index)
         source_turn_id = link.get_attribute("data-source-turn-id")
+        byte_count_text = link.get_attribute("data-byte-count")
+        digest = link.get_attribute("data-sha256")
+        filename_attr = link.get_attribute("data-filename") or link.get_attribute("download")
+
+        if not source_turn_id and byte_count_text is None and digest is None:
+            # Opaque real download control (bare ChatGPT "Download the patch bundle" button): the real
+            # surface exposes no self-describing integrity metadata. The locator is already scoped to the
+            # latest completed turn, so turn-membership holds without data-source-turn-id. Capture and
+            # validate the zip structurally (see _download_candidate_bytes).
+            filename = filename_attr or "patch-bundle.zip"
+            if not _is_safe_download_filename(filename):
+                raise PatchMalformedError("download artifact filename metadata is unsafe")
+            if filename in filenames:
+                raise PatchMalformedError("duplicate latest-turn download artifact filename collision")
+            filenames.add(filename)
+            eligible.append(_DownloadCandidate(locator=link, filename=filename, byte_count=None, sha256=None))
+            continue
+
+        # Self-describing (mock/strict) artifact: require the FULL metadata set, unchanged.
         if not source_turn_id:
             raise PatchMalformedError("download artifact metadata is missing data-source-turn-id")
         if source_turn_id != latest_turn_id:
             stale_artifact_seen = True
             continue
-        filename = link.get_attribute("data-filename") or link.get_attribute("download") or "patch-bundle.zip"
+        filename = filename_attr or "patch-bundle.zip"
         if not _is_safe_download_filename(filename):
             raise PatchMalformedError("download artifact filename metadata is unsafe")
-        byte_count_text = link.get_attribute("data-byte-count")
-        digest = link.get_attribute("data-sha256")
         if byte_count_text is None or not _DECIMAL_RE.fullmatch(byte_count_text):
             raise PatchMalformedError("download artifact byte-count metadata is malformed")
         if digest is None or not _HEX64_RE.fullmatch(digest):
@@ -377,7 +394,7 @@ def _download_candidate_bytes(
     *,
     timeout_s: float,
 ) -> tuple[bytes, PatchBundle]:
-    if candidate.byte_count > caps.max_zip_bytes:
+    if candidate.byte_count is not None and candidate.byte_count > caps.max_zip_bytes:
         raise OversizedPayloadError(
             f"PATCH_BUNDLE_MAX_ZIP_BYTES exceeded by declared download metadata: {candidate.byte_count} > {caps.max_zip_bytes}"
         )
@@ -401,12 +418,16 @@ def _download_candidate_bytes(
     except OSError as exc:
         raise DownloadUnsupportedError("download body could not be read after capture") from exc
 
-    if len(zip_bytes) != candidate.byte_count:
+    if len(zip_bytes) > caps.max_zip_bytes:
+        raise OversizedPayloadError(
+            f"PATCH_BUNDLE_MAX_ZIP_BYTES exceeded by captured download bytes: {len(zip_bytes)} > {caps.max_zip_bytes}"
+        )
+    if candidate.byte_count is not None and len(zip_bytes) != candidate.byte_count:
         raise BundleIntegrityError(
             f"download byte count mismatch: expected {candidate.byte_count}, got {len(zip_bytes)}"
         )
     digest = sha256(zip_bytes).hexdigest()
-    if digest != candidate.sha256:
+    if candidate.sha256 is not None and digest != candidate.sha256:
         raise BundleIntegrityError("download SHA-256 mismatch against artifact metadata")
     bundle = PatchBundle(
         filename=candidate.filename,

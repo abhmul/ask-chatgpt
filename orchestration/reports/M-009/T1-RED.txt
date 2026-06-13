@@ -1,0 +1,83 @@
+warning: `VIRTUAL_ENV=/home/abhmul/.local/share/agent-python/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_______ test_uc2_roundtrip_opaque_download_public_api_dry_run_and_apply ________
+
+mock_chatgpt = MockChatGPTHandle(base_url='http://127.0.0.1:43685', host='127.0.0.1', port=43685, requested_port=0)
+uc2_root = PosixPath('tmp/test_uc2_roundtrip/test_uc2_roundtrip_opaque_download_public_api_dry_run_and_apply-f1dc22a2f8384b4c86b712ae85e6d668')
+
+    def test_uc2_roundtrip_opaque_download_public_api_dry_run_and_apply(mock_chatgpt, uc2_root):
+        source_text = 'favorite_color = "red"\nsibling_line = "unchanged"\n'
+        expected_text = 'favorite_color = "blue"\nsibling_line = "unchanged"\n'
+        source_path = uc2_root / "src" / "preferences.py"
+        source_path.parent.mkdir(parents=True)
+        source_path.write_text(source_text, encoding="utf-8")
+    
+        mock_chatgpt.reset()
+        mock_chatgpt.script_next_response(
+            "PATCH_BUNDLE_DOWNLOAD_READY: patch-bundle.zip",
+            download_mode="opaque",
+            patch_changed_files={"src/preferences.py": expected_text},
+            patch_operations={"src/preferences.py": "modified"},
+        )
+    
+>       result = ask_chatgpt(
+            "Update favorite_color using the returned patch bundle.",
+            files=["src/preferences.py"],
+            channel="mock",
+            base_url=mock_chatgpt.base_url,
+            timeout_s=5,
+            bundle_root=uc2_root,
+        )
+
+tests/test_uc2_roundtrip.py:158: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/ask_chatgpt/api.py:79: in ask_chatgpt
+    return _ask_chatgpt_with_bundle(
+src/ask_chatgpt/api.py:128: in _ask_chatgpt_with_bundle
+    retrieved = retrieve_patch_bundle(session, timeout_s=timeout_s, reader_order=reader_sequence)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/ask_chatgpt/patch.py:209: in retrieve_patch_bundle
+    scan = _scan_download_artifacts(turn, selectors)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+turn = <Locator frame=<Frame name= url='http://127.0.0.1:43685/c/conv-1'> selector='[data-message-author-role="assistant"] >> nth=0'>
+selectors = SelectorMap(channel='mock', selectors={'ready_root': '[data-testid="mock-ready-root"]', 'chat_list': '[data-testid="mo...d': 'data-turn-id'}, version=1, path=PosixPath('/home/abhmul/dev/ask-chatgpt/src/ask_chatgpt/selector_maps/mock.json'))
+
+    def _scan_download_artifacts(turn: Locator, selectors: Any) -> _DownloadScan:
+        try:
+            turn_id_attr = selectors.attribute("turn_id")
+            latest_turn_id = turn.get_attribute(turn_id_attr)
+            if not latest_turn_id:
+                raise PatchMalformedError("latest assistant turn is missing a turn id")
+        except PatchMalformedError:
+            raise
+        except (PlaywrightError, SelectorUnavailableError) as exc:
+            raise DownloadUnsupportedError("download artifact selector unavailable for latest assistant turn") from exc
+    
+        try:
+            download_selector = selectors.selector("download_artifact")
+        except SelectorUnavailableError:
+            return _DownloadScan(candidate=None, stale_artifact_seen=False, delayed=False, unsupported=False)
+    
+        try:
+            links = turn.locator(download_selector)
+            count = links.count()
+        except PlaywrightError as exc:
+            raise DownloadUnsupportedError("download artifact selector unavailable for latest assistant turn") from exc
+    
+        stale_artifact_seen = False
+        eligible: list[_DownloadCandidate] = []
+        filenames: set[str] = set()
+        for index in range(count):
+            link = links.nth(index)
+            source_turn_id = link.get_attribute("data-source-turn-id")
+            if not source_turn_id:
+>               raise PatchMalformedError("download artifact metadata is missing data-source-turn-id")
+E               ask_chatgpt.errors.PatchMalformedError: Patch bundle is malformed or is not a changed-files-only patch. Operator action: request a fresh patch bundle; no local files were changed. Detail: download artifact metadata is missing data-source-turn-id
+
+src/ask_chatgpt/patch.py:330: PatchMalformedError
+=========================== short test summary info ============================
+FAILED tests/test_uc2_roundtrip.py::test_uc2_roundtrip_opaque_download_public_api_dry_run_and_apply
+1 failed, 2 deselected in 0.81s

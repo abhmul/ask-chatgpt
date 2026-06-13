@@ -35,7 +35,7 @@ _FAILURE_MODES = frozenset(
     }
 )
 _COPY_MODES = frozenset({"ok", "missing", "wrong", "stale", "truncated"})
-_DOWNLOAD_MODES = frozenset({"ok", "missing", "delayed", "wrong_older", "corrupt", "truncated", "collision", "unsupported"})
+_DOWNLOAD_MODES = frozenset({"ok", "missing", "delayed", "wrong_older", "corrupt", "truncated", "collision", "unsupported", "opaque"})
 _FENCED_MODES = frozenset({"ok", "canonical", "missing_end", "bad_hash", "changed_and_unchanged", "oversized"})
 _LAYOUT_VARIANTS = frozenset({"stable", "virtualized"})
 _UPLOAD_MODES = frozenset({"ok", "unsupported", "reject_size_type", "corrupt"})
@@ -967,6 +967,14 @@ def _render_download_artifacts(turn: dict[str, Any], artifacts: dict[str, Any]) 
         byte_count = escape(str(artifact["byte_count"]), quote=True)
         digest = escape(str(artifact["sha256"]), quote=True)
         href = "/download/" + quote(str(artifact_id))
+        if artifact["mode"] == "opaque":
+            rendered.append(
+                '<div data-testid="mock-artifact-card" '
+                f'data-artifact-id="{safe_artifact_id}" data-artifact-mode="{artifact_mode}">'
+                '<a data-testid="mock-download-artifact" '
+                f'href="{href}">Download the patch bundle</a></div>'
+            )
+            continue
         rendered.append(
             '<div data-testid="mock-artifact-card" '
             f'data-artifact-id="{safe_artifact_id}" data-artifact-mode="{artifact_mode}">'

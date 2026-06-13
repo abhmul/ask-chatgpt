@@ -140,6 +140,44 @@ def test_uc2_roundtrip_download_primary_public_api_dry_run_and_apply(mock_chatgp
     assert result.text == "PATCH_BUNDLE_DOWNLOAD_READY: patch-bundle.zip"
 
 
+def test_uc2_roundtrip_opaque_download_public_api_dry_run_and_apply(mock_chatgpt, uc2_root):
+    source_text = 'favorite_color = "red"\nsibling_line = "unchanged"\n'
+    expected_text = 'favorite_color = "blue"\nsibling_line = "unchanged"\n'
+    source_path = uc2_root / "src" / "preferences.py"
+    source_path.parent.mkdir(parents=True)
+    source_path.write_text(source_text, encoding="utf-8")
+
+    mock_chatgpt.reset()
+    mock_chatgpt.script_next_response(
+        "PATCH_BUNDLE_DOWNLOAD_READY: patch-bundle.zip",
+        download_mode="opaque",
+        patch_changed_files={"src/preferences.py": expected_text},
+        patch_operations={"src/preferences.py": "modified"},
+    )
+
+    result = ask_chatgpt(
+        "Update favorite_color using the returned patch bundle.",
+        files=["src/preferences.py"],
+        channel="mock",
+        base_url=mock_chatgpt.base_url,
+        timeout_s=5,
+        bundle_root=uc2_root,
+    )
+
+    assert isinstance(result, AskChatGPTResult)
+    assert isinstance(result.patch_bundle, PatchBundle)
+    assert result.patch_bundle.source == "download"
+
+    dry_run_summary = apply_patch(result.patch_bundle, root=uc2_root, dry_run=True)
+    assert dry_run_summary.modified == 1
+    assert source_path.read_text(encoding="utf-8") == source_text
+
+    applied_summary = apply_patch(result.patch_bundle, root=uc2_root, dry_run=False)
+    assert applied_summary.modified == 1
+    assert source_path.read_text(encoding="utf-8") == expected_text
+    assert 'sibling_line = "unchanged"' in source_path.read_text(encoding="utf-8")
+
+
 def test_uc2_roundtrip_fenced_fallback_public_api_dry_run_and_apply(mock_chatgpt, uc2_root):
     result, _dry_run, _applied = _run_public_api_roundtrip(
         mock_chatgpt,

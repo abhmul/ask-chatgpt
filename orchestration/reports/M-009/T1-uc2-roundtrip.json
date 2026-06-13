@@ -1,8 +1,14 @@
 {
-  "download_selector_injected": "button:has-text(\"Download the patch bundle\")",
+  "applied_example_txt": "favorite_color = \"blue\"\nfavorite_food = \"pizza\"\n",
+  "bundle_bytes": 161,
+  "bundle_filename": "patch-bundle.zip",
+  "bundle_source": "download",
+  "content_correct": true,
+  "diff_summary_dry": "DiffSummary(root=PosixPath('/tmp/m009-uc2-yqf5qs_j/apply-target'), dry_run=True, files=(FileDiff(path='example.txt', change_kind='modified', old_sha256='783bb306d51313ae2c9c79f99722e857f1e92c9be78eea492e3be468b80349d4', new_sha256='ed804efc540954ed755c5706f5751691a1ed5927a4691debe6d4c12a31b43178', old_bytes=47, new_bytes=48, byte_delta=1, lines_added=1, lines_deleted=1),), added=0, modified=1, del",
+  "download_selector_injected": null,
   "first_wait": "returned",
-  "retrieve_detail": "download artifact metadata is missing data-source-turn-id",
-  "retrieve_outcome": "PatchMalformedError",
-  "retrieve_seconds": 37.78,
+  "retrieve_detail": "",
+  "retrieve_outcome": "retrieved",
+  "retrieve_seconds": 38.05,
   "stage": "done"
 }

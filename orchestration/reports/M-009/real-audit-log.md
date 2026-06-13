@@ -11,3 +11,11 @@
 | 6 | 2026-06-13T16:12:16.322393-05:00 | T1-uc2 | send-uc2-prompt | uc2-red-to-blue | sent; prompt_chars=2193 | n/a | OK |
 | 7 | 2026-06-13T16:12:51.001536-05:00 | T1-uc2 | first-wait_for_completion | uc2-red-to-blue | returned | n/a | returned |
 | 8 | 2026-06-13T16:12:54.107322-05:00 | T1-uc2 | retrieve_patch_bundle (PRODUCTION path) | uc2-red-to-blue | outcome=PatchMalformedError; download artifact metadata is missing data-source-turn-id | n/a | PatchMalformedError |
+| 9 | 2026-06-13T16:14:16.504288-05:00 | T2-short | ask_chatgpt()->text (PRODUCTION) | short-ping | outcome=returned,len=4 | n/a | returned |
+| 10 | 2026-06-13T16:14:43.331039-05:00 | T2-short | ask_chatgpt()->text (PRODUCTION) | short-hi | outcome=returned,len=2 | n/a | returned |
+| 11 | 2026-06-13T16:15:07.972723-05:00 | T2-short | ask_chatgpt()->text (PRODUCTION) | short-num | outcome=returned,len=1 | n/a | returned |
+| 12 | 2026-06-13T16:15:34.453934-05:00 | T2-short | ask_chatgpt()->text (PRODUCTION) | short-ok | outcome=returned,len=2 | n/a | returned |
+| 13 | 2026-06-13T16:29:03.206155-05:00 | T1-uc2 | upload-bundle | tiny-2key-bundle | uploaded basename=ask-chatgpt-bundle-65fd10ce9ea723ec.zip,bytes=4443 | n/a | OK |
+| 14 | 2026-06-13T16:29:13.266885-05:00 | T1-uc2 | send-uc2-prompt | uc2-red-to-blue | sent; prompt_chars=2193 | n/a | OK |
+| 15 | 2026-06-13T16:29:47.565914-05:00 | T1-uc2 | first-wait_for_completion | uc2-red-to-blue | returned | n/a | returned |
+| 16 | 2026-06-13T16:29:51.316711-05:00 | T1-uc2 | retrieve_patch_bundle (PRODUCTION path) | uc2-red-to-blue | outcome=retrieved;  | n/a | retrieved |

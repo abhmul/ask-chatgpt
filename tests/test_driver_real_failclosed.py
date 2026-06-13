@@ -11,10 +11,14 @@ REAL_SELECTOR_MAP = Path(__file__).resolve().parents[1] / "src" / "ask_chatgpt" 
 EMPTY_REAL_SELECTOR_MAPS_DIR = Path(__file__).parent / "fixtures" / "selector_maps" / "empty"
 
 
-def test_real_download_artifact_selector_is_fail_closed_to_force_fenced_fallback():
+def test_real_download_artifact_selector_is_the_verified_opaque_real_button():
     payload = json.loads(REAL_SELECTOR_MAP.read_text(encoding="utf-8"))
 
-    assert payload["selectors"]["download_artifact"] == ""
+    # M-009: the real download affordance is a bare <button>Download the patch bundle</button> carrying
+    # no integrity metadata; retrieve_patch_bundle now captures and structurally validates it via the
+    # opaque-real download path. This selector was verified against the real site (M-008b T4 capture +
+    # M-009 CDP probe). It is text-dependent and fails closed if ChatGPT's button text drifts.
+    assert payload["selectors"]["download_artifact"] == 'button:has-text("Download the patch bundle")'
     assert len(payload["selectors"]) == 20
     assert len(payload["attributes"]) == 2
 
