@@ -1,0 +1,1031 @@
+{
+  "answered": false,
+  "armed_state": {
+    "chip_count": 10,
+    "chips": [
+      {
+        "label": "Deep research Apps Sites Instant",
+        "rect": {
+          "height": 116,
+          "left": 704,
+          "top": 399,
+          "width": 768
+        },
+        "remove_affordance": {
+          "aria_label": "Chat with ChatGPT",
+          "role": "textbox",
+          "selector": "div[role=\"textbox\"]",
+          "selector_count": 1
+        },
+        "role": null,
+        "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > form:nth-of-type(1) > div:nth-of-type(2)",
+        "selector_count": 1
+      },
+      {
+        "label": "Deep research Apps Sites Instant",
+        "rect": {
+          "height": 116,
+          "left": 704,
+          "top": 399,
+          "width": 768
+        },
+        "remove_affordance": {
+          "aria_label": "Chat with ChatGPT",
+          "role": "textbox",
+          "selector": "div[role=\"textbox\"]",
+          "selector_count": 1
+        },
+        "role": null,
+        "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > form:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1)",
+        "selector_count": 1
+      },
+      {
+        "label": "Deep research Apps Sites",
+        "rect": {
+          "height": 44,
+          "left": 746,
+          "top": 465,
+          "width": 535
+        },
+        "remove_affordance": {
+          "aria_label": "Deep research, click to remove",
+          "role": null,
+          "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > form:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(1)",
+          "selector_count": 1
+        },
+        "role": null,
+        "selector": "div[data-testid=\"composer-footer-actions\"]",
+        "selector_count": 1
+      },
+      {
+        "label": "Deep research Apps Sites",
+        "rect": {
+          "height": 36,
+          "left": 750,
+          "top": 469,
+          "width": 527
+        },
+        "remove_affordance": {
+          "aria_label": "Deep research, click to remove",
+          "role": null,
+          "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > form:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(1)",
+          "selector_count": 1
+        },
+        "role": null,
+        "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > form:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(1)",
+        "selector_count": 1
+      },
+      {
+        "label": "Deep research",
+        "rect": {
+          "height": 36,
+          "left": 750,
+          "top": 469,
+          "width": 143
+        },
+        "remove_affordance": {
+          "aria_label": "Deep research, click to remove",
+          "role": null,
+          "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > form:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(1)",
+          "selector_count": 1
+        },
+        "role": null,
+        "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > form:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(1) > div:nth-of-type(1)",
+        "selector_count": 1
+      },
+      {
+        "label": "Deep research",
+        "rect": {
+          "height": 36,
+          "left": 750,
+          "top": 469,
+          "width": 143
+        },
+        "remove_affordance": {
+          "aria_label": "Deep research, click to remove",
+          "role": null,
+          "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > form:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(1)",
+          "selector_count": 1
+        },
+        "role": null,
+        "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > form:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1)",
+        "selector_count": 1
+      },
+      {
+        "label": "Deep research",
+        "rect": {
+          "height": 36,
+          "left": 750,
+          "top": 469,
+          "width": 143
+        },
+        "remove_affordance": null,
+        "role": null,
+        "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > form:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(1)",
+        "selector_count": 1
+      },
+      {
+        "label": "Deep research",
+        "rect": {
+          "height": 20,
+          "left": 784,
+          "top": 477,
+          "width": 97
+        },
+        "remove_affordance": null,
+        "role": null,
+        "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > form:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(1) > span:nth-of-type(1)",
+        "selector_count": 1
+      },
+      {
+        "label": "Deep research Apps Sites Instant",
+        "rect": {
+          "height": 116,
+          "left": 704,
+          "top": 399,
+          "width": 768
+        },
+        "remove_affordance": {
+          "aria_label": "Chat with ChatGPT",
+          "role": "textbox",
+          "selector": "div[role=\"textbox\"]",
+          "selector_count": 1
+        },
+        "role": null,
+        "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2)",
+        "selector_count": 1
+      },
+      {
+        "label": "Deep research Apps Sites Instant",
+        "rect": {
+          "height": 116,
+          "left": 704,
+          "top": 399,
+          "width": 768
+        },
+        "remove_affordance": {
+          "aria_label": "Chat with ChatGPT",
+          "role": "textbox",
+          "selector": "div[role=\"textbox\"]",
+          "selector_count": 1
+        },
+        "role": null,
+        "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1)",
+        "selector_count": 1
+      }
+    ],
+    "composer_present": true,
+    "deep_research_armed": true
+  },
+  "chosen_trigger": {
+    "aria_checked": null,
+    "aria_expanded": "false",
+    "aria_haspopup": "menu",
+    "aria_label": "Add files and more",
+    "aria_selected": null,
+    "candidate_reasons": [
+      "composer-aria-haspopup-menu",
+      "add-plus-attr-or-text",
+      "attach-upload-file-attr-or-text"
+    ],
+    "data_radix_collection_item": false,
+    "data_state": "closed",
+    "disabled": false,
+    "label": "Add files and more",
+    "rect": {
+      "height": 36,
+      "left": 714,
+      "top": 407,
+      "width": 36
+    },
+    "role": null,
+    "selector": "button[data-testid=\"composer-plus-btn\"]",
+    "selector_basis": "testid",
+    "selector_count": 1,
+    "tag": "button",
+    "testid": "composer-plus-btn",
+    "trigger_score": 145
+  },
+  "citation_structure": {
+    "citation_like_count": 0,
+    "link_count": 0,
+    "selectors": []
+  },
+  "clarify_capture": null,
+  "clarify_observed": false,
+  "closed_state": {
+    "armed_state": {
+      "chip_count": 0,
+      "chips": [],
+      "composer_present": true,
+      "deep_research_armed": false
+    },
+    "best_trigger": {
+      "aria_checked": null,
+      "aria_expanded": "false",
+      "aria_haspopup": "menu",
+      "aria_label": "Add files and more",
+      "aria_selected": null,
+      "candidate_reasons": [
+        "composer-aria-haspopup-menu",
+        "add-plus-attr-or-text",
+        "attach-upload-file-attr-or-text"
+      ],
+      "data_radix_collection_item": false,
+      "data_state": "closed",
+      "disabled": false,
+      "label": "Add files and more",
+      "rect": {
+        "height": 36,
+        "left": 714,
+        "top": 407,
+        "width": 36
+      },
+      "role": null,
+      "selector": "button[data-testid=\"composer-plus-btn\"]",
+      "selector_basis": "testid",
+      "selector_count": 1,
+      "tag": "button",
+      "testid": "composer-plus-btn",
+      "trigger_score": 145
+    },
+    "best_trigger_reason": "composer-aria-haspopup-menu,add-plus-attr-or-text,attach-upload-file-attr-or-text",
+    "deep_research_option": null,
+    "hydrated_markers": {
+      "composer_form_present": 1,
+      "composer_present": 1,
+      "ready_root_present": 1
+    },
+    "option_selector_counts": [
+      {
+        "dom_count": 0,
+        "selector": "[data-radix-popper-content-wrapper] [role=\"menuitem\"]",
+        "visible_count": 0
+      },
+      {
+        "dom_count": 0,
+        "selector": "[data-radix-popper-content-wrapper] [role=\"menuitemradio\"]",
+        "visible_count": 0
+      },
+      {
+        "dom_count": 0,
+        "selector": "[data-radix-popper-content-wrapper] [role=\"menuitemcheckbox\"]",
+        "visible_count": 0
+      },
+      {
+        "dom_count": 0,
+        "selector": "[data-radix-popper-content-wrapper] [role=\"option\"]",
+        "visible_count": 0
+      },
+      {
+        "dom_count": 0,
+        "selector": "[role=\"menu\"] [role=\"menuitem\"]",
+        "visible_count": 0
+      },
+      {
+        "dom_count": 0,
+        "selector": "[role=\"menu\"] [role=\"menuitemradio\"]",
+        "visible_count": 0
+      },
+      {
+        "dom_count": 0,
+        "selector": "[role=\"menu\"] [role=\"menuitemcheckbox\"]",
+        "visible_count": 0
+      },
+      {
+        "dom_count": 0,
+        "selector": "[role=\"menu\"] [role=\"option\"]",
+        "visible_count": 0
+      }
+    ],
+    "options": [],
+    "portal_roots": [],
+    "trigger_candidates": [
+      {
+        "aria_checked": null,
+        "aria_expanded": "false",
+        "aria_haspopup": "menu",
+        "aria_label": "Add files and more",
+        "aria_selected": null,
+        "candidate_reasons": [
+          "composer-aria-haspopup-menu",
+          "add-plus-attr-or-text",
+          "attach-upload-file-attr-or-text"
+        ],
+        "data_radix_collection_item": false,
+        "data_state": "closed",
+        "disabled": false,
+        "label": "Add files and more",
+        "rect": {
+          "height": 36,
+          "left": 714,
+          "top": 407,
+          "width": 36
+        },
+        "role": null,
+        "selector": "button[data-testid=\"composer-plus-btn\"]",
+        "selector_basis": "testid",
+        "selector_count": 1,
+        "tag": "button",
+        "testid": "composer-plus-btn",
+        "trigger_score": 145
+      },
+      {
+        "aria_checked": null,
+        "aria_expanded": null,
+        "aria_haspopup": null,
+        "aria_label": "Start dictation",
+        "aria_selected": null,
+        "candidate_reasons": [
+          "add-plus-attr-or-text"
+        ],
+        "data_radix_collection_item": false,
+        "data_state": null,
+        "disabled": false,
+        "label": "Start dictation",
+        "rect": {
+          "height": 36,
+          "left": 1384,
+          "top": 407,
+          "width": 36
+        },
+        "role": null,
+        "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > form:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(2) > button:nth-of-type(1)",
+        "selector_basis": "structural-path",
+        "selector_count": 1,
+        "tag": "button",
+        "testid": null,
+        "trigger_score": 80
+      },
+      {
+        "aria_checked": null,
+        "aria_expanded": null,
+        "aria_haspopup": null,
+        "aria_label": "Start Voice",
+        "aria_selected": null,
+        "candidate_reasons": [
+          "add-plus-attr-or-text"
+        ],
+        "data_radix_collection_item": false,
+        "data_state": null,
+        "disabled": false,
+        "label": "Start Voice",
+        "rect": {
+          "height": 36,
+          "left": 1426,
+          "top": 407,
+          "width": 36
+        },
+        "role": null,
+        "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > form:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(2) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(1)",
+        "selector_basis": "structural-path",
+        "selector_count": 1,
+        "tag": "button",
+        "testid": null,
+        "trigger_score": 80
+      }
+    ],
+    "url_path": "/"
+  },
+  "deep_research_option": {
+    "aria_checked": "false",
+    "aria_expanded": null,
+    "aria_haspopup": null,
+    "aria_label": null,
+    "aria_selected": null,
+    "data_radix_collection_item": true,
+    "data_state": "unchecked",
+    "disabled": false,
+    "kind": "toggle",
+    "label": "Deep research",
+    "paid_or_disabled": false,
+    "rect": {
+      "height": 36,
+      "left": 713,
+      "top": 566,
+      "width": 242
+    },
+    "role": "menuitemradio",
+    "selector": "body > div:nth-of-type(5) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2)",
+    "selector_basis": "structural-path",
+    "selector_count": 1,
+    "tag": "div",
+    "testid": null
+  },
+  "ended_at": "2026-06-13T21:29:49.943245-05:00",
+  "final_report_structure": {
+    "gated_snippets": [],
+    "has_numbered_citations": false,
+    "has_sources_panel": false,
+    "heading_count": 0,
+    "link_count": 0,
+    "listitem_count": 0,
+    "paragraph_count": 0,
+    "present": false,
+    "report_turn_selector": null
+  },
+  "hydration_poll": [
+    {
+      "best_trigger": true,
+      "elapsed_s": 0.01,
+      "portal_roots": 0,
+      "trigger_candidates": 3
+    }
+  ],
+  "opened_state": {
+    "armed_state": {
+      "chip_count": 0,
+      "chips": [],
+      "composer_present": true,
+      "deep_research_armed": false
+    },
+    "best_trigger": {
+      "aria_checked": null,
+      "aria_expanded": null,
+      "aria_haspopup": null,
+      "aria_label": null,
+      "aria_selected": null,
+      "candidate_reasons": [
+        "tools-attr-or-text",
+        "add-plus-attr-or-text",
+        "attach-upload-file-attr-or-text"
+      ],
+      "data_radix_collection_item": false,
+      "data_state": "delayed-open",
+      "disabled": false,
+      "label": "Add files and more / Add files and more /",
+      "rect": {
+        "height": 1,
+        "left": 731,
+        "top": 450,
+        "width": 1
+      },
+      "role": null,
+      "selector": "body > div:nth-of-type(6) > div:nth-of-type(1)",
+      "selector_basis": "structural-path",
+      "selector_count": 1,
+      "tag": "div",
+      "testid": null,
+      "trigger_score": 195
+    },
+    "best_trigger_reason": "tools-attr-or-text,add-plus-attr-or-text,attach-upload-file-attr-or-text",
+    "deep_research_option": {
+      "aria_checked": "false",
+      "aria_expanded": null,
+      "aria_haspopup": null,
+      "aria_label": null,
+      "aria_selected": null,
+      "data_radix_collection_item": true,
+      "data_state": "unchecked",
+      "disabled": false,
+      "kind": "toggle",
+      "label": "Deep research",
+      "paid_or_disabled": false,
+      "rect": {
+        "height": 36,
+        "left": 713,
+        "top": 566,
+        "width": 242
+      },
+      "role": "menuitemradio",
+      "selector": "body > div:nth-of-type(5) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2)",
+      "selector_basis": "structural-path",
+      "selector_count": 1,
+      "tag": "div",
+      "testid": null
+    },
+    "hydrated_markers": {
+      "composer_form_present": 1,
+      "composer_present": 1,
+      "ready_root_present": 1
+    },
+    "option_selector_counts": [
+      {
+        "dom_count": 4,
+        "selector": "[data-radix-popper-content-wrapper] [role=\"menuitem\"]",
+        "visible_count": 4
+      },
+      {
+        "dom_count": 3,
+        "selector": "[data-radix-popper-content-wrapper] [role=\"menuitemradio\"]",
+        "visible_count": 3
+      },
+      {
+        "dom_count": 0,
+        "selector": "[data-radix-popper-content-wrapper] [role=\"menuitemcheckbox\"]",
+        "visible_count": 0
+      },
+      {
+        "dom_count": 0,
+        "selector": "[data-radix-popper-content-wrapper] [role=\"option\"]",
+        "visible_count": 0
+      },
+      {
+        "dom_count": 4,
+        "selector": "[role=\"menu\"] [role=\"menuitem\"]",
+        "visible_count": 4
+      },
+      {
+        "dom_count": 3,
+        "selector": "[role=\"menu\"] [role=\"menuitemradio\"]",
+        "visible_count": 3
+      },
+      {
+        "dom_count": 0,
+        "selector": "[role=\"menu\"] [role=\"menuitemcheckbox\"]",
+        "visible_count": 0
+      },
+      {
+        "dom_count": 0,
+        "selector": "[role=\"menu\"] [role=\"option\"]",
+        "visible_count": 0
+      }
+    ],
+    "options": [
+      {
+        "aria_checked": null,
+        "aria_expanded": null,
+        "aria_haspopup": null,
+        "aria_label": null,
+        "aria_selected": null,
+        "data_radix_collection_item": true,
+        "data_state": null,
+        "disabled": false,
+        "kind": "one-shot",
+        "label": "Add photos & files Ctrl U",
+        "paid_or_disabled": false,
+        "rect": {
+          "height": 36,
+          "left": 713,
+          "top": 449,
+          "width": 242
+        },
+        "role": "menuitem",
+        "selector": "body > div:nth-of-type(5) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1)",
+        "selector_basis": "structural-path",
+        "selector_count": 1,
+        "tag": "div",
+        "testid": null
+      },
+      {
+        "aria_checked": null,
+        "aria_expanded": "false",
+        "aria_haspopup": "menu",
+        "aria_label": null,
+        "aria_selected": null,
+        "data_radix_collection_item": true,
+        "data_state": "closed",
+        "disabled": false,
+        "kind": "submenu",
+        "label": "Recent files",
+        "paid_or_disabled": false,
+        "rect": {
+          "height": 36,
+          "left": 713,
+          "top": 485,
+          "width": 242
+        },
+        "role": "menuitem",
+        "selector": "body > div:nth-of-type(5) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2)",
+        "selector_basis": "structural-path",
+        "selector_count": 1,
+        "tag": "div",
+        "testid": null
+      },
+      {
+        "aria_checked": "false",
+        "aria_expanded": null,
+        "aria_haspopup": null,
+        "aria_label": null,
+        "aria_selected": null,
+        "data_radix_collection_item": true,
+        "data_state": "unchecked",
+        "disabled": false,
+        "kind": "toggle",
+        "label": "Create image",
+        "paid_or_disabled": false,
+        "rect": {
+          "height": 36,
+          "left": 713,
+          "top": 530,
+          "width": 242
+        },
+        "role": "menuitemradio",
+        "selector": "body > div:nth-of-type(5) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1)",
+        "selector_basis": "structural-path",
+        "selector_count": 1,
+        "tag": "div",
+        "testid": null
+      },
+      {
+        "aria_checked": "false",
+        "aria_expanded": null,
+        "aria_haspopup": null,
+        "aria_label": null,
+        "aria_selected": null,
+        "data_radix_collection_item": true,
+        "data_state": "unchecked",
+        "disabled": false,
+        "kind": "toggle",
+        "label": "Deep research",
+        "paid_or_disabled": false,
+        "rect": {
+          "height": 36,
+          "left": 713,
+          "top": 566,
+          "width": 242
+        },
+        "role": "menuitemradio",
+        "selector": "body > div:nth-of-type(5) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2)",
+        "selector_basis": "structural-path",
+        "selector_count": 1,
+        "tag": "div",
+        "testid": null
+      },
+      {
+        "aria_checked": "false",
+        "aria_expanded": null,
+        "aria_haspopup": null,
+        "aria_label": null,
+        "aria_selected": null,
+        "data_radix_collection_item": true,
+        "data_state": "unchecked",
+        "disabled": false,
+        "kind": "toggle",
+        "label": "Web search",
+        "paid_or_disabled": false,
+        "rect": {
+          "height": 36,
+          "left": 713,
+          "top": 602,
+          "width": 242
+        },
+        "role": "menuitemradio",
+        "selector": "body > div:nth-of-type(5) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(3)",
+        "selector_basis": "structural-path",
+        "selector_count": 1,
+        "tag": "div",
+        "testid": null
+      },
+      {
+        "aria_checked": null,
+        "aria_expanded": "false",
+        "aria_haspopup": "menu",
+        "aria_label": null,
+        "aria_selected": null,
+        "data_radix_collection_item": true,
+        "data_state": "closed",
+        "disabled": false,
+        "kind": "submenu",
+        "label": "More",
+        "paid_or_disabled": false,
+        "rect": {
+          "height": 36,
+          "left": 713,
+          "top": 638,
+          "width": 242
+        },
+        "role": "menuitem",
+        "selector": "body > div:nth-of-type(5) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(2)",
+        "selector_basis": "structural-path",
+        "selector_count": 1,
+        "tag": "div",
+        "testid": null
+      },
+      {
+        "aria_checked": null,
+        "aria_expanded": "false",
+        "aria_haspopup": "menu",
+        "aria_label": null,
+        "aria_selected": null,
+        "data_radix_collection_item": true,
+        "data_state": "closed",
+        "disabled": false,
+        "kind": "submenu",
+        "label": "Projects",
+        "paid_or_disabled": false,
+        "rect": {
+          "height": 36,
+          "left": 713,
+          "top": 683,
+          "width": 242
+        },
+        "role": "menuitem",
+        "selector": "body > div:nth-of-type(5) > div:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(1)",
+        "selector_basis": "structural-path",
+        "selector_count": 1,
+        "tag": "div",
+        "testid": null
+      }
+    ],
+    "portal_roots": [
+      {
+        "aria_checked": null,
+        "aria_expanded": null,
+        "aria_haspopup": null,
+        "aria_label": null,
+        "aria_selected": null,
+        "data_radix_collection_item": false,
+        "data_state": null,
+        "disabled": false,
+        "rect": {
+          "height": 282,
+          "left": 707,
+          "top": 443,
+          "width": 254
+        },
+        "role": null,
+        "selector": "body > div:nth-of-type(5)",
+        "selector_basis": "structural-path",
+        "selector_count": 1,
+        "tag": "div",
+        "testid": null
+      },
+      {
+        "aria_checked": null,
+        "aria_expanded": null,
+        "aria_haspopup": null,
+        "aria_label": null,
+        "aria_selected": null,
+        "data_radix_collection_item": false,
+        "data_state": "open",
+        "disabled": false,
+        "rect": {
+          "height": 282,
+          "left": 707,
+          "top": 443,
+          "width": 254
+        },
+        "role": "menu",
+        "selector": "div[role=\"menu\"]",
+        "selector_basis": "role",
+        "selector_count": 1,
+        "tag": "div",
+        "testid": null
+      }
+    ],
+    "trigger_candidates": [
+      {
+        "aria_checked": null,
+        "aria_expanded": null,
+        "aria_haspopup": null,
+        "aria_label": null,
+        "aria_selected": null,
+        "candidate_reasons": [
+          "tools-attr-or-text",
+          "add-plus-attr-or-text",
+          "attach-upload-file-attr-or-text"
+        ],
+        "data_radix_collection_item": false,
+        "data_state": "delayed-open",
+        "disabled": false,
+        "label": "Add files and more / Add files and more /",
+        "rect": {
+          "height": 1,
+          "left": 731,
+          "top": 450,
+          "width": 1
+        },
+        "role": null,
+        "selector": "body > div:nth-of-type(6) > div:nth-of-type(1)",
+        "selector_basis": "structural-path",
+        "selector_count": 1,
+        "tag": "div",
+        "testid": null,
+        "trigger_score": 195
+      },
+      {
+        "aria_checked": null,
+        "aria_expanded": null,
+        "aria_haspopup": null,
+        "aria_label": null,
+        "aria_selected": null,
+        "candidate_reasons": [
+          "add-plus-attr-or-text",
+          "attach-upload-file-attr-or-text",
+          "tool-family-attr-or-text"
+        ],
+        "data_radix_collection_item": false,
+        "data_state": "open",
+        "disabled": false,
+        "label": "<omitted-or-unsafe>",
+        "rect": {
+          "height": 282,
+          "left": 707,
+          "top": 443,
+          "width": 254
+        },
+        "role": "menu",
+        "selector": "div[role=\"menu\"]",
+        "selector_basis": "role",
+        "selector_count": 1,
+        "tag": "div",
+        "testid": null,
+        "trigger_score": 150
+      },
+      {
+        "aria_checked": null,
+        "aria_expanded": "true",
+        "aria_haspopup": "menu",
+        "aria_label": "Add files and more",
+        "aria_selected": null,
+        "candidate_reasons": [
+          "composer-aria-haspopup-menu",
+          "add-plus-attr-or-text",
+          "attach-upload-file-attr-or-text"
+        ],
+        "data_radix_collection_item": false,
+        "data_state": "open",
+        "disabled": false,
+        "label": "Add files and more",
+        "rect": {
+          "height": 36,
+          "left": 714,
+          "top": 407,
+          "width": 36
+        },
+        "role": null,
+        "selector": "button[data-testid=\"composer-plus-btn\"]",
+        "selector_basis": "testid",
+        "selector_count": 1,
+        "tag": "button",
+        "testid": "composer-plus-btn",
+        "trigger_score": 145
+      },
+      {
+        "aria_checked": null,
+        "aria_expanded": null,
+        "aria_haspopup": null,
+        "aria_label": "Start dictation",
+        "aria_selected": null,
+        "candidate_reasons": [
+          "add-plus-attr-or-text"
+        ],
+        "data_radix_collection_item": false,
+        "data_state": null,
+        "disabled": false,
+        "label": "Start dictation",
+        "rect": {
+          "height": 36,
+          "left": 1384,
+          "top": 407,
+          "width": 36
+        },
+        "role": null,
+        "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > form:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(2) > button:nth-of-type(1)",
+        "selector_basis": "structural-path",
+        "selector_count": 1,
+        "tag": "button",
+        "testid": null,
+        "trigger_score": 80
+      },
+      {
+        "aria_checked": null,
+        "aria_expanded": null,
+        "aria_haspopup": null,
+        "aria_label": "Start Voice",
+        "aria_selected": null,
+        "candidate_reasons": [
+          "add-plus-attr-or-text"
+        ],
+        "data_radix_collection_item": false,
+        "data_state": null,
+        "disabled": false,
+        "label": "Start Voice",
+        "rect": {
+          "height": 36,
+          "left": 1426,
+          "top": 407,
+          "width": 36
+        },
+        "role": null,
+        "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > form:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(2) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(1)",
+        "selector_basis": "structural-path",
+        "selector_count": 1,
+        "tag": "button",
+        "testid": null,
+        "trigger_score": 80
+      },
+      {
+        "aria_checked": null,
+        "aria_expanded": "false",
+        "aria_haspopup": "menu",
+        "aria_label": null,
+        "aria_selected": null,
+        "candidate_reasons": [
+          "composer-aria-haspopup-menu",
+          "attach-upload-file-attr-or-text"
+        ],
+        "data_radix_collection_item": true,
+        "data_state": "closed",
+        "disabled": false,
+        "label": "Recent files",
+        "rect": {
+          "height": 36,
+          "left": 713,
+          "top": 485,
+          "width": 242
+        },
+        "role": "menuitem",
+        "selector": "body > div:nth-of-type(5) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2)",
+        "selector_basis": "structural-path",
+        "selector_count": 1,
+        "tag": "div",
+        "testid": null,
+        "trigger_score": 65
+      },
+      {
+        "aria_checked": "false",
+        "aria_expanded": null,
+        "aria_haspopup": null,
+        "aria_label": null,
+        "aria_selected": null,
+        "candidate_reasons": [
+          "tool-family-attr-or-text"
+        ],
+        "data_radix_collection_item": true,
+        "data_state": "unchecked",
+        "disabled": false,
+        "label": "Create image",
+        "rect": {
+          "height": 36,
+          "left": 713,
+          "top": 530,
+          "width": 242
+        },
+        "role": "menuitemradio",
+        "selector": "body > div:nth-of-type(5) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1)",
+        "selector_basis": "structural-path",
+        "selector_count": 1,
+        "tag": "div",
+        "testid": null,
+        "trigger_score": 24
+      },
+      {
+        "aria_checked": "false",
+        "aria_expanded": null,
+        "aria_haspopup": null,
+        "aria_label": null,
+        "aria_selected": null,
+        "candidate_reasons": [
+          "tool-family-attr-or-text"
+        ],
+        "data_radix_collection_item": true,
+        "data_state": "unchecked",
+        "disabled": false,
+        "label": "Deep research",
+        "rect": {
+          "height": 36,
+          "left": 713,
+          "top": 566,
+          "width": 242
+        },
+        "role": "menuitemradio",
+        "selector": "body > div:nth-of-type(5) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2)",
+        "selector_basis": "structural-path",
+        "selector_count": 1,
+        "tag": "div",
+        "testid": null,
+        "trigger_score": 24
+      }
+    ],
+    "url_path": "/"
+  },
+  "phase_timeline_summary": {
+    "first_clarify_at": null,
+    "first_completion_marker_at": "2026-06-14T01:49:54.232Z",
+    "first_progress_at": "2026-06-14T01:49:46.213Z",
+    "first_report_at": null,
+    "first_streaming_at": "2026-06-14T01:49:46.213Z",
+    "last_progress_at": "2026-06-14T02:29:49.914Z",
+    "last_streaming_at": "2026-06-14T01:49:46.213Z",
+    "max_assistant_turn_count": 0,
+    "poll_count": 300
+  },
+  "prompt_chars": 117,
+  "prompt_label": "lfp-vs-nmc-3bullets",
+  "snapshots_recorded": 300,
+  "stage": "done",
+  "started_at": "2026-06-13T20:49:23.041998-05:00",
+  "status": "PARTIAL-TIMEOUT",
+  "submitted_at": "2026-06-13T20:49:46.211057-05:00",
+  "timing": {
+    "first_progress_at": "2026-06-14T01:49:46.213Z",
+    "report_at": null,
+    "submitted_at": "2026-06-13T20:49:46.211057-05:00",
+    "total_wall_clock_s": 2426.9
+  },
+  "total_wall_clock_s": 2426.9,
+  "verified_selectors_used": {
+    "citations": "a[href], sup, [data-testid*=\"citation\"], [aria-label*=\"citation\"], [data-testid*=\"source\"], [aria-label*=\"source\"]",
+    "composer": "#prompt-textarea",
+    "copy_marker": "button[data-testid=\"copy-turn-action-button\"]",
+    "deep_research_option": "body > div:nth-of-type(5) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2)",
+    "deep_research_option_count": 0,
+    "progress_ui": "visible main status/aria-live/data-testid/assistant descendants with DR lifecycle vocabulary",
+    "report_turn": null,
+    "stop_marker": "button[data-testid=\"stop-button\"]",
+    "tools_trigger": "button[data-testid=\"composer-plus-btn\"]",
+    "tools_trigger_count": 1
+  }
+}

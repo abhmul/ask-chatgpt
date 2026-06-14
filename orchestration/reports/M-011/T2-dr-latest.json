@@ -1,0 +1,121 @@
+{
+  "phase_guess": "researching",
+  "snapshot": {
+    "assistant_turn_count": 0,
+    "citation_structure": {
+      "citation_like_count": 0,
+      "link_count": 0,
+      "selectors": []
+    },
+    "clarify_ui": {
+      "gated_chip_texts": [
+        "Copy message",
+        "Edit message",
+        "Copy response",
+        "Share",
+        "Switch model",
+        "More actions"
+      ],
+      "looks_like_clarify": false,
+      "suggestion_chip_count": 6,
+      "suggestion_chips": [
+        {
+          "label": "Copy message",
+          "role": null,
+          "selector": "button[data-testid=\"copy-turn-action-button\"]"
+        },
+        {
+          "label": "Edit message",
+          "role": null,
+          "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > section:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > button:nth-of-type(2)"
+        },
+        {
+          "label": "Copy response",
+          "role": null,
+          "selector": "button[data-testid=\"copy-turn-action-button\"]"
+        },
+        {
+          "label": "Share",
+          "role": null,
+          "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > section:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > button:nth-of-type(2)"
+        },
+        {
+          "label": "Switch model",
+          "role": null,
+          "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > section:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > span:nth-of-type(1) > button:nth-of-type(1)"
+        },
+        {
+          "label": "More actions",
+          "role": null,
+          "selector": "body > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > section:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > button:nth-of-type(3)"
+        }
+      ]
+    },
+    "completion_marker_present": true,
+    "composer_editable": true,
+    "composer_present": true,
+    "elapsed_s": 2404,
+    "phase_guess": "researching",
+    "poll_index": 300,
+    "progress_ui": {
+      "element_count": 2,
+      "element_shapes": [
+        {
+          "rect": {
+            "height": 120,
+            "left": 275,
+            "top": 52,
+            "width": 1626
+          },
+          "role": null,
+          "selector": "section[data-testid=\"conversation-turn-1\"]",
+          "selector_basis": "testid",
+          "selector_count": 1
+        },
+        {
+          "rect": {
+            "height": 44,
+            "left": 746,
+            "top": 867,
+            "width": 535
+          },
+          "role": null,
+          "selector": "div[data-testid=\"composer-footer-actions\"]",
+          "selector_basis": "testid",
+          "selector_count": 1
+        }
+      ],
+      "gated_texts": [
+        "Deep research Apps Sites"
+      ],
+      "present": true
+    },
+    "report": {
+      "gated_snippets": [],
+      "has_numbered_citations": false,
+      "has_sources_panel": false,
+      "heading_count": 0,
+      "link_count": 0,
+      "listitem_count": 0,
+      "paragraph_count": 0,
+      "present": false,
+      "report_turn_selector": null
+    },
+    "streaming_active": false,
+    "ts": "2026-06-14T02:29:49.914Z",
+    "verified_selectors": {
+      "assistant_turn": "[data-message-author-role=\"assistant\"]",
+      "assistant_turn_count": 0,
+      "citation_selector": "a[href], sup, [data-testid*=\"citation\"], [aria-label*=\"citation\"], [data-testid*=\"source\"], [aria-label*=\"source\"]",
+      "completion_marker": "button[data-testid=\"copy-turn-action-button\"]",
+      "completion_marker_count": 2,
+      "composer": "#prompt-textarea",
+      "composer_count": 1,
+      "progress_ui_strategy": "visible main status/aria-live/data-testid/assistant descendants with DR lifecycle vocabulary",
+      "report_turn_selector": null,
+      "stop_button": "button[data-testid=\"stop-button\"]",
+      "stop_button_count": 0
+    }
+  },
+  "stable_completion_polls": 0
+}
