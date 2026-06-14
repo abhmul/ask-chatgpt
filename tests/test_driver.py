@@ -724,6 +724,24 @@ class _NeverCompletesGrowingState(_MicroPauseCompletionState):
         return False
 
 
+class _LongStreamingThenCompletesState(_MicroPauseCompletionState):
+    """Actively streams far past the deleted 600s ceiling, then completes — proves the DEFAULT (no max_total_wait_s) imposes NO hard cap."""
+
+    sentinel = "__TURN_COMPLETE_NO_DEFAULT_CEILING__"
+    completes_at_s = 900.0
+
+    def text(self) -> str:
+        if self.clock.now >= self.completes_at_s:
+            return self.complete_text
+        return f"still generating at t={self.clock.now:.0f}s"
+
+    def streaming_visible(self) -> bool:
+        return self.clock.now < self.completes_at_s
+
+    def completion_marker_visible(self) -> bool:
+        return self.clock.now >= self.completes_at_s
+
+
 class _CeilingSafetyValvePage(_ScriptedCompletionPage):
     def __init__(self, clock: _ScriptedClock, *, max_waits: int = 100) -> None:
         super().__init__(clock)
@@ -1189,6 +1207,23 @@ def test_real_wait_for_completion_caps_progress_extensions_at_absolute_ceiling(m
             session.wait_for_completion(timeout_s=2.0)
 
     assert ceiling_s <= clock.now <= ceiling_s + 0.5
+
+
+def test_real_wait_for_completion_has_no_default_ceiling_long_streaming_run_completes(monkeypatch):
+    # Regression: the deleted 600s _REAL_COMPLETION_CEILING_S silently capped EVERY real/cdp wait,
+    # killing long Pro Extended / Deep Research runs. With the DEFAULT (no max_total_wait_s), an
+    # actively-streaming response that runs far past 600s must COMPLETE, not raise.
+    monkeypatch.setattr("ask_chatgpt.driver._POLL_INTERVAL_S", 30.0)
+    clock = _ScriptedClock()
+    page = _ScriptedCompletionPage(clock)
+    state = _LongStreamingThenCompletesState(clock)
+    session = _scripted_real_completion_session(monkeypatch, state, page)
+
+    latest = session.wait_for_completion(timeout_s=5.0)  # tiny no-activity window; DEFAULT = no absolute cap
+
+    assert latest.inner_text() == state.complete_text
+    assert state.sentinel in latest.inner_text()
+    assert clock.now >= state.completes_at_s  # ran 900s+, far past the old 600s hard cap
 
 
 def test_real_wait_for_completion_times_out_when_body_text_never_stabilizes(monkeypatch):
