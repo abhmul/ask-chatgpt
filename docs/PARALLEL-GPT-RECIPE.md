@@ -1,7 +1,7 @@
 # Recipe: a Claude agent using GPT Pro via ask-chatgpt (single + parallel)
 
 For an autonomous Claude agent (e.g. the Weak Simplex Conjecture driver) to query the operator's
-signed-in **GPT Pro** account. **No install / no PATH change needed** — invoke via `uv run --project`.
+signed-in **GPT Pro** account. The **stable** build is installed on PATH as `ask-chatgpt` (via `uv tool install` from the `stable` git ref); use it directly. (If it is not installed on a given machine, substitute `uv run --project /home/abhmul/dev/ask-chatgpt ask-chatgpt …` to run the dev tree.)
 
 **PREREQUISITE (attended):** the operator's Chromium must be running, signed into chatgpt.com (Pro),
 with `--remote-debugging-port=9222`. Verify: `curl -s http://127.0.0.1:9222/json/version`.
@@ -9,7 +9,7 @@ If it's down, calls raise `CDPUnreachableError` — only the operator can relaun
 
 ## (1) Single call — one GPT Pro chat
 ```bash
-uv run --project /home/abhmul/dev/ask-chatgpt ask-chatgpt --channel cdp "YOUR PROMPT"
+ask-chatgpt --channel cdp "YOUR PROMPT"
 ```
 Prints GPT's reply text to stdout. Add `--session <id>` to keep talking in the SAME chat across calls.
 Verified 2026-06-13: returned `PONG` in ~9.5s.
@@ -18,10 +18,9 @@ Verified 2026-06-13: returned `PONG` in ~9.5s.
 Launch N calls concurrently; give EACH its own `ASK_CHATGPT_STATE_DIR` so their conversation
 registries don't collide (the registry is a JSON file; distinct dirs = no write race):
 ```bash
-P=/home/abhmul/dev/ask-chatgpt
-ASK_CHATGPT_STATE_DIR=~/wsc-gpt/dir1 uv run --project $P ask-chatgpt --channel cdp --session main "DIRECTION 1 ..." &
-ASK_CHATGPT_STATE_DIR=~/wsc-gpt/dir2 uv run --project $P ask-chatgpt --channel cdp --session main "DIRECTION 2 ..." &
-ASK_CHATGPT_STATE_DIR=~/wsc-gpt/dir3 uv run --project $P ask-chatgpt --channel cdp --session main "DIRECTION 3 ..." &
+ASK_CHATGPT_STATE_DIR=~/wsc-gpt/dir1 ask-chatgpt --channel cdp --session main "DIRECTION 1 ..." &
+ASK_CHATGPT_STATE_DIR=~/wsc-gpt/dir2 ask-chatgpt --channel cdp --session main "DIRECTION 2 ..." &
+ASK_CHATGPT_STATE_DIR=~/wsc-gpt/dir3 ask-chatgpt --channel cdp --session main "DIRECTION 3 ..." &
 wait
 ```
 Each direction keeps its own resumable conversation (`--session main` within its own state dir).
