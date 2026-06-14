@@ -1,0 +1,76 @@
+{
+  "mission": "M-011",
+  "title": "Workstream B discovery: composer tools/add-on menu + Deep Research lifecycle (REAL SITE, CDP attach)",
+  "status": "PARTIAL",
+  "manager": "headless Opus (orchestration)",
+  "started_at": "2026-06-13T20:24:21-05:00",
+  "ended_at": "2026-06-13T21:46:43-05:00",
+  "scope_note": "DISCOVERY ONLY. Mapped the GENERAL composer tools menu (Deep Research as FIRST consumer, not a special case) and ran EXACTLY ONE Deep Research lifecycle. Did NOT build the abstraction or wire production real.json (that is M-012).",
+  "outcome_summary": "T1 (tools menu) COMPLETE; T2 (Deep Research lifecycle) PARTIAL — select+submit+arm proven and the load-bearing turn-selector finding captured, but the clarify TEXT, a genuine progress UI, and the final report+citations were NOT reached (the run hit the 40-min observation ceiling waiting on an unanswered clarification). Primary goal — the general tools-menu map + design implications for M-012 — achieved.",
+  "telemetry": {
+    "ESTIMATE_m011_mission_m": 120,
+    "ACTUAL_m011_mission_m": 82,
+    "legs": [
+      "ESTIMATE: m011-author-probe 20m | ACTUAL: m011-author-probe 11m (pi self-reported 90m/95m was wrong; wall-clock 20:27->20:38)",
+      "ESTIMATE: m011-tools-menu 10m | ACTUAL: m011-tools-menu 5m (repeatable, no quota)",
+      "ESTIMATE: m011-deep-research 15m | ACTUAL: m011-deep-research 41m (ran to the 2400s ceiling; PARTIAL-TIMEOUT)",
+      "ESTIMATE: m011-reports 8m | ACTUAL: m011-reports 8m (pi, single editor)",
+      "ESTIMATE: m011-verify-finalize 15m | ACTUAL: m011-verify-finalize 17m"
+    ],
+    "REWORK-CAUSE": "other (leak-remediation: a mis-targeted read-only inspector captured operator concurrent-conversation content, scrubbed; plus a documenting-the-scrub re-leak of the topic name in verify.md/contract, also scrubbed)"
+  },
+  "preflight": {
+    "cdp_endpoint": "127.0.0.1:9222",
+    "cdp_reachable": true,
+    "browser": "Chrome/149.0.7827.53 (CDP 1.3)",
+    "connectivity_leg": "CONNECTIVITY: OK (M-010 connectivity leg; logged in; ready_root+composer; exit 0). The audit row this appended to M-010's log was reverted (M-010 kept frozen).",
+    "uv_sync": "uv sync --all-groups OK (repo .venv; shared agent venv ignored)"
+  },
+  "key_findings": [
+    "TOOLS MENU (general selector): trigger button[data-testid=\"composer-plus-btn\"] (count=1, aria-haspopup=menu) opens Radix div[role=\"menu\"]; open-then-enumerate. 7 top-level options across 3 KINDS: one-shot menuitem (Add photos & files); toggle menuitemradio (Create image, Deep research, Web search) — arms a mode + shows a removable composer chip (aria-label \"<Tool>, click to remove\"); submenu menuitem[aria-haspopup=menu] (Recent files, More, Projects). Escape closes the menu but KEEPS the tool armed.",
+    "SELECTOR ROBUSTNESS: per-option selectors are STRUCTURAL paths valid only while the menu is open (count=0 after Escape). M-012 should scope to div[role=\"menu\"] [role=\"menuitemradio\"] / [data-radix-popper-content-wrapper] and match by visible label.",
+    "DR LIFECYCLE (load-bearing, self-derived from our own tab): a completed turn appears ~+8s (button[data-testid=\"copy-turn-action-button\"]) — almost certainly a clarifying question — but it is NOT under [data-message-author-role=\"assistant\"] (max_assistant_turn_count=0 across all 300 polls). The recorder keyed clarify/report detection on [data-message-author-role=\"assistant\"] (inherited from normal chat) and was BLIND to it, so the clarification was never answered and DR waited to the 40-min ceiling. CORRECTION for M-012: DR turns live under section[data-testid=\"conversation-turn-N\"] + copy-turn-action-button; the production wait_for_completion turn-selector + 600s ceiling are insufficient for DR (wrong selector + too-short ceiling).",
+    "NOT captured (remaining unknowns for M-012): the clarifying-question TEXT/structure; a genuine research/activity progress UI (the recorder's progress_ui was a false positive from the armed-chip text); the final REPORT structure + CITATION rendering (run never reached the report)."
+  ],
+  "incident_leak_caught_and_scrubbed": {
+    "what": "A read-only CDP inspector (scripts/_m011_inspect.py) used loose substring tab-matching (lfp/nmc/DR-chip) and selected the OPERATOR's concurrent, unrelated Deep Research tab instead of ours, capturing ~5 gated lines of operator-private (non-PII) content into orchestration/reports/M-011/T2-dr-inspect-initial.json.",
+    "caught": "On the FIRST read-only run; --answer-clarify was NOT used so the operator session was never modified.",
+    "remediation": "Same step: T2-dr-inspect-initial.json AND scripts/_m011_inspect.py DELETED; git log confirmed HEAD unchanged (dispatch commit) so the content NEVER entered git history; full leak scan over all M-011 artifacts CLEAN. A secondary re-leak (the topic name appeared in verify.md/contract as documented scan terms) was also scrubbed to a generic reference.",
+    "root_cause": "Loose-substring tab identification.",
+    "lesson": "Only inspect the recorder's OWN owned tab (it holds its page handle); never enumerate the operator's tabs; if a tab must be identified by content, use a precise verbatim phrase, never loose substrings; and when documenting a scrub, do not name the scrubbed content."
+  },
+  "deliverables": {
+    "scripts/m011_real_probe.py": "DONE — probe (tools-menu + deep-research legs); authored by pi, manager-hardened (4 surgical DR completion-gate edits); discovery tooling, NOT product code.",
+    "orchestration/reports/M-011/discovery.md": "DONE — pi-authored; manager-verified vs JSON ground truth (accurate).",
+    "orchestration/reports/M-011/verify.md": "DONE — pi-authored; honest verified-vs-unknown + verbatim INCIDENT disclosure + leak scan; manager-verified.",
+    "orchestration/reports/M-011/real-audit-log.md": "DONE — 7 redacted per-message rows.",
+    "orchestration/reports/M-011/T1-tools-menu.json": "DONE — raw redacted evidence (verdict FOUND).",
+    "orchestration/reports/M-011/T2-deep-research.json": "DONE — raw redacted evidence (PARTIAL-TIMEOUT, 300 polls).",
+    "orchestration/reports/M-011/T2-dr-progress.jsonl": "DONE — 300-snapshot redacted timeline.",
+    "orchestration/handoffs/MISSION-011-handoff.json": "this file"
+  },
+  "verification": "Independent (non-producer) by the manager: re-derived every discovery.md/verify.md claim from the raw redacted JSON (T1-tools-menu.json, T2-deep-research.json) — all accurate. Full pre-commit leak scan CLEAN (username/home-path, operator-topic, /c/<id>, tokens). Per dispatch, no claude subagents used for verification.",
+  "constraints_honored": [
+    "CDP attach only; preflight PASS; never launched a browser",
+    "NO stealth; login NEVER automated; own tabs only; close()=detach (recorder closed only its own tab on exit; operator browser never quit); no global account-setting changes",
+    "LEAK GUARD: hardened redact()/isAccount()/isSensitive() reused; one inspector leak was caught + fully scrubbed pre-commit (never committed); final leak scan CLEAN",
+    "EXACTLY ONE Deep Research run (the battery run); never looped; did NOT re-engage the live site after it (operator was actively using the browser)",
+    "Human-paced; NO message cap; redacted per-message audit log",
+    "Default tier stays mock-only; uv sync --all-groups; telemetry v2; NEVER git push"
+  ],
+  "blockers": [],
+  "gate": "AWAITING-TEAM-LEAD-SPOTCHECK",
+  "recommended_next": {
+    "mission": "M-012 — DESIGN + BUILD the general tool abstraction (Deep Research as first consumer), fail-closed; wire production real.json.",
+    "must_incorporate": [
+      "Use the corrected DR turn selectors: section[data-testid=\"conversation-turn-N\"] + button[data-testid=\"copy-turn-action-button\"], NOT [data-message-author-role=\"assistant\"].",
+      "Re-capture the unresolved DR unknowns in M-012's own run: answer the clarifying question (detect it via the conversation-turn/copy-marker signal), then capture the final report structure + citation rendering.",
+      "wait_for_tool_completion must handle long multi-phase runs (no hard 600s ceiling) and distinguish a clarify turn (awaiting input) from a final turn.",
+      "select_tool must branch on option kind (one-shot/toggle/submenu); match options by visible label within the open Radix portal, not the menu-position structural path.",
+      "Coordinate the run window with the operator (they may be using Deep Research concurrently — avoid contention and tab-identification ambiguity)."
+    ],
+    "proposed_surface": "select_tool(name) -> optional answer_clarification(text) -> wait_for_tool_completion() (short AND long/multi-phase) -> read_tool_output() (text base + optional structured report/citations). New fail-closed real.json keys: tools_menu_trigger, tool_option, tool_armed_chip, tool_turn, tool_completion_marker, tool_clarify_composer, report_citation."
+  },
+  "commits": ["e051e8d — work slice (scripts/m011_real_probe.py + orchestration/reports/M-011/* + orchestration/tasks/M-011/*)", "this handoff — follow-up commit; NO push (operator pushes)"],
+  "resume_state": "MISSION COMPLETE (PARTIAL). Gate AWAITING-TEAM-LEAD-SPOTCHECK. Nothing further to run on the live site. If the team lead wants the unresolved DR report/citation structure, that is M-012 (use the corrected conversation-turn selectors + answer the clarify). Do NOT re-run the M-011 DR probe (exactly-once honored; tab closed)."
+}
