@@ -1,0 +1,89 @@
+{
+  "mission": "M-010",
+  "title": "Wire real model-selection (close B-2). REAL SITE over CDP.",
+  "manager": "headless Opus orchestrator",
+  "editor": "pi (single editor)",
+  "status": "DONE",
+  "end_timestamp": "2026-06-13T19:20:59-05:00",
+  "cdp_preflight": "PASS (127.0.0.1:9222, Chrome/149; attach-only, never launched a browser)",
+  "cdp_unreachable": false,
+  "human_action_needed": false,
+  "git_pushed": false,
+  "gate": "AWAITING-TEAM-LEAD-SPOTCHECK",
+  "semantic_scope_flag_for_gate": "WHAT WAS WIRED IS THE COMPOSER REASONING/THROUGHPUT-TIER PICKER, NOT BASE-MODEL-FAMILY SELECTION. The real ChatGPT (GPT-5.5 build) model picker is a composer-toolbar Radix dropdown whose top-level options are GPT-5.5 reasoning/throughput tiers (Instant/Medium/High/Extra High/Pro Extended). A separate 'GPT-5.5' submenu holds base model families and is NOT wired (requesting one fails closed). M-009 had called this axis 'reasoning-effort, out of scope for model_settings[model]'. This pass wires + proves the composer picker per the mission's literal 'map + wire the real model picker' + the operator's general-abstraction preference; the mode-vs-base-model-family call is surfaced here for the gate, not buried. If the operator intended base-model-family selection, that is a scoped follow-up (submenu navigation).",
+  "per_item": {
+    "T1_discovery": {
+      "status": "FOUND (real-proven discovery; required 3 probe legs T1/T1b/T1c)",
+      "evidence": "orchestration/reports/M-010/discovery.md + {T1-model-discovery.json,T1b-open-probe.json,T1c-model-capture.json}. The model picker is a COMPOSER-TOOLBAR Radix dropdown (not header/sidebar — why M-009/T1 missed it). model_menu='form:has(#prompt-textarea) button[aria-haspopup=\"menu\"]:not([data-testid])' (count 1); model_option='[data-radix-popper-content-wrapper] [role=\"menuitemradio\"]' (count 5); model_option_disabled = the [aria-disabled]/[data-disabled]/[disabled] variants. Labels: Instant/Medium/High/Extra High(current at capture)/Pro Extended (all enabled) + a GPT-5.5 submenu. Match rule: value=null, match requested==option.inner_text().strip().",
+      "process_note": "T1 and T1b's first pass returned HONEST-FAIL-CLOSED; manager REJECTED both by inspecting the redacted DOM dumps (rigor: do not trust a producer's fail-closed). T1 only enumerated header/sidebar and clicked NOTHING; T1b found the menu but the over-narrow MODEL_RE label filter (labels sit in nested child divs -> ownText empty) reported '0 model-like' -> false negative. T1c captured labels verbatim (model labels are the deliverable, safe) + a stable trigger selector.",
+      "trust": "verified-independently (manager re-derived selectors+labels from the redacted artifacts; leak-scanned clean)",
+      "commit": "ac89f28"
+    },
+    "T2_wiring": {
+      "status": "PASS (RED-first; mock-safe; fail-closed)",
+      "evidence": "select_model now branches on is_select: mock <select> path preserved; real Radix path clicks model_menu to OPEN, _wait_for_model_options (1s attach), enumerates, clicks the matching option, and _dismiss_model_menu (Escape) on every failure path. Fixes the M-009-predicted find-before-open false negative. real.json model_menu/model_option/model_option_disabled populated (count still 20); test_driver_real_failclosed.py pins all three. New RED test test_select_model_radix_opens_menu_before_enumerating_options_and_absent_fails_closed proves open-before-enumerate + fail-closed (asserts click(model_menu) index < count(model_option) index; absent -> ModelUnavailableError, no send, Escape).",
+      "suite": "uv run pytest -q => 213 passed, 4 deselected (manager RE-RAN independently; baseline 212 +1 new RED test)",
+      "trust": "verified-independently (manager re-ran the suite + reviewed the diff; not the producer's claim)",
+      "commit": "59e893e"
+    },
+    "T3_real_proof": {
+      "status": "PASS (real, UI-state)",
+      "evidence": "orchestration/reports/M-010/T3-switch-proof.json (manager-verified from artifact). Drove the PRODUCTION BrowserSession.select_model over CDP against the wired real.json. Two UI-STATE switches proven by the composer trigger's visible label changing: Extra High -> Instant, then Instant -> Medium (NOT by asking the model). Fail-closed: model_settings={model:'nonexistent-...'} -> ModelUnavailableError 'is absent', trigger unchanged (Medium->Medium), message_count 0->0 (no send) — the M-009 -> M-010 upgrade from SelectorUnavailableError (empty map) to a true model-absent error. End-to-end: ask_chatgpt('Reply with only the word OK.', model_settings={model:'Instant'}, channel='cdp') returned (text len 2). Original selection (Extra High) restored.",
+      "scope": "Switch-proven labels: Instant, Medium (with Extra High as start/restore). Send-proven label: Instant. High and Pro Extended observed enabled but NOT switch/send-proven.",
+      "trust": "verified-independently (manager re-derived from T3-switch-proof.json)",
+      "commit": "1468b6b"
+    },
+    "T4_docs_verify": {
+      "status": "PASS (docs updated, no overclaim; manager-reviewed)",
+      "evidence": "docs/USAGE.md model_settings rewritten to M-010 real-proven status with the mode-vs-base-model-family distinction stated plainly + proven-label scope; stale error rows + 212->213 fixed. VERIFICATION.md: honest supersession of the M-009 'not wired' item + a scoped M-010 PASS(real) section. orchestration/reports/M-010/verify.md: producer-side honesty/leak/prompt-quality lenses (all PASS; leak grep empty).",
+      "overclaim_review": "Manager independently checked every new doc claim against T3-switch-proof.json — no residual overclaim; the mode-vs-base-model distinction is preserved in all three docs. (M-009 had a USAGE overclaim; this pass did not.)",
+      "trust": "verified-independently (manager review of docs vs the T3 artifact)",
+      "commit": "5ca9d7b"
+    }
+  },
+  "commits": {
+    "T1_discovery": "ac89f28",
+    "T2_wiring": "59e893e",
+    "T3_real_proof": "1468b6b",
+    "T4_docs_verify": "5ca9d7b"
+  },
+  "conformance": "no stealth (plain connect_over_cdp); CDP attach-only + close()=detach-not-quit (own tabs only); login/logout never automated; challenge/logout would STOP + HUMAN-ACTION-NEEDED (none occurred); tier purity preserved (real_site + ASK_CHATGPT_REAL=1 double-gate; default uv run pytest = 213 passed / 4 deselected / 0 real_site); LEAK GUARD held (this exact task leaked in M-009) — only model-option labels + trigger text captured; reused hardened redact()/isAccount(); every M-010 artifact grep-clean of account/profile/email/name/avatar/plan; original model selection restored after the switch proof; human-paced, audited (real-audit-log.md), no message cap; never pushed.",
+  "key_artifacts": [
+    "orchestration/reports/M-010/discovery.md",
+    "orchestration/reports/M-010/verify.md",
+    "orchestration/reports/M-010/T1-model-discovery.json",
+    "orchestration/reports/M-010/T1b-open-probe.json",
+    "orchestration/reports/M-010/T1c-model-capture.json",
+    "orchestration/reports/M-010/T3-switch-proof.json",
+    "orchestration/reports/M-010/real-audit-log.md",
+    "scripts/m010_real_probe.py",
+    "src/ask_chatgpt/driver.py",
+    "src/ask_chatgpt/selector_maps/real.json",
+    "docs/USAGE.md",
+    "VERIFICATION.md"
+  ],
+  "recommended_next_missions": [
+    "Base-model-family selection (the honest follow-up): wire the 'GPT-5.5' submenu (a [role=menuitem][aria-haspopup=menu] within the open composer picker) so model_settings can select base model families, not just reasoning/throughput tiers. Decide with the operator whether model_settings.model should target tiers, families, or both (a general interface that matches a requested label against top-level radios OR submenu items would honor the operator's general-abstraction preference).",
+    "Selector-drift monitoring: model_menu (attribute/structure-based, no testid) and model_option (Radix popper/role) are brittle to UI redesigns; they fail closed on drift (ModelUnavailableError / SelectorUnavailableError), but a periodic real-CDP re-probe would catch drift early.",
+    "Optional: prove switch/send for the remaining observed labels (High, Pro Extended) and exercise a disabled-option path live (none were disabled at capture)."
+  ],
+  "telemetry": {
+    "mission_estimate_minutes": 105,
+    "mission_flag_minutes": 210,
+    "worker_legs": {
+      "T1": "EST 30m / ACT 34m",
+      "T1b": "EST 45m / ACT 50m",
+      "T1c": "EST 15m / ACT ~15m (final probe runtime 0.33m)",
+      "T2": "EST 45m / ACT 36m",
+      "T3": "EST 30m / ACT ~ (probe runtime 0.79m)",
+      "T4": "EST 20m / ACT 18m"
+    },
+    "note": "Discovery cost 3 probe legs (T1/T1b/T1c) instead of 1 because the first two returned false-negative fail-closed; the manager's artifact inspection recovered the capability. REWORK-CAUSE for the extra legs: spec-gap (probe trigger-search too narrow / clicked nothing) — a probing-method gap, not env drift. Real timestamps used throughout (date -Iseconds / audit ISO)."
+  },
+  "paradigm_signals": [
+    "FALSE-NEGATIVE FROM OVER-AGGRESSIVE REDACTION/FILTERING: T1b actually found the model menu (5 menuitemradio, one aria-checked) but reported '0 model-like' and HONEST-FAIL-CLOSED because the MODEL_RE label gate + ownText() (direct text nodes only) returned empty for labels nested in Radix child divs. Lesson: a leak-safe text gate can ALSO blind discovery; for a CONFIRMED model menu, capture option innerText verbatim (model labels are the deliverable, not account data) and discriminate menus structurally (role=menuitemradio + one aria-checked) rather than by label regex.",
+    "PRODUCER FAIL-CLOSED VERDICTS MUST BE RE-DERIVED FROM GROUND TRUTH: two consecutive workers (and M-009 before them) concluded 'no model switcher'; all three were wrong. The manager only recovered the capability by reading the redacted DOM dumps, not by trusting the worker stdout. Confirms agent-rigor: the node that produced a result never raises trust on its own work.",
+    "PICKER LOCATION DRIFTED: the real model picker moved to the COMPOSER TOOLBAR (GPT-5.5 build), not the header/sidebar where M-009/M-006 looked. Re-probe location on every UI-era change.",
+    "Confirms M-009's predicted paradigm_signal: select_model enumerated model_option before opening model_menu (mock <select> is always-in-DOM; the real Radix portal is render-on-open). Closed in T2."
+  ]
+}

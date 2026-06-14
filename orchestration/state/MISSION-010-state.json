@@ -20,10 +20,18 @@
   "queue": [
     {"id": "T1", "title": "Discover model picker (OPEN-then-enumerate, real CDP)", "status": "done", "deps": [], "worker": "pi", "result": "FOUND via T1/T1b/T1c; composer-toolbar Radix dropdown; committed ac89f28", "semantic_flag": "top-level labels (Instant/Medium/High/Extra High/Pro Extended) are GPT-5.5 reasoning/throughput tiers; base model families behind GPT-5.5 submenu; M-009 called this axis reasoning-effort. Wired per mission 'map the real model picker' + general-abstraction pref; FLAGGED for team-lead spotcheck."},
     {"id": "T2", "title": "Wire select_model real path + populate real.json (RED-first, editing)", "status": "done", "deps": ["T1"], "worker": "pi", "result": "213 passed (manager re-ran); open-first mock-safe fail-closed; committed 59e893e"},
-    {"id": "T3", "title": "Prove real two-switch via UI-state + fail-closed (production entrypoint, real CDP)", "status": "dispatched", "deps": ["T2"], "worker": "pi"},
-    {"id": "T4", "title": "Verify + docs (VERIFICATION.md, USAGE.md) + verify.md + handoff", "status": "pending", "deps": ["T3"], "worker": "pi+manager"}
+    {"id": "T3", "title": "Prove real two-switch via UI-state + fail-closed (production entrypoint, real CDP)", "status": "done", "deps": ["T2"], "worker": "pi", "result": "UI-state switches Extra High->Instant->Medium; fail-closed ModelUnavailableError (no send); end-to-end returned; restored; committed 1468b6b (evidence T3-switch-proof.json, manager-verified)"},
+    {"id": "T4", "title": "Verify + docs (VERIFICATION.md, USAGE.md) + verify.md + handoff", "status": "done", "deps": ["T3"], "worker": "pi(docs)+manager(review+handoff+gate)", "result": "docs no-overclaim (manager-reviewed vs T3 artifact) + verify.md + handoff; committed 5ca9d7b"}
   ],
-  "artifacts_trust": {},
+  "mission_status": "DONE — all T1-T4 complete; real model-selection (composer reasoning/throughput picker) wired + UI-state-proven + fail-closed; docs honest/scoped; base-model-family submenu NOT wired (honest follow-up).",
+  "artifacts_trust": {
+    "discovery (selectors+labels)": "verified-independently (manager re-derived from redacted DOM dumps; leak-clean)",
+    "wiring (select_model+real.json)": "verified-independently (manager re-ran 213-passed suite + reviewed diff)",
+    "real proof (T3-switch-proof.json)": "verified-independently (manager re-derived UI-state switches + fail-closed from artifact)",
+    "docs (USAGE.md+VERIFICATION.md)": "verified-independently (manager overclaim review vs T3 artifact; no overclaim)"
+  },
   "blockers": [],
-  "gate": "AWAITING-TEAM-LEAD-SPOTCHECK (set at mission close)"
+  "gate": "AWAITING-TEAM-LEAD-SPOTCHECK",
+  "commits": ["ac89f28 (T1)", "59e893e (T2)", "1468b6b (T3)", "5ca9d7b (T4)"],
+  "handoff": "orchestration/handoffs/MISSION-010-handoff.json"
 }
