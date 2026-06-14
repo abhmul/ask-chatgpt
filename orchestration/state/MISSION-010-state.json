@@ -19,8 +19,8 @@
   ],
   "queue": [
     {"id": "T1", "title": "Discover model picker (OPEN-then-enumerate, real CDP)", "status": "done", "deps": [], "worker": "pi", "result": "FOUND via T1/T1b/T1c; composer-toolbar Radix dropdown; committed ac89f28", "semantic_flag": "top-level labels (Instant/Medium/High/Extra High/Pro Extended) are GPT-5.5 reasoning/throughput tiers; base model families behind GPT-5.5 submenu; M-009 called this axis reasoning-effort. Wired per mission 'map the real model picker' + general-abstraction pref; FLAGGED for team-lead spotcheck."},
-    {"id": "T2", "title": "Wire select_model real path + populate real.json (RED-first, editing)", "status": "dispatched", "deps": ["T1"], "worker": "pi"},
-    {"id": "T3", "title": "Prove real two-switch via UI-state + fail-closed (production entrypoint, real CDP)", "status": "pending", "deps": ["T2"], "worker": "pi"},
+    {"id": "T2", "title": "Wire select_model real path + populate real.json (RED-first, editing)", "status": "done", "deps": ["T1"], "worker": "pi", "result": "213 passed (manager re-ran); open-first mock-safe fail-closed; committed 59e893e"},
+    {"id": "T3", "title": "Prove real two-switch via UI-state + fail-closed (production entrypoint, real CDP)", "status": "dispatched", "deps": ["T2"], "worker": "pi"},
     {"id": "T4", "title": "Verify + docs (VERIFICATION.md, USAGE.md) + verify.md + handoff", "status": "pending", "deps": ["T3"], "worker": "pi+manager"}
   ],
   "artifacts_trust": {},

@@ -36,7 +36,9 @@ from ask_chatgpt.errors import (  # noqa: E402
     CDPUnreachableError,
     ChallengePresentError,
     LoginRequiredError,
+    ModelUnavailableError,
     ProfileLockedError,
+    SelectorUnavailableError,
 )
 from ask_chatgpt.patch import apply_patch, retrieve_patch_bundle  # noqa: E402
 
@@ -2760,6 +2762,395 @@ def leg_model_capture(_args: argparse.Namespace) -> int:
             session.close()
 
 
+MODEL_SWITCH_CANDIDATE_ORDER = ("Instant", "Medium", "High", "Extra High", "Pro Extended")
+BOGUS_MODEL_LABEL = "nonexistent-model-zzz-9999"
+
+
+def _require_session_page(session: BrowserSession) -> Any:
+    page = session.page
+    if page is None:
+        raise AskChatGPTError("Browser page is unavailable after connect")
+    return page
+
+
+def _read_model_trigger_text(session: BrowserSession) -> str:
+    page = _require_session_page(session)
+    selector = session.selectors.selector("model_menu")
+    try:
+        return page.locator(selector).first.inner_text(timeout=5000).strip()
+    except PlaywrightError as exc:
+        raise SelectorUnavailableError(f"selector 'model_menu' unavailable for channel '{session.channel}'") from exc
+
+
+def _message_role_count(page: Any) -> int:
+    try:
+        return int(page.locator("[data-message-author-role]").count())
+    except PlaywrightError as exc:
+        raise AskChatGPTError("message-role count unavailable for no-send proof") from exc
+
+
+def _read_selectable_model_labels(session: BrowserSession) -> tuple[list[str], list[dict[str, Any]]]:
+    """Read option labels only; production select_model still performs all selection clicks."""
+    page = _require_session_page(session)
+    menu_selector = session.selectors.selector("model_menu")
+    option_selector = session.selectors.selector("model_option")
+    disabled_selector = session.selectors.selector("model_option_disabled")
+    labels: list[str] = []
+    rows: list[dict[str, Any]] = []
+    opened = False
+    try:
+        page.locator(menu_selector).first.click(timeout=5000)
+        opened = True
+        page.wait_for_selector(option_selector, timeout=2000, state="attached")
+        page.wait_for_timeout(300)
+        options = page.locator(option_selector)
+        count = int(options.count())
+        for index in range(count):
+            option = options.nth(index)
+            label = option.inner_text(timeout=5000).strip()
+            disabled = bool(option.evaluate(
+                """(element, selector) => element.matches(selector)
+                    || element.getAttribute('aria-disabled') === 'true'
+                    || element.getAttribute('data-disabled') === 'true'
+                    || element.hasAttribute('disabled')""",
+                disabled_selector,
+            ))
+            rows.append({"index": index, "label": label, "enabled": not disabled})
+            if label and not disabled and label not in labels:
+                labels.append(label)
+    except PlaywrightError as exc:
+        raise SelectorUnavailableError(
+            f"selector 'model_menu'/'model_option' unavailable for channel '{session.channel}'"
+        ) from exc
+    finally:
+        if opened:
+            try:
+                page.keyboard.press("Escape")
+                page.wait_for_timeout(300)
+            except PlaywrightError:
+                pass
+    return labels, rows
+
+
+def _current_label_from_trigger(trigger_text: str, labels: list[str]) -> str:
+    for label in labels:
+        if label == trigger_text:
+            return label
+    contained = sorted((label for label in labels if label and label in trigger_text), key=len, reverse=True)
+    return contained[0] if contained else trigger_text
+
+
+def _choose_switch_targets(orig_trigger: str, labels: list[str]) -> tuple[str, str | None, str | None]:
+    unique_labels = list(dict.fromkeys(labels))
+    current_label = _current_label_from_trigger(orig_trigger, unique_labels)
+    ordered = [label for label in MODEL_SWITCH_CANDIDATE_ORDER if label in unique_labels]
+    ordered.extend(label for label in unique_labels if label not in ordered)
+    if len(ordered) < 2:
+        return current_label, None, None
+    target1 = next((label for label in ordered if label != current_label), None)
+    if target1 is None:
+        return current_label, None, None
+    target2 = next((label for label in ordered if label not in {current_label, target1}), None)
+    if target2 is None and current_label in ordered and current_label != target1:
+        target2 = current_label
+    if target2 is None:
+        target2 = next((label for label in ordered if label != target1), None)
+    return current_label, target1, target2
+
+
+def _exception_evidence(exc: BaseException) -> dict[str, str]:
+    detail = getattr(exc, "detail", "") or str(exc)
+    return {"class": exc.__class__.__name__, "message": redact(detail)[:400]}
+
+
+def _attempt_restore_original(session: BrowserSession, payload: dict[str, Any], orig: str | None) -> None:
+    if not orig:
+        return
+    restore = payload.setdefault("restore", {})
+    if restore.get("restored_to_ORIG") is True:
+        return
+    try:
+        before = _read_model_trigger_text(session)
+        restore.update({"attempted": True, "before_trigger": before})
+        session.select_model({"model": orig})
+        page = _require_session_page(session)
+        page.wait_for_timeout(600)
+        after = _read_model_trigger_text(session)
+        restore.update({"after_trigger": after, "restored_to_ORIG": orig in after})
+        audit({"leg": "model-switch-proof", "action": "restore original model selection",
+               "prompt-label": "n/a", "observation": f"before={before},after={after}",
+               "markers": "no prompt sent", "result": "OK" if orig in after else "PARTIAL"})
+    except Exception as exc:  # noqa: BLE001 - restore evidence must be fail-closed.
+        restore.update({"attempted": True, "restored_to_ORIG": False, "error": _exception_evidence(exc)})
+        audit({"leg": "model-switch-proof", "action": "restore original model selection",
+               "prompt-label": "n/a", "observation": exc.__class__.__name__,
+               "markers": "no prompt sent", "result": "PARTIAL"})
+
+
+def _run_model_switch_primary(payload: dict[str, Any]) -> int:
+    session: BrowserSession | None = None
+    close_on_exit = True
+    orig: str | None = None
+    try:
+        session = connect()
+        try:
+            session.open_or_create_conversation(None)
+        except HUMAN_ERRORS as exc:
+            close_on_exit = False
+            _emit_human_action_needed(exc)
+            payload.update({"stage": "open", "primary_status": "BLOCKED", "result": _human_label(exc)})
+            return 5
+        if not recheck_safe(session):
+            close_on_exit = False
+            payload.update({"stage": "open-safety", "primary_status": "BLOCKED", "result": "HUMAN-ACTION-NEEDED"})
+            return 5
+        audit({"leg": "model-switch-proof", "action": "open own tab conversation", "prompt-label": "n/a",
+               "observation": "open_or_create_conversation(None); no prompt sent", "markers": "attach-only", "result": "OK"})
+
+        page = _require_session_page(session)
+        model_menu_selector = session.selectors.selector("model_menu")
+        payload["model_menu_selector"] = model_menu_selector
+        orig = _read_model_trigger_text(session)
+        payload["ORIG"] = orig
+        audit({"leg": "model-switch-proof", "action": "read initial trigger label", "prompt-label": "n/a",
+               "observation": f"ORIG={orig}", "markers": "model trigger text only", "result": "OK"})
+
+        labels, option_rows = _read_selectable_model_labels(session)
+        payload["available_model_labels"] = labels
+        payload["model_option_rows"] = option_rows
+        current_label, target1, target2 = _choose_switch_targets(orig, labels)
+        payload["current_model_label_inferred"] = current_label
+        payload["TARGET1"] = target1
+        payload["TARGET2"] = target2
+        audit({"leg": "model-switch-proof", "action": "read selectable model option labels", "prompt-label": "n/a",
+               "observation": f"selectable={labels},targets={target1}->{target2}",
+               "markers": "Escape,no selection", "result": "OK" if len(labels) >= 2 else "PARTIAL"})
+        if not recheck_safe(session):
+            close_on_exit = False
+            payload.update({"stage": "post-enumerate-safety", "primary_status": "BLOCKED", "result": "HUMAN-ACTION-NEEDED"})
+            return 5
+
+        if target1 is None or target2 is None:
+            payload["switch_proof"] = {"skipped": True, "reason": "fewer than 2 selectable model labels"}
+            payload["primary_status"] = "PARTIAL"
+            audit({"leg": "model-switch-proof", "action": "choose two switch targets", "prompt-label": "n/a",
+                   "observation": "fewer than 2 selectable model labels", "markers": "no prompt sent", "result": "PARTIAL"})
+        else:
+            before1 = _read_model_trigger_text(session)
+            session.select_model({"model": target1})
+            page.wait_for_timeout(600)
+            if not recheck_safe(session):
+                close_on_exit = False
+                payload.update({"stage": "post-switch1-safety", "primary_status": "BLOCKED", "result": "HUMAN-ACTION-NEEDED"})
+                return 5
+            after1 = _read_model_trigger_text(session)
+            switch1_ok = target1 in after1
+            payload["switch1"] = {"target": target1, "before_trigger": before1, "after_trigger": after1,
+                                  "ui_state_assertion": switch1_ok}
+            audit({"leg": "model-switch-proof", "action": "Switch 1 via production BrowserSession.select_model",
+                   "prompt-label": "n/a", "observation": f"{before1}->{after1}; target={target1}",
+                   "markers": "no prompt sent", "result": "OK" if switch1_ok else "ASSERTION-FAILED"})
+            if not switch1_ok:
+                raise AssertionError(f"TARGET1 {target1!r} not present in trigger text {after1!r}")
+
+            before2 = _read_model_trigger_text(session)
+            session.select_model({"model": target2})
+            page.wait_for_timeout(600)
+            if not recheck_safe(session):
+                close_on_exit = False
+                payload.update({"stage": "post-switch2-safety", "primary_status": "BLOCKED", "result": "HUMAN-ACTION-NEEDED"})
+                return 5
+            after2 = _read_model_trigger_text(session)
+            switch2_ok = target2 in after2
+            payload["switch2"] = {"target": target2, "before_trigger": before2, "after_trigger": after2,
+                                  "ui_state_assertion": switch2_ok}
+            audit({"leg": "model-switch-proof", "action": "Switch 2 via production BrowserSession.select_model",
+                   "prompt-label": "n/a", "observation": f"{before2}->{after2}; target={target2}",
+                   "markers": "no prompt sent", "result": "OK" if switch2_ok else "ASSERTION-FAILED"})
+            if not switch2_ok:
+                raise AssertionError(f"TARGET2 {target2!r} not present in trigger text {after2!r}")
+            payload["primary_status"] = "DONE"
+
+        fail_before_trigger = _read_model_trigger_text(session)
+        fail_before_messages = _message_role_count(page)
+        fail: dict[str, Any] = {
+            "requested_model": BOGUS_MODEL_LABEL,
+            "before_trigger": fail_before_trigger,
+            "message_count_before": fail_before_messages,
+        }
+        try:
+            session.select_model({"model": BOGUS_MODEL_LABEL})
+        except ModelUnavailableError as exc:
+            fail["exception"] = _exception_evidence(exc)
+        except Exception as exc:  # noqa: BLE001 - exact class is the proof.
+            fail["exception"] = _exception_evidence(exc)
+            fail["wrong_exception_class"] = True
+        else:
+            fail["exception"] = {"class": None, "message": "no exception raised"}
+            fail["wrong_exception_class"] = True
+        page.wait_for_timeout(300)
+        fail_after_trigger = _read_model_trigger_text(session)
+        fail_after_messages = _message_role_count(page)
+        fail.update({
+            "after_trigger": fail_after_trigger,
+            "message_count_after": fail_after_messages,
+            "trigger_unchanged": fail_after_trigger == fail_before_trigger,
+            "no_send": fail_after_messages == fail_before_messages,
+        })
+        payload["fail_closed"] = fail
+        fail_ok = (fail.get("exception") or {}).get("class") == "ModelUnavailableError"
+        audit({"leg": "model-switch-proof", "action": "fail-closed bogus model via production select_model",
+               "prompt-label": "n/a",
+               "observation": "exception=%s,trigger_unchanged=%s,no_send=%s" % ((fail.get("exception") or {}).get("class"), fail.get("trigger_unchanged"), fail.get("no_send")),
+               "markers": "Escape,no prompt sent", "result": "OK" if fail_ok and fail.get("trigger_unchanged") and fail.get("no_send") else "ASSERTION-FAILED"})
+        if not fail_ok:
+            raise AssertionError("bogus model did not raise ModelUnavailableError")
+        if not fail["trigger_unchanged"]:
+            raise AssertionError("bogus model changed trigger text")
+        if not fail["no_send"]:
+            raise AssertionError("bogus model changed message count")
+
+        _attempt_restore_original(session, payload, orig)
+        if not (payload.get("restore") or {}).get("restored_to_ORIG"):
+            raise AssertionError("restore to ORIG did not confirm via trigger text")
+        payload["stage"] = "primary-done"
+        return 0
+    except SystemExit:
+        raise
+    except HUMAN_ERRORS as exc:
+        close_on_exit = False
+        _emit_human_action_needed(exc)
+        payload.update({"stage": "human-action-needed", "primary_status": "BLOCKED", "result": _human_label(exc)})
+        return 5
+    except Exception as exc:  # noqa: BLE001
+        payload["stage"] = "primary-error"
+        payload["primary_status"] = "PARTIAL"
+        payload["primary_error"] = _exception_evidence(exc)
+        _emit(f"ERROR: {exc.__class__.__name__}: {exc}")
+        return 1
+    finally:
+        if session is not None and close_on_exit:
+            _attempt_restore_original(session, payload, orig)
+            session.close()
+
+
+def _run_model_switch_e2e(payload: dict[str, Any]) -> int:
+    entry: dict[str, Any] = {
+        "prompt_label": "trivial-ok",
+        "model": "Instant",
+        "started_at": datetime.now().astimezone().isoformat(),
+    }
+    t0 = time.monotonic()
+    try:
+        text = ask_chatgpt(
+            "Reply with only the word OK.",
+            model_settings={"model": "Instant"},
+            channel="cdp",
+            cdp_endpoint=CDP_ENDPOINT,
+        )
+        entry["outcome"] = "returned"
+        entry["text_len"] = len(text) if isinstance(text, str) else -1
+        entry["redacted_text_len"] = len(redact(text)) if isinstance(text, str) else -1
+        result = 0
+    except CDPUnreachableError:
+        _emit("CDP_UNREACHABLE")
+        entry["outcome"] = "CDPUnreachableError"
+        result = 3
+    except HUMAN_ERRORS as exc:
+        _emit_human_action_needed(exc)
+        entry["outcome"] = exc.__class__.__name__
+        entry["detail"] = redact(getattr(exc, "detail", "") or str(exc))[:300]
+        result = 5
+    except AskChatGPTError as exc:
+        entry["outcome"] = exc.__class__.__name__
+        entry["detail"] = redact(getattr(exc, "detail", "") or str(exc))[:300]
+        result = 0
+    except Exception as exc:  # noqa: BLE001
+        entry["outcome"] = exc.__class__.__name__
+        entry["detail"] = redact(str(exc))[:300]
+        result = 1
+    entry["seconds"] = round(time.monotonic() - t0, 2)
+    entry["ended_at"] = datetime.now().astimezone().isoformat()
+    payload["end_to_end"] = entry
+    audit({"leg": "model-switch-proof", "action": "ask_chatgpt(model_settings) production entrypoint",
+           "prompt-label": "trivial-ok", "observation": f"outcome={entry['outcome']},len={entry.get('redacted_text_len', 'n/a')}",
+           "markers": "one trivial send", "result": entry["outcome"]})
+    return result
+
+
+def _emit_model_switch_summary(payload: dict[str, Any]) -> None:
+    switch1 = payload.get("switch1") or {}
+    switch2 = payload.get("switch2") or {}
+    fail = payload.get("fail_closed") or {}
+    exc = fail.get("exception") or {}
+    e2e = payload.get("end_to_end") or {}
+    restore = payload.get("restore") or {}
+    _emit("MODEL-SWITCH-PROOF: STATUS=%s %s -> %s (trigger now shows %s) -> %s (trigger now shows %s)" % (
+        payload.get("status"), payload.get("ORIG"), payload.get("TARGET1"), switch1.get("after_trigger"),
+        payload.get("TARGET2"), switch2.get("after_trigger")))
+    _emit("FAIL-CLOSED: exception=%s trigger_unchanged=%s no_send=%s" % (
+        exc.get("class"), fail.get("trigger_unchanged"), fail.get("no_send")))
+    _emit("END-TO-END: outcome=%s redacted_len=%s" % (e2e.get("outcome"), e2e.get("redacted_text_len", "n/a")))
+    _emit("RESTORED-TO-ORIG: %s" % ("yes" if restore.get("restored_to_ORIG") else "no"))
+
+
+def leg_model_switch_proof(_args: argparse.Namespace) -> int:
+    """T3: prove production model switches by trigger UI state, then one entrypoint send."""
+    report = REPORT_DIR / "T3-switch-proof.json"
+    t0 = time.monotonic()
+    payload: dict[str, Any] = {
+        "stage": "start",
+        "status": "PARTIAL",
+        "started_at": datetime.now().astimezone().isoformat(),
+        "estimate_minutes": 30,
+    }
+    try:
+        primary_code = _run_model_switch_primary(payload)
+    except SystemExit as exc:
+        payload["stage"] = "system-exit"
+        payload["status"] = "BLOCKED"
+        payload["result"] = f"SystemExit({exc.code})"
+        payload["ended_at"] = datetime.now().astimezone().isoformat()
+        payload["actual_minutes"] = round((time.monotonic() - t0) / 60.0, 2)
+        _write_json(report, payload)
+        raise
+
+    if primary_code in (3, 5):
+        payload["status"] = "BLOCKED"
+        payload["ended_at"] = datetime.now().astimezone().isoformat()
+        payload["actual_minutes"] = round((time.monotonic() - t0) / 60.0, 2)
+        _write_json(report, payload)
+        _emit_model_switch_summary(payload)
+        return primary_code
+    if primary_code != 0:
+        payload["status"] = "PARTIAL"
+        payload["ended_at"] = datetime.now().astimezone().isoformat()
+        payload["actual_minutes"] = round((time.monotonic() - t0) / 60.0, 2)
+        _write_json(report, payload)
+        _emit_model_switch_summary(payload)
+        return primary_code
+
+    e2e_code = _run_model_switch_e2e(payload)
+    e2e_outcome = (payload.get("end_to_end") or {}).get("outcome")
+    primary_status = payload.get("primary_status")
+    if e2e_code in (3, 5):
+        payload["status"] = "BLOCKED"
+    elif e2e_code != 0:
+        payload["status"] = "PARTIAL"
+    elif primary_status == "DONE" and e2e_outcome == "returned":
+        payload["status"] = "DONE"
+    else:
+        payload["status"] = "PARTIAL"
+    payload["stage"] = "done"
+    payload["ended_at"] = datetime.now().astimezone().isoformat()
+    payload["actual_minutes"] = round((time.monotonic() - t0) / 60.0, 2)
+    _write_json(report, payload)
+    _emit_model_switch_summary(payload)
+    if e2e_code in (3, 5):
+        return e2e_code
+    return e2e_code
+
+
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
     path.write_text(redact(json.dumps(payload, indent=2, sort_keys=True)) + "\n", encoding="utf-8")
@@ -2792,6 +3183,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     mc = sub.add_parser("model-capture", help="capture verified model menu labels and stable trigger selector, Escape")
     mc.set_defaults(func=leg_model_capture)
+
+    ms = sub.add_parser("model-switch-proof", help="prove production model switching via trigger UI state")
+    ms.set_defaults(func=leg_model_switch_proof)
     return p
 
 

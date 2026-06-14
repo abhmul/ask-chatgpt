@@ -1,0 +1,89 @@
+{
+  "ORIG": "Extra High",
+  "TARGET1": "Instant",
+  "TARGET2": "Medium",
+  "actual_minutes": 0.79,
+  "available_model_labels": [
+    "Instant",
+    "Medium",
+    "High",
+    "Extra High",
+    "Pro Extended"
+  ],
+  "current_model_label_inferred": "Extra High",
+  "end_to_end": {
+    "ended_at": "2026-06-13T19:09:19.407654-05:00",
+    "model": "Instant",
+    "outcome": "returned",
+    "prompt_label": "trivial-ok",
+    "redacted_text_len": 2,
+    "seconds": 24.65,
+    "started_at": "2026-06-13T19:08:54.752994-05:00",
+    "text_len": 2
+  },
+  "ended_at": "2026-06-13T19:09:19.407799-05:00",
+  "estimate_minutes": 30,
+  "fail_closed": {
+    "after_trigger": "Medium",
+    "before_trigger": "Medium",
+    "exception": {
+      "class": "ModelUnavailableError",
+      "message": "model option 'nonexistent-model-zzz-9999' is absent"
+    },
+    "message_count_after": 0,
+    "message_count_before": 0,
+    "no_send": true,
+    "requested_model": "nonexistent-model-zzz-9999",
+    "trigger_unchanged": true
+  },
+  "model_menu_selector": "form:has(#prompt-textarea) button[aria-haspopup=\"menu\"]:not([data-testid])",
+  "model_option_rows": [
+    {
+      "enabled": true,
+      "index": 0,
+      "label": "Instant"
+    },
+    {
+      "enabled": true,
+      "index": 1,
+      "label": "Medium"
+    },
+    {
+      "enabled": true,
+      "index": 2,
+      "label": "High"
+    },
+    {
+      "enabled": true,
+      "index": 3,
+      "label": "Extra High"
+    },
+    {
+      "enabled": true,
+      "index": 4,
+      "label": "Pro Extended"
+    }
+  ],
+  "primary_status": "DONE",
+  "restore": {
+    "after_trigger": "Extra High",
+    "attempted": true,
+    "before_trigger": "Medium",
+    "restored_to_ORIG": true
+  },
+  "stage": "done",
+  "started_at": "2026-06-13T19:08:32.011978-05:00",
+  "status": "DONE",
+  "switch1": {
+    "after_trigger": "Instant",
+    "before_trigger": "Extra High",
+    "target": "Instant",
+    "ui_state_assertion": true
+  },
+  "switch2": {
+    "after_trigger": "Medium",
+    "before_trigger": "Instant",
+    "target": "Medium",
+    "ui_state_assertion": true
+  }
+}

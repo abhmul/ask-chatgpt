@@ -58,3 +58,11 @@
 | 53 | 2026-06-13T18:37:49.572532-05:00 | T1c-model-capture | capture model option labels | n/a | options=5,current=Extra High,selectable=5 | Escape,no selection | OK |
 | 54 | 2026-06-13T18:37:53.566967-05:00 | T1c-model-capture | re-open selector and confirm reproducible capture | n/a | same_labels=True,second_options=5 | Escape,no selection | OK |
 | 55 | 2026-06-13T18:37:53.568292-05:00 | T1c-model-capture | write T1c report + final discovery.md | n/a | selector_count=1,labels=5,current=Extra High | no prompt sent; no option selected | DONE |
+| 56 | 2026-06-13T19:08:41.158244-05:00 | model-switch-proof | open own tab conversation | n/a | open_or_create_conversation(None); no prompt sent | attach-only | OK |
+| 57 | 2026-06-13T19:08:41.162079-05:00 | model-switch-proof | read initial trigger label | n/a | ORIG=Extra High | model trigger text only | OK |
+| 58 | 2026-06-13T19:08:45.784061-05:00 | model-switch-proof | read selectable model option labels | n/a | selectable=['Instant', 'Medium', 'High', 'Extra High', 'Pro Extended'],targets=Instant->Medium | Escape,no selection | OK |
+| 59 | 2026-06-13T19:08:49.756946-05:00 | model-switch-proof | Switch 1 via production BrowserSession.select_model | n/a | Extra High->Instant; target=Instant | no prompt sent | OK |
+| 60 | 2026-06-13T19:08:51.742391-05:00 | model-switch-proof | Switch 2 via production BrowserSession.select_model | n/a | Instant->Medium; target=Medium | no prompt sent | OK |
+| 61 | 2026-06-13T19:08:52.427905-05:00 | model-switch-proof | fail-closed bogus model via production select_model | n/a | exception=ModelUnavailableError,trigger_unchanged=True,no_send=True | Escape,no prompt sent | OK |
+| 62 | 2026-06-13T19:08:54.717616-05:00 | model-switch-proof | restore original model selection | n/a | before=Medium,after=Extra High | no prompt sent | OK |
+| 63 | 2026-06-13T19:09:19.407701-05:00 | model-switch-proof | ask_chatgpt(model_settings) production entrypoint | trivial-ok | outcome=returned,len=2 | one trivial send | returned |
