@@ -6,8 +6,8 @@ It is a library + CLI, not a daemon and not an API client — it has no API key 
 UI through a versioned selector map.
 
 This guide is for an **agent consuming the tool**. It states honestly what is real-proven, what is
-mock-proven only, and what fails closed. Status claims tie to `VERIFICATION.md` (M-008b gate) and the
-M-009 reports under `orchestration/reports/M-009/`.
+mock-proven only, and what fails closed. Status claims tie to `VERIFICATION.md` and the cited mission
+reports under `orchestration/reports/`.
 
 ## TL;DR
 ```python
@@ -74,12 +74,13 @@ nonce is recalled in the same conversation; a fresh conversation does not recall
   the CLI prints a JSON `DiffSummary` to stdout.
 
 ### `model_settings` — honest status
-`model_settings={"model": "..."}` selects a model. This is **mock-proven only**. On the **real** site it
-currently **fails closed**: the live model picker is not mapped in `real.json` (M-009 T3 found no
-targetable switcher in the current UI), so a real call with `model_settings` raises
-`SelectorUnavailableError` (`selector 'model_menu' unavailable`) **before sending** — it never silently
-sends on the wrong model. **For real use, omit `model_settings`** (uses whatever model the signed-in UI
-has selected). See `orchestration/reports/M-009/T3-model-findings.md`.
+`model_settings={"model": "<label>"}` now selects a top-level model option on the **real** site (M-010), proven over CDP by the composer trigger's visible label changing after selection. The picker is the **composer-toolbar dropdown** (`model_menu`); on the test account its observed, enabled top-level options were `Instant`, `Medium`, `High`, `Extra High`, and `Pro Extended`.
+
+Important scope: these labels are GPT-5.5 **reasoning/throughput tiers** in the composer picker — mode/tier labels, **not base model families**. Base model families live behind a separate `GPT-5.5` submenu (`role="menuitem"` with `aria-haspopup`), and that submenu is **not wired** in this pass; requesting a base-model-family name fails closed.
+
+Availability is account/plan-dependent. The exact labels depend on the signed-in account, and the tool fails closed on any requested label not present in the open menu. M-010 switch proof exercised UI-state switches `Extra High` → `Instant` and `Instant` → `Medium`, with `Extra High` also restored as the starting selection; end-to-end `ask_chatgpt(..., model_settings={"model": "Instant"}, channel="cdp")` returned. `High` and `Pro Extended` were observed available/enabled but were not switch- or send-proven.
+
+Requesting an available top-level composer-picker label now works. Requesting an absent label (typo, unavailable account/plan label, or base-model-family name) raises `ModelUnavailableError` before any send — it never silently sends on the wrong model. Evidence: `orchestration/reports/M-010/discovery.md`, `orchestration/reports/M-010/T3-switch-proof.json`; see also `VERIFICATION.md`.
 
 ## Named error modes (all subclass `AskChatGPTError`)
 Each is actionable and fails closed. The CLI maps the exit codes shown in parentheses below; errors
@@ -93,10 +94,10 @@ validation group intentionally shares code `11`. All error classes are importabl
 | `ChallengePresentError` (1) | Cloudflare / human-verification challenge is showing. | Clear it manually in the browser, then retry. Automation stops, never clicks through. |
 | `ProfileLockedError` (1) | Profile in use / lock held. | Close the conflicting browser, retry. |
 | `SessionNotFoundError` (4) | Stored conversation ref no longer opens. | Delete/recreate that `session_identifier`, retry. |
-| `ModelUnavailableError` (5) | A mapped menu lacks the requested model. | Choose an available model setting, retry. (Real picker is unmapped → you'll see `SelectorUnavailableError` instead.) |
+| `ModelUnavailableError` (5) | A mapped menu lacks the requested model. | Choose an available model setting, retry. |
 | `ResponseTruncatedError` (7) | Reply looks incomplete / end-marker missing. | Retry or reduce payload. (Short replies are handled — see caveats.) |
 | `RateLimitedError` (6) | ChatGPT signaled a rate limit. | Wait the indicated window, slow down, retry. |
-| `SelectorUnavailableError` (8) | A required selector-map key is missing/stale (fail closed, never guesses). | Update the selector map / the feature is unmapped (e.g. real model selection). |
+| `SelectorUnavailableError` (8) | A required selector-map key is missing/stale (fail closed, never guesses). | Update the selector map / the feature is unmapped. |
 | `UploadUnsupportedError` (9) | Upload affordance absent/rejected. | Disable the upload workflow or retry later. |
 | `DownloadUnsupportedError` (10) | No downloadable patch file in the reply (and no fenced fallback). | Use the text channel, or retry — ChatGPT may have answered in prose instead of a file. |
 | `PatchMalformedError` / `BundleIntegrityError` / `OversizedPayloadError` / `PathEscapeError` (11) | Returned bundle failed validation. | Request a fresh changed-files-only bundle; no local files were changed. |
@@ -108,7 +109,7 @@ validation group intentionally shares code `11`. All error classes are importabl
   truncations**, `orchestration/reports/M-009/T2-short-response.json`).
 - **UC2 round-trip (`files=` → capture → apply + diff + content): real-PROVEN for a SINGLE modified-file bundle.** M-009 T1 closed this end-to-end over CDP: upload → real `.zip` captured via the production path (`source=download`, 161 bytes) → applied → `favorite_color` red→blue with the sibling line unchanged (`content_correct=true`, `orchestration/reports/M-009/T1-uc2-roundtrip.json`). **Scope:** only the single modified-file round-trip is real-proven; **added, deleted, and multi-file bundles are mock-proven only** (`VERIFICATION.md` M-007 scope), not yet validated against the real download path. The real ChatGPT download control carries no integrity metadata, so the captured zip is validated **structurally** (zip-slip + caps + structure), not against a model-declared SHA.
 - **Continuity: real-PROVEN (conversation-scoped, memory-immune).** M-008b temp-chat probe 3/3.
-- **Real model selection: NOT wired (fails closed).** M-009 T3 — see `model_settings` above.
+- **Real model selection: real-PROVEN (M-010)** — composer-picker reasoning/throughput tiers; UI-state switch + fail-closed proven; base-model-family submenu not wired. See `model_settings` above.
 
 ## Caveats (do not over-rely)
 - **Attended + human browser required.** Real use needs an operator-launched, signed-in CDP browser in a
@@ -118,7 +119,7 @@ validation group intentionally shares code `11`. All error classes are importabl
 - **Non-deterministic surface.** UC2 depends on ChatGPT choosing to emit a downloadable file; if it
   answers in prose, expect `DownloadUnsupportedError`. The download selector is text-dependent
   (`button:has-text("Download the patch bundle")`) and fails closed if the UI text drifts.
-- **Default test tier is mock-only.** `uv run pytest` is loopback-mock-only (212 passed / 4 deselected),
+- **Default test tier is mock-only.** `uv run pytest` is loopback-mock-only (213 passed / 4 deselected),
   contacts neither chatgpt.com nor any API, and burns no quota. Real-site tests are double-gated behind a
   `real_site` marker **and** `ASK_CHATGPT_REAL=1`; they never run by accident.
 - **Fail-closed everywhere.** On any stale selector, challenge, logout, or ambiguous bundle the tool
