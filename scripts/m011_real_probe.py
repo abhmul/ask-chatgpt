@@ -1,9 +1,39 @@
 #!/usr/bin/env python3
-"""M-011 real-site CDP tools-menu + Deep Research discovery probe.
+"""M-011/M-011b real-site CDP tools-menu + Deep Research discovery probe.
 
 Attach-only discovery tooling for an operator-launched Chrome over CDP. This
 script never launches a browser, never automates login, and writes only redacted
-M-011 discovery artifacts under orchestration/reports/M-011/.
+discovery artifacts under orchestration/reports/M-011b/.
+
+================================ STATUS: PAUSED ================================
+This is M-011b WIP and has NOT been run to a successful Deep Research capture.
+
+  Mission:          orchestration/tasks/MISSION-011b.md (Deep Research lifecycle re-capture)
+  Dispatched:       2026-06-13 (commit f0f4362)
+  Paused:           2026-06-14 — M-011b was stopped to ship the CRITICAL fix for the hidden
+                    600s completion ceiling (commit 779eb40); the clean browser run window
+                    was preempted by that fix.
+  Committed paused: 2026-06-16 (to keep the worktree clean).
+
+What this revision fixed vs the M-011 probe (validated by DOM inspection, NOT by a real DR
+run yet): Deep Research turns use `section[data-testid^="conversation-turn"]` (NOT
+`[data-message-author-role="assistant"]`, the M-011 blind spot), and the composer-area
+"Deep research" chip is excluded (it was a false-positive "progress" signal across all 300
+M-011 polls). The clarify read-and-answer flow is wired. None of it is real-validated.
+
+TO RESUME (requires a CLEAN browser window + Deep Research quota; coordinate with the
+operator so they are NOT using the ChatGPT browser concurrently — concurrent use caused the
+M-011 leak incident; this probe is own-tab-only by page identity):
+  1. Re-run to capture the full DR lifecycle: select -> clarify (read + answer) -> long
+     completion signal -> report + citations structure.
+  2. ON SUCCESS, UPDATE DOCUMENTATION (and delete/replace this PAUSED banner):
+       - orchestration/reports/M-011b/discovery.md        (captured DR lifecycle)
+       - orchestration/reports/M-011b/verify.md           (honest verify + leak scan)
+       - orchestration/handoffs/MISSION-011b-handoff.json (STATUS)
+       - orchestration/state/lead.state.json              (M-011b status -> DONE)
+       - VERIFICATION.md                                  (DR lifecycle real status)
+       - docs/DESIGN-SPEC.md                              (tools / Deep Research feature layer)
+===============================================================================
 """
 
 from __future__ import annotations
@@ -24,13 +54,13 @@ from m010_real_probe import (  # noqa: E402
     BASE_URL, CDP_ENDPOINT, HUMAN_PACE_S,
 )
 
-REPORT_DIR = Path(__file__).resolve().parents[1] / "orchestration" / "reports" / "M-011"
+REPORT_DIR = Path(__file__).resolve().parents[1] / "orchestration" / "reports" / "M-011b"
 AUDIT_LOG = REPORT_DIR / "real-audit-log.md"
 DR_PROMPT = "Compare LFP vs NMC lithium battery chemistries for consumer EVs in exactly 3 bullet points, with a source per bullet."
 CLARIFY_ANSWER = "Keep it brief — 3 bullets, consumer-EV context, recent sources; no need to go deep."
 
 AUDIT_DATA_ROW_RE = re.compile(r"^\|\s*\d+\s*\|")
-AUDIT_HEADER = """# M-011 — Real-site per-message audit log (transparency, not rationing)
+AUDIT_HEADER = """# M-011b — Real-site per-message audit log (transparency, not rationing)
 
 | # | timestamp (ISO) | leg | action | prompt-label (redacted) | observation | markers (stop/copy) | result |
 |---|---|---|---|---|---|---|---|
@@ -512,7 +542,8 @@ _DR_STATE_JS = r'''(args) => {
   args = args || {};
   const startedAtMs = Number(args.started_at_ms || Date.now());
   const nowMs = Date.now();
-  const ASSISTANT_SELECTOR = '[data-message-author-role="assistant"]';
+  const TURN_SELECTOR = 'section[data-testid^="conversation-turn"]';
+  const USER_SELECTOR = '[data-message-author-role="user"]';
   const STOP_SELECTOR = 'button[data-testid="stop-button"]';
   const COPY_SELECTOR = 'button[data-testid="copy-turn-action-button"]';
   const COMPOSER_SELECTOR = '#prompt-textarea';
@@ -531,12 +562,21 @@ _DR_STATE_JS = r'''(args) => {
     try { return Array.from(document.querySelectorAll(selector)).filter((el) => isVisible(el) && !isSensitive(el)).length; }
     catch (e) { return -1; }
   }
-  function latestAssistantTurn() {
-    const turns = Array.from(document.querySelectorAll(ASSISTANT_SELECTOR)).filter((el) => isVisible(el) && !isSensitive(el));
-    return turns.length ? turns[turns.length - 1] : null;
+  function isModelTurn(el) {
+    // User turns carry [data-message-author-role="user"]; Deep Research model turns (the clarify
+    // question AND the final report) do NOT carry the assistant author-role attribute — that was the
+    // M-011 blind spot. So a model turn is a conversation-turn WITHOUT a nested user-authored
+    // message. Degrades safely to counting all turns if user turns are also untagged: over-counting
+    // is harmless because completion still requires report structure on the latest turn plus
+    // post-answer turn growth.
+    return !el.querySelector(USER_SELECTOR);
   }
   function allAssistantTurns() {
-    return Array.from(document.querySelectorAll(ASSISTANT_SELECTOR)).filter((el) => isVisible(el) && !isSensitive(el));
+    return Array.from(document.querySelectorAll(TURN_SELECTOR)).filter((el) => isVisible(el) && !isSensitive(el) && isModelTurn(el));
+  }
+  function latestAssistantTurn() {
+    const turns = allAssistantTurns();
+    return turns.length ? turns[turns.length - 1] : null;
   }
   function gatedLines(el, maxLines) {
     if (!el) return [];
@@ -564,10 +604,15 @@ _DR_STATE_JS = r'''(args) => {
     const shapes = [];
     const seenText = new Set();
     const seenShape = new Set();
-    const candidates = Array.from(document.querySelectorAll('main [role="status"], main [aria-live], main [data-testid], main ' + ASSISTANT_SELECTOR + ' *'));
+    const candidates = Array.from(document.querySelectorAll('main [role="status"], main [aria-live], main [data-testid], main ' + TURN_SELECTOR + ' *'));
     let count = 0;
     candidates.forEach((el) => {
       if (!isVisible(el) || isSensitive(el)) return;
+      // Exclude composer-area controls — notably the armed "Deep research" removable chip, whose
+      // static label matches DR_VOCAB_RE and produced a false-positive "progress" signal across all
+      // 300 M-011 polls. Genuine DR progress renders inside the assistant conversation-turn, never
+      // in the composer form.
+      if (el.closest('form')) return;
       const raw = compact(rawVisibleText(el) || ownText(el) || safeAria(el));
       if (!raw || !DR_VOCAB_RE.test(raw)) return;
       count += 1;
@@ -647,6 +692,7 @@ _DR_STATE_JS = r'''(args) => {
   const latest = latestAssistantTurn();
   const streamingActive = visibleCount(STOP_SELECTOR) > 0;
   const completionMarkerPresent = visibleCount(COPY_SELECTOR) > 0;
+  const completionMarkerOnLatest = !!(latest && latest.querySelector(COPY_SELECTOR));
   const composer = composerState();
   const progress = progressUi();
   const report = reportStructure(latest);
@@ -659,6 +705,7 @@ _DR_STATE_JS = r'''(args) => {
     assistant_turn_count: turns.length,
     streaming_active: streamingActive,
     completion_marker_present: completionMarkerPresent,
+    completion_marker_on_latest: completionMarkerOnLatest,
     composer_present: composer.present,
     composer_editable: composer.editable,
     progress_ui: progress,
@@ -671,7 +718,7 @@ _DR_STATE_JS = r'''(args) => {
       suggestion_chips: chips,
     },
     verified_selectors: {
-      assistant_turn: ASSISTANT_SELECTOR,
+      assistant_turn: TURN_SELECTOR,
       assistant_turn_count: turns.length,
       stop_button: STOP_SELECTOR,
       stop_button_count: visibleCount(STOP_SELECTOR),
@@ -1039,7 +1086,12 @@ def leg_deep_research(args: argparse.Namespace) -> int:
             # clarification AND a NEW assistant turn (the report) has since appeared. Premature DONE
             # loses the report irrecoverably; over-conservatism only costs wall-clock (the snapshots
             # keep the full timeline either way, and the manager is polling the heartbeat live).
-            completion_allowed = progress_seen or (answered and turns_grew_since_answer)
+            # Decoupled from progress_seen (an unreliable false-positive: the armed "Deep research"
+            # composer chip matched the DR-vocab regex on every M-011 poll). The FINAL report is only
+            # declared once we have answered the clarification AND a NEW model turn (the report) has
+            # appeared after that answer. This makes "stop at the clarify turn" structurally
+            # impossible — the M-011-class failure cannot recur via a progress false-positive.
+            completion_allowed = answered and turns_grew_since_answer
             complete_now = (
                 report_present
                 and not snapshot.get("streaming_active")
@@ -1067,13 +1119,17 @@ def leg_deep_research(args: argparse.Namespace) -> int:
             elapsed_s = float(snapshot.get("elapsed_s") or 0.0)
             clarify_ui = snapshot.get("clarify_ui") or {}
             # Clarify trigger does NOT require !report.present (a clarifying question may be bulleted
-            # / multi-paragraph). The reliable discriminator vs the final report is that the research
-            # phase has not happened yet (progress never seen). JS looks_like_clarify kept as a fallback.
-            clarify_phase_open = elapsed_s <= clarify_wait_s and not progress_seen
+            # / multi-paragraph) and must NOT depend on progress_seen (an unreliable false positive
+            # from the armed chip). The discriminator vs the final report is purely temporal: the
+            # clarify is the FIRST completed model turn, observed BEFORE we have answered. We answer
+            # exactly once, only when a completed model turn is actually present (its copy marker),
+            # the composer is re-enabled, and streaming has stopped — within the clarify window.
+            clarify_phase_open = elapsed_s <= clarify_wait_s
             py_clarify = (
                 turn_count >= 1
                 and not bool(snapshot.get("streaming_active"))
                 and bool(snapshot.get("composer_editable"))
+                and bool(snapshot.get("completion_marker_present"))
                 and clarify_phase_open
             )
             if not answered and (py_clarify or (clarify_phase_open and clarify_ui.get("looks_like_clarify"))):
