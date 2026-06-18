@@ -173,12 +173,39 @@ def test_supporting_dataclasses_preserve_public_fields() -> None:
             "role": "user",
         },
         {"turn_index": None},
-        {"created_at": None},
+        {
+            "message_id": "local:send_1",
+            "status": "partial",
+            "partial": True,
+            "turn_index": None,
+            "created_at": CREATED_AT,
+            "client_send_id": "send_1",
+            "role": "user",
+        },
+        {
+            "message_id": "local:send_1",
+            "status": "error",
+            "partial": True,
+            "turn_index": None,
+            "created_at": None,
+            "client_send_id": "send_1",
+            "role": "user",
+        },
     ],
 )
 def test_turn_record_rejects_inconsistent_status_and_identity(overrides: dict[str, object]) -> None:
     with pytest.raises(ValueError):
         complete_turn(**overrides)
+
+
+def test_backend_turn_record_allows_missing_backend_created_at() -> None:
+    turn = complete_turn(created_at=None, message_id="msg_backend_missing_timestamp", turn_index=0)
+
+    assert turn.created_at is None
+    assert turn.message_id == "msg_backend_missing_timestamp"
+    assert turn.turn_index == 0
+    assert turn.status == "complete"
+    assert turn.partial is False
 
 
 def test_pending_local_stub_is_valid_only_with_pending_shape() -> None:

@@ -12,7 +12,7 @@ import warnings
 from collections.abc import Iterable, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass, fields, replace
-from datetime import UTC, datetime
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -310,10 +310,10 @@ class Store:
             model=None,
             active_tools=(),
             kind="normal",
-            created_at=datetime.now(UTC),
+            created_at=None,
             attachments=(),
             citations=(),
-            status="error",
+            status="partial" if partial_markdown else "error",
             partial=True,
             user_message_id=None,
             turn_exchange_id=None,

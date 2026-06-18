@@ -188,8 +188,6 @@ class TurnRecord:
     def _validate_backend_identity_shape(self) -> None:
         if self.turn_index is None:
             raise ValueError("turn_index=None is reserved for local pending stubs")
-        if self.created_at is None:
-            raise ValueError("created_at=None is reserved for local pending stubs")
 
 
 @dataclass(frozen=True)
