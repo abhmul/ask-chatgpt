@@ -1,0 +1,1 @@
+- Avoid `archive/` and `human/` unless a task explicitly names a file or derivation there. Important current context must live in an active program folder.

@@ -1,5 +1,7 @@
 # RESUME — team lead, `ask-chatgpt-dev` (team-lead-v2)
 
+> **⚠️ ACTIVE DEVELOPMENT IS ON BRANCH `rewrite-v2`** (since 2026-06-18). `main` holds the approved spec baseline (`docs/REWRITE-SPEC.md`) + project files. To resume the rewrite: `git checkout rewrite-v2` and rehydrate team-state from there — the branch carries the live mission queue / handoff. `main`'s team-state is the baseline snapshot; the rewrite integrates back to `main` only via an operator-reserved merge after M8 verification.
+
 Resume-ready handoff for a successor incarnation of the eternal team-lead role. You inherit **nothing** but what you read here and the files named below; re-verify every live claim from ground truth before building on it.
 
 ## Bring-up
