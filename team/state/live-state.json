@@ -1,48 +1,127 @@
 {
-  "directive": "Rewrite the ask_chatgpt library from scratch: archive the current implementation and rebuild it per the operator's forthcoming spec. Standing mission: develop & maintain the ask-chatgpt tool (programmatic interaction with chatgpt.com via CDP-attached Chromium). Precise scope ('what to support' + 'how to rework') is pending operator intake + grill-me.",
+  "directive": "Rewrite the ask_chatgpt library from scratch in Python: archive v1, rebuild a Web-UI-mirroring CLI per docs/REWRITE-SPEC.md (approved 2026-06-18). Standing mission: develop & maintain ask-chatgpt (programmatic interaction with chatgpt.com via CDP-attached Chromium). Most-pressing deliverable: scrape https://chatgpt.com/c/6a316aa8-5dc8-83ea-9014-b8ea38dabc31 into a faithful transcript — built on the proper capture+transcript spine, not hacked.",
+  "spec": "docs/REWRITE-SPEC.md (full) + team/charter.md 'Rework spec' (worker-facing distillation). Supersedes docs/DESIGN-SPEC.md.",
   "mission_queue": [
     {
       "id": "M0",
-      "title": "Intake rework requirements: receive operator's initial context, run grill-me to shared understanding, distill into a spec; then populate the mission queue (archive current library, design, implement, verify).",
-      "status": "in_progress",
-      "priority": 1,
+      "title": "Intake rework requirements via grill-me; distill into spec; populate mission queue.",
+      "status": "completed",
+      "priority": 0,
       "dependencies": [],
       "node_type": "manager",
-      "notes": "Grill-me runs in a NEW context via team/START-PROMPT.md. Next: operator provides rework context -> grill-me -> spec appended to charter -> author library-archive + rewrite + verify missions."
+      "notes": "DONE 2026-06-18. Grill-me resolved 12 design branches with the operator; spec authored to docs/REWRITE-SPEC.md + charter Rework-spec section; queue populated below. DESIGN-SPEC.md marked superseded."
+    },
+    {
+      "id": "M1",
+      "title": "Archive v1 library + scaffold fresh Python package.",
+      "status": "ready",
+      "priority": 1,
+      "dependencies": [],
+      "node_type": "worker",
+      "notes": "UNATTENDED, dispatchable now. NON-DESTRUCTIVE: first `git stash push -u` the dirty src/ask_chatgpt/driver.py (uncommitted v1 M-011b WIP — superseded by rewrite; preserve, do not destroy). Then git mv the committed v1 src/ask_chatgpt/ to archive/lib-v1/ (preserve history). Scaffold a fresh src/ask_chatgpt/ skeleton + pyproject entry + mock test substrate scaffolding per REWRITE-SPEC §2 module layout. Keep tests/ runnable (uv run pytest). NEVER touch 'stable'; NEVER uv tool install/upgrade/reinstall; never git push. Work on main or a feature branch off it."
+    },
+    {
+      "id": "M2",
+      "title": "Attended ground-truth CDP probe — de-risk the backend-api/project/selector assumptions.",
+      "status": "ready",
+      "priority": 2,
+      "dependencies": [],
+      "node_type": "worker",
+      "notes": "ATTENDED — requires the operator's signed-in Chromium with CDP on :9222 (coordinate a window with the operator). Verify REWRITE-SPEC §16 checklist: (1) backend-api conversation endpoint + canonical-markdown shape, reachable via in-page fetch; (2) Deep Research turn representation (report/citations/search meta) + attachment ref shape; (3) project send/create mechanics under /g/g-p-.../c/...; (4) live selectors (composer, send, model menu+options incl. family submenu, tools menu, copy button, new-user-turn detection, login-wall/Cloudflare markers); (5) clipboard fallback viability; (6) empirical rate/backoff signals. SAFETY: inspect ONLY tool-opened tabs (never operator tabs — leak risk); preflight curl :9222; never quit browser (detach only); login/Cloudflare challenge -> STOP + HUMAN-ACTION-NEEDED. Output: a verified findings doc that M3 consumes. The backend-api hypothesis is load-bearing — if false, the capture design changes."
+    },
+    {
+      "id": "M3",
+      "title": "Best-of-N detailed design (informed by M2 findings).",
+      "status": "blocked",
+      "priority": 3,
+      "dependencies": ["M2"],
+      "node_type": "manager",
+      "notes": "Non-editing best-of-N: parallel design lenses (library API + module structure; persistence/schema; capture + completion detection; concurrency/tab-pool/rate; CLI/loop ergonomics) + a synthesizer + an independent verifier. Produce the concrete module/API/schema design the implementation missions follow. Use parallel read-only Plan subagents per the durable lesson."
+    },
+    {
+      "id": "M4",
+      "title": "Phase-1 offline core (TDD, mock-proven).",
+      "status": "blocked",
+      "priority": 4,
+      "dependencies": ["M3"],
+      "node_type": "manager",
+      "notes": "Single-editor implementation (source-mutating => single worker) surrounded by M3 design + independent verification. Build: library API skeleton (create/ask/scrape/history/fetch/status), per-conversation store (JSONL + index + attachments), mock channel, completion detection (poll + DOM-consensus fallback), error taxonomy (+PromptNotSubmittedError), eager-write + partial-salvage, stdout+--out. Full mock acceptance via `uv run pytest`; falsifiable tests; inspect artifacts not exit codes."
+    },
+    {
+      "id": "M5",
+      "title": "Backend-api capture + scrape + verified send over cdp.",
+      "status": "blocked",
+      "priority": 5,
+      "dependencies": ["M4", "M2"],
+      "node_type": "manager",
+      "notes": "Attended cdp. Implement backend-api capture (canonical markdown, DR, attachment metadata) + fail-closed UI/annotation fallback; scrape command (stream-to-disk, paginate); send-via-UI with new-turn verification + idle-reload + wait-for-composer (gotcha-4 fix). Verify fidelity (no ambiguous math) on samples."
+    },
+    {
+      "id": "M6",
+      "title": "Run the scrape of /c/6a316aa8... + verify fidelity (PRESSING DELIVERABLE).",
+      "status": "blocked",
+      "priority": 6,
+      "dependencies": ["M5"],
+      "node_type": "worker",
+      "notes": "ATTENDED. scrape the long math conversation --with-attachments into the operator's chosen --data-dir; deliver JSONL + rendered markdown export. Verify acceptance: diff sample turns (incl. a DR turn and a heavy-math turn) vs web-UI copy ground truth — \\widehat, \\ne, \\frac{}{} must round-trip. This is the operator's most-pressing output; reachable as soon as the capture path (M5) is proven."
+    },
+    {
+      "id": "M7",
+      "title": "Model/tools selection + keep-pushing loop + tab-pool/rate.",
+      "status": "blocked",
+      "priority": 7,
+      "dependencies": ["M5"],
+      "node_type": "manager",
+      "notes": "General label-driven model + tools (validated: Pro Extended, Deep Research); keep-pushing loop (persistent session, verify each turn); managed tab pool (lazy-open, idle-evict, LRU) + adaptive send-rate (backoff + politeness floor). Attended verification for real model/tool selection. Adversarially review any GPT-facing prompt."
+    },
+    {
+      "id": "M8",
+      "title": "Independent best-of-N verification + re-issue VERIFICATION.md (terminal).",
+      "status": "blocked",
+      "priority": 8,
+      "dependencies": ["M6", "M7"],
+      "node_type": "manager",
+      "notes": "Terminal mission. Diverse verification panel (correctness / edge-cases / spec-conformance / adversarial-refutation / reproduction) over authoritative outputs; falsifiability + prompt-quality lens. Re-issue VERIFICATION.md honestly for the new library (NOT green-exit). Confirm all REWRITE-SPEC gotcha fixes hold."
     }
   ],
   "artifacts": {
-    "team_setup": "team/team.json, team/charter.md, team/state/live-state.json, team/state/RESUME.md, team/evidence/ — created + committed 2026-06-18",
-    "start_prompt": "team/START-PROMPT.md (cold-start prompt for the new grill-me session)",
-    "v1_apparatus_archived": "archive/orchestration-v1/ (was orchestration/; preserved via git mv, committed, stale)"
+    "spec_full": "docs/REWRITE-SPEC.md (authoritative; created 2026-06-18)",
+    "spec_worker_facing": "team/charter.md 'Rework spec' section (load-bearing constraints, fed to every contract)",
+    "design_spec_superseded": "docs/DESIGN-SPEC.md (v1 incremental plan; marked SUPERSEDED)",
+    "reference_send_controller": "issues/cdp-send-repro/controller.mjs (real-proven reliable CDP send+verify — port its logic, not its language)",
+    "filed_gotchas": "issues/*.md (4 issues: rendered-DOM math corruption, silent no-op send, truncation drops out+session/600s ceiling, --out suppresses stdout)",
+    "team_setup": "team/team.json, team/charter.md, team/state/* — committed 2026-06-18"
   },
   "trust_levels": {
-    "installed_tool_isolation": "verified-independently",
-    "test_baseline_main": "verified-independently",
-    "shared_resource_facts_carried_from_v1": "unverified"
+    "installed_tool_isolation": "verified-independently (re-confirmed this session: stable=779eb40 unmoved, HEAD=bf208d8, ask-chatgpt v0.0.1 isolated copy)",
+    "spec_resolved_with_operator": "verified-independently (grill-me, all 12 branches operator-approved)",
+    "backend_api_capture_hypothesis": "UNVERIFIED — load-bearing; M2 attended probe must confirm before M5 build",
+    "shared_resource_facts_carried_from_v1": "partially re-verified (no message cap, human-paced confirmed via memory; real rate ceiling empirical, M2)"
   },
   "blockers": [
     {
-      "description": "Awaiting the operator's initial rework context (what to support + how to rework) and the grill-me session.",
-      "required_action": "Operator provides the rework context in the harness session; team lead then runs grill-me to a shared spec.",
+      "description": "M2 (ground-truth probe) and downstream real-site missions require an operator-attended window with signed-in Chromium + CDP on :9222.",
+      "required_action": "Operator launches their signed-in Chromium with --remote-debugging-port=9222 and signals availability for the attended probe. M1 (unattended scaffold) proceeds meanwhile.",
       "owner": "operator"
     }
   ],
   "last_verified": {
-    "installed_tool_isolation": "2026-06-18: uv tool install built an ISOLATED COPY from git branch 'stable'@779eb40 (not editable, no .pth/direct_url marker). Working-tree edits cannot affect the running tool. Invariants: never move 'stable'; never uv tool install/upgrade/reinstall.",
-    "stable_vs_main": "stable=779eb40 is 4 commits behind main=7483806",
-    "test_baseline_main": "2026-06-18 `uv run pytest` on main@7483806 (working tree, driver.py modified) => 1 failed (test_select_model_radix... 'model_menu' unavailable for channel 'real'), 213 passed, 4 deselected. MOOT: library is being rewritten.",
-    "dirty_tree": "src/ask_chatgpt/driver.py modified (uncommitted v1 M-011b WIP); to be superseded by the rewrite — operator to confirm keep/discard."
+    "installed_tool_isolation": "2026-06-18 this session: git rev-parse stable=779eb40 (unmoved); HEAD=bf208d8; branch main; uv tool list shows ask-chatgpt v0.0.1 (isolated). Invariants intact: never move stable; never uv tool install/upgrade/reinstall.",
+    "stable_vs_main": "stable=779eb40 behind HEAD=bf208d8.",
+    "spec_intake": "2026-06-18: M0 grill-me complete; 12 branches resolved + operator-approved; spec authored (docs/REWRITE-SPEC.md + charter); queue M1-M8 populated.",
+    "dirty_tree": "src/ask_chatgpt/driver.py still dirty (uncommitted v1 WIP); M1 will stash-preserve it (non-destructive) before archiving the v1 library."
   },
   "resource_state": {
-    "installed_tool": "frozen isolated copy from stable@779eb40; another agent is using it; do not disturb.",
-    "cdp_browser": "status unknown this session; preflight 127.0.0.1:9222 before any real leg; may be in concurrent use.",
+    "installed_tool": "frozen isolated copy from stable@779eb40; another agent may be using it; do not disturb.",
+    "cdp_browser": "status unknown this session; preflight 127.0.0.1:9222 before any real leg; operator-attended only; may be in concurrent use (inspect only tool-opened tabs).",
     "mesh": "not loaded (single team; mesh_path=null)."
   },
   "evidence_refs": [
-    "archive/orchestration-v1/ (v1 evidence log: handoffs/, reports/, state/, tasks/ — stale, reference only)",
-    "team/evidence/handoffs/ (v2 — empty)",
+    "docs/REWRITE-SPEC.md (authoritative spec)",
+    "issues/ (4 filed gotchas + cdp-send-repro/ working reference)",
+    "team/evidence/handoffs/ (v2 — empty until M1 ships)",
     "team/evidence/reports/ (v2 — empty)",
+    "archive/orchestration-v1/ (v1 evidence — stale reference only)",
     "durable lessons: /home/abhmul/.claude/projects/-home-abhmul-dev-ask-chatgpt/memory/MEMORY.md"
   ],
   "schema_ref": ".claude/skills/team-lead-v2/references/lead-state.schema.json"

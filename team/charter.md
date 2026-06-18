@@ -45,6 +45,21 @@ The tool is **installed separately and a different agent is using it right now.*
 
 Credentials/secrets/sudo/privileged installs; interaction with real external accounts or paywalled material; irreversible outbound effects (push/merge-to-published); the manual-compaction trigger; irreducible directive ambiguity; team create/retire. Everything else is autonomous against the directive's criteria. (Operator-run external audit is a legitimate verification outcome, not a failure.)
 
-## Rework spec
+## Rework spec (approved 2026-06-18; full design in `docs/REWRITE-SPEC.md`)
 
-> _Pending — populated from the operator's initial context + the grill-me output, then this charter is re-fed to managers._
+**From-scratch rewrite.** Archive the v1 library and rebuild in **Python**; consult v1 code + `issues/cdp-send-repro/controller.mjs` as *reference*, never copy. Full rationale lives in `docs/REWRITE-SPEC.md`; the load-bearing constraints — which every worker contract must honor (workers inherit nothing) — are:
+
+- **Architecture (decision C):** library-core + thin CLI + a **persistent `Session`** for loops/concurrency; **no daemon**. Atomic ops (single `ask`/`scrape`/`status`) attach→act→detach; the persistent `Session` is the single owner of the **tab pool** and the **account rate budget**.
+- **Capture/action asymmetry:** **actions** (send, create, model/tool select, upload) go through the **real UI**; **reads/capture** go through the page's **own authenticated backend endpoint** (in-page `fetch`, hypothesis `GET /backend-api/conversation/<id>` → canonical markdown), with copy-button/KaTeX-annotation/DOM as **fail-closed fallback**. The endpoint shape is an **unverified hypothesis** until the M2 attended probe confirms it. It is NOT the OpenAI API.
+- **Send is verified, never assumed (fixes the silent no-op gotcha):** capture latest user-turn `message_id` baseline before send → require a **newer** turn after → else `PromptNotSubmittedError`. Wait/retry for the transiently-unmounting composer; **reload when idle** to clear SPA staleness. `wait_for_completion` requires a turn newer than baseline.
+- **Capture fidelity (fixes the math-corruption gotcha):** canonical markdown only; **no ambiguous math** — `\widehat`, `\ne`, `\frac{}{}` must round-trip vs the web-UI copy (verified on a sample incl. a DR + heavy-math turn, never assumed).
+- **Lose nothing (fixes the truncation gotcha):** **no hidden completion ceiling** (`timeout` = no-activity window; backend-api poll for long Pro/DR); **eager-write** the turn + conversation ref at send; **salvage partial** text on error/timeout with `status`/`partial`.
+- **Output:** `ask`/`scrape` print to **stdout AND** `--out` (fixes the `--out`-suppresses-stdout gotcha).
+- **Persistence:** per-conversation store under configurable `--data-dir` (default XDG): `conversations/<id>/{transcript.jsonl (append-only, keyed by message_id), raw-mapping.json, attachments/ (gitignored, lazy)}` + top-level `index.json`. `model` and `active_tools` are **separate fields** (Deep Research is a tool, orthogonal to model). `created_at` from backend-api, never an agent self-report. Citations (DR web sources) ≠ attachments (downloadable files). Linearize current branch; retain raw tree.
+- **Identity:** canonical = conversation id; **stateless URL/id selector** (no registry needed); alias optional; both URL shapes parsed; `project_id` metadata. **Projects are near-term:** address + scrape + **send into** + **create within** a project.
+- **Concurrency:** maximize via managed tab pool (lazy-open, idle-evict, LRU) + adaptive send-rate (ramp + backoff + politeness floor); reads parallel.
+- **Model/tools:** one general label-driven Radix-menu abstraction (open → enumerate portal → select by label, fail-closed). No DR special-casing. Validated near-term: Pro Extended + Deep Research.
+- **CLI verbs:** `ask · create · scrape · history/export · fetch · loop · status`. `loop` = single invocation holding one persistent session (attach once, verify each turn). `status` = detailed tool + per-conversation diagnostics.
+- **Channels:** keep `mock` (test substrate) + `cdp` (attended real). **Drop** the Playwright-*launched* `real` channel (Cloudflare-blocked). Keep fail-closed selector maps, error taxonomy (+`PromptNotSubmittedError`), domain allowlist, atomic writes.
+- **Out of scope (operator: over-engineered):** the v1 bundle/patch/apply round-trip — replaced by general attachments in/out. Deferred: branch-aware history as first-class.
+- **Acceptance:** mock-first + falsifiable tests; re-issue `VERIFICATION.md` honestly (falsifiability + prompt-quality lens); real legs operator-attended.

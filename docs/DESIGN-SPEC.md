@@ -1,6 +1,8 @@
 # ask-chatgpt — Design Spec: Web-UI-mirroring interface + persistence/cache layer
 
-**Status:** SPEC (proposed; not yet built). Authoritative target for the *next* iteration of this tool. For future agents implementing it. Build incrementally, **keep the proven engine**, mock-prove offline, real-verify over CDP. This supersedes the ad-hoc shape of the current `ask_chatgpt()` god-function — but NOT the engine beneath it.
+> **⚠️ SUPERSEDED (2026-06-18) by [`docs/REWRITE-SPEC.md`](REWRITE-SPEC.md).** This document described an *incremental* reshape that kept the v1 engine. The operator has since approved a **from-scratch rewrite** (Python, archive v1, backend-api capture, drop bundle/patch). Read `REWRITE-SPEC.md` as authoritative; this file is retained for historical design rationale only.
+
+**Status:** SUPERSEDED. (Originally: SPEC, proposed; not yet built. Authoritative target for the *next* iteration. This superseded the ad-hoc shape of the current `ask_chatgpt()` god-function — but NOT the engine beneath it.)
 
 **Read alongside:** `VERIFICATION.md` (what is real-proven), `docs/DECISIONS.md` (D-001 channels, D-002 real-site/CDP), `docs/USAGE.md` (current surface), `issues/2026-06-14-response-truncated-drops-out-file-and-session.md` (the persistence bugs this spec fixes).
 
