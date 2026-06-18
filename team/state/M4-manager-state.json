@@ -1,0 +1,54 @@
+{
+  "node": "M4 manager (Claude Opus) — scoped to mission M4 offline core",
+  "directive": "Implement Phase-1 of the ask-chatgpt v2 rewrite: the OFFLINE CORE, TDD against the mock channel, to team/evidence/reports/M3-detailed-design.md §10 M4 steps 1-6. Offline only. Acceptance = GREEN `uv run pytest` with FALSIFIABLE tests + inspected artifacts (never exit codes alone). Commit increments to rewrite-v2 (no push, no Co-Authored-By).",
+  "authoritative_design": "team/evidence/reports/M3-detailed-design.md (790 lines; §2 module signatures, §3 JSONL/layout/linearization, §4 capture, §5 completion, §6 send, §8 CLI, §9 errors, §10 M4 steps 1-6 = build plan + acceptance).",
+  "contract": "team/contracts/M4-offline-core.md",
+  "worker_preamble": "team/contracts/M4-common.md (shared safety/dispatch/TDD/commit discipline — every worker reads it in full; workers inherit nothing).",
+  "constraints": [
+    "Branch rewrite-v2 ONLY. NEVER move/commit/merge/checkout/fast-forward `stable` (must stay 779eb40).",
+    "NEVER `uv tool install`/`uv tool upgrade`/`--reinstall` (mutates operator's separately-installed running tool another agent is using). `uv run`/`uv sync` (project .venv) only.",
+    "NEVER `git push` / merge to a published branch.",
+    "OFFLINE ONLY in M4 — no chatgpt.com/CDP/browser legs. Production cdp path imports playwright lazily; offline tests never launch a browser nor call `playwright install`.",
+    "Stage ONLY explicit v2-core paths (NEVER `git add -A`). DO NOT stage issues/cdp-send-repro/controller.mjs (another agent editing it), team/state/live-state.json (team-lead's), or human/.",
+    "Do not touch human/, archive/, docs/ (read-only), git stashes. team/ is manager-owned; workers write ONLY their one named deliverable when told.",
+    "NEVER the Claude Agent tool. Workers = pi via pi-watch.sh; this manager = Claude Opus."
+  ],
+  "lead_decisions_applied": {
+    "Q2_pending_stub": "ACCEPT local:<client_send_id> stub (hidden/superseded in default reads), NOT a separate outbox file.",
+    "Q6_clipboard": "fail-closed by default: backend fail + no faithful fallback -> stop HUMAN-ACTION-NEEDED; never auto-read clipboard. For M4 only the mock-tested fallback chain; clipboard itself is M5+.",
+    "Q1_projects": "identity parsing for BOTH URL shapes (/c/<id> and /g/g-p-<projid>/c/<chatid>) IS in M4 scope; project send/create is M7.",
+    "other_open_qs": "completion-status vocab, stream_status, attachment byte routes, send-rate defaults, memory budget, multi-part-join, profile verification -> conservative offline defaults; do NOT guess live values."
+  },
+  "dispatch": {
+    "mechanism": "Claude parent (no bg_run tools) -> parent_claude_watch fallback: `bash .claude/skills/manager/references/launchers/parent-claude/pi-watch.sh --run-root .pi-workers --wait-seconds 0 [--tools LIST] \"<prompt>\"` launches detached; collect via `--watch <run-dir> --wait-seconds N`. status file = exit code; output.log = transcript; metadata.txt started_at = real start (not worker self-report).",
+    "editor_tools": "default read,grep,find,ls,edit,write,bash (single editor, surrounded by non-editing best-of-N).",
+    "panel_tools": "read,grep,find,ls,write (read-only lenses; no edit/bash so they cannot mutate source or git).",
+    "no_abandon": "after launch, persist run_dir here, then block-collect via bounded --watch loop; never yield a turn with a live child and no monitor."
+  },
+  "ground_truth_verified": {
+    "head": "rewrite-v2 @ 5450561 (M3 done)",
+    "stable": "779eb40 (unmoved — read-only check)",
+    "baseline_tests": "`uv run pytest -q` => 4 passed in 0.01s (M1 scaffold smoke). This is the green baseline M4 builds on.",
+    "tooling": "pi, tmux, uv, jq present. .pi-workers/, __pycache__/, .venv, .pytest_cache gitignored.",
+    "dirty_not_mine": "issues/cdp-send-repro/controller.mjs (M), team/state/live-state.json (M, team-lead), human/ (untracked) — never stage."
+  },
+  "queue": [
+    {"id": "M4-TP", "title": "Test-plan panel (best-of-N=3 read-only lenses) -> falsifiable behavior checklist", "status": "done", "node_type": "worker(x3 non-editing)", "dependencies": [], "deliverable": "team/evidence/reports/M4-test-plan.md (403 lines, manager-reviewed+gated)", "notes": "DONE. 3 read-only lenses (L1/L2/L3 exit 0) + 1 synthesizer (exit 0) -> team/evidence/reports/M4-test-plan.md: acceptance-bar coverage map + behavior checklist A-F (each: behavior/why/falsifiability/fixture) + open-ambiguities. Manager reviewed; resolved all 12 ambiguities into M4-common.md 'MANAGER DECISIONS'. Lens files: M4-test-plan-lens-{1,2,3}.md."},
+    {"id": "M4-E1", "title": "Step 1 scaffold: data model (TurnRecord seam), errors, identity, allowlist, selectors+schema-validation, channels/base+TabLease", "status": "done", "run_dir": ".pi-workers/pi-20260618-155049-623127-10364", "node_type": "worker(editor)", "dependencies": ["M4-TP"], "contract": "team/contracts/M4-E1-scaffold.md", "deliverable": "DONE+VERIFIED commit 7c1cdf3. 10 src + 6 test files; 96 passed (manager re-ran). Manager INDEPENDENTLY re-derived key behaviors from committed code (allowlist suffix-confusion reject; DECISION-1 project round-trip project_id=abc123 no g-p-; PromptNotSubmitted exit 30 + canary redaction; TurnRecord status/partial invariant raises; selector missing-key raises). No playwright reachable. stable 779eb40 unmoved. Only the 16 intended files staged. resolve_conv_or_alias + StoreWarning use deferred to E2."},
+    {"id": "M4-E2", "title": "Step 2 store.py: JSONL serialize TurnRecord, index.json, atomic append/replace, pending-stub supersession, markdown render, stdout+--out helper", "status": "pending", "node_type": "worker(editor)", "dependencies": ["M4-E1"], "contract": "team/contracts/M4-E2-store.md", "deliverable": "src/ask_chatgpt/store.py + tests (torn-line, last-writer-wins, history no CDP, stdout+--out independent)."},
+    {"id": "M4-E3", "title": "Step 3 MockChannel fixtures (core M2/backend/send spine)", "status": "pending", "node_type": "worker(editor)", "dependencies": ["M4-E1"], "contract": "team/contracts/M4-E3-mock.md", "deliverable": "src/ask_chatgpt/channels/mock.py + fixtures + tests; no network; context.pages access raises."},
+    {"id": "M4-E4", "title": "Step 4 capture parser/linearizer against raw fixtures", "status": "pending", "node_type": "worker(editor)", "dependencies": ["M4-E2", "M4-E3"], "contract": "team/contracts/M4-E4-capture.md", "deliverable": "src/ask_chatgpt/capture.py + tests; visible=user:text/assistant:text only, hidden raw, DR group w/ evidence, 4 attachment shapes, citations separate, multi-part no-separator concat, non-string parts fail closed."},
+    {"id": "M4-E5", "title": "Step 5 single-tab send/completion over mock", "status": "pending", "node_type": "worker(editor)", "dependencies": ["M4-E3", "M4-E4"], "contract": "team/contracts/M4-E5-send-completion.md", "deliverable": "src/ask_chatgpt/{send,completion}.py + session integration + tests; no-op send->PromptNotSubmittedError; completion requires newer assistant id; no-activity-timeout resets on progress; max_total_wait=None fake-clock long progress; timeout salvages partial; sparse backend checks decoupled from DOM cadence."},
+    {"id": "M4-E6", "title": "Step 6 cli.py verbs over mock/store", "status": "pending", "node_type": "worker(editor)", "dependencies": ["M4-E5"], "contract": "team/contracts/M4-E6-cli.md", "deliverable": "src/ask_chatgpt/cli.py + session.py finalize + tests; verb->Session map; ask/scrape stdout never suppressed by --out; status --json schema; error exit codes/redaction; loop/menus/TabPool/AdaptiveSendBudget minimal stubs only."},
+    {"id": "M4-V", "title": "Terminal independent verification panel (best-of-N distinct dimensions) over authoritative pytest output", "status": "pending", "node_type": "worker(x5 non-editing + 1 isolated-mutation)", "dependencies": ["M4-E6"], "deliverable": "team/evidence/reports/M4-verification.md (manager-synthesized) + manager gate", "notes": "Dimensions: correctness, falsifiability(mutation-in-isolated-worktree), spec-conformance to M3 design, edge-cases, reproduction. Reason over ONE manager-produced `uv run pytest` output; only the mutation lens edits, in a throwaway `git worktree --detach`."},
+    {"id": "M4-HANDOFF", "title": "Write manager handoff", "status": "pending", "node_type": "manager", "dependencies": ["M4-V"], "deliverable": "team/evidence/handoffs/M4-offline-core.md"}
+  ],
+  "artifacts_trust": {
+    "team/evidence/reports/M4-test-plan.md": "manager-reviewed (best-of-N 3 lenses + synth; spot-checked, ambiguities resolved into M4-common.md). Guide for TDD + terminal panel; NOT the acceptance itself (acceptance = green falsifiable suite + panel).",
+    "team/contracts/M4-common.md": "manager-authored shared worker preamble incl. 12 resolved decisions.",
+    "team/evidence/reports/M4-test-plan-lens-{1,2,3}.md": "producer-only (raw lens candidates; superseded by synthesis)."
+  },
+  "blockers": [],
+  "handoff_path": "team/evidence/handoffs/M4-offline-core.md",
+  "schema_note": "manager live_state per .claude/skills/manager/references/runtime.json (directive, constraints, queue, artifacts_trust, blockers). This is the M4 manager's own scoped triple; team/state/live-state.json is the team-lead's parent state (do not edit)."
+}
