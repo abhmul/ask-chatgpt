@@ -1,0 +1,49 @@
+{
+  "directive": "Rewrite the ask_chatgpt library from scratch: archive the current implementation and rebuild it per the operator's forthcoming spec. Standing mission: develop & maintain the ask-chatgpt tool (programmatic interaction with chatgpt.com via CDP-attached Chromium). Precise scope ('what to support' + 'how to rework') is pending operator intake + grill-me.",
+  "mission_queue": [
+    {
+      "id": "M0",
+      "title": "Intake rework requirements: receive operator's initial context, run grill-me to shared understanding, distill into a spec; then populate the mission queue (archive current library, design, implement, verify).",
+      "status": "in_progress",
+      "priority": 1,
+      "dependencies": [],
+      "node_type": "manager",
+      "notes": "Grill-me runs in a NEW context via team/START-PROMPT.md. Next: operator provides rework context -> grill-me -> spec appended to charter -> author library-archive + rewrite + verify missions."
+    }
+  ],
+  "artifacts": {
+    "team_setup": "team/team.json, team/charter.md, team/state/live-state.json, team/state/RESUME.md, team/evidence/ — created + committed 2026-06-18",
+    "start_prompt": "team/START-PROMPT.md (cold-start prompt for the new grill-me session)",
+    "v1_apparatus_archived": "archive/orchestration-v1/ (was orchestration/; preserved via git mv, committed, stale)"
+  },
+  "trust_levels": {
+    "installed_tool_isolation": "verified-independently",
+    "test_baseline_main": "verified-independently",
+    "shared_resource_facts_carried_from_v1": "unverified"
+  },
+  "blockers": [
+    {
+      "description": "Awaiting the operator's initial rework context (what to support + how to rework) and the grill-me session.",
+      "required_action": "Operator provides the rework context in the harness session; team lead then runs grill-me to a shared spec.",
+      "owner": "operator"
+    }
+  ],
+  "last_verified": {
+    "installed_tool_isolation": "2026-06-18: uv tool install built an ISOLATED COPY from git branch 'stable'@779eb40 (not editable, no .pth/direct_url marker). Working-tree edits cannot affect the running tool. Invariants: never move 'stable'; never uv tool install/upgrade/reinstall.",
+    "stable_vs_main": "stable=779eb40 is 4 commits behind main=7483806",
+    "test_baseline_main": "2026-06-18 `uv run pytest` on main@7483806 (working tree, driver.py modified) => 1 failed (test_select_model_radix... 'model_menu' unavailable for channel 'real'), 213 passed, 4 deselected. MOOT: library is being rewritten.",
+    "dirty_tree": "src/ask_chatgpt/driver.py modified (uncommitted v1 M-011b WIP); to be superseded by the rewrite — operator to confirm keep/discard."
+  },
+  "resource_state": {
+    "installed_tool": "frozen isolated copy from stable@779eb40; another agent is using it; do not disturb.",
+    "cdp_browser": "status unknown this session; preflight 127.0.0.1:9222 before any real leg; may be in concurrent use.",
+    "mesh": "not loaded (single team; mesh_path=null)."
+  },
+  "evidence_refs": [
+    "archive/orchestration-v1/ (v1 evidence log: handoffs/, reports/, state/, tasks/ — stale, reference only)",
+    "team/evidence/handoffs/ (v2 — empty)",
+    "team/evidence/reports/ (v2 — empty)",
+    "durable lessons: /home/abhmul/.claude/projects/-home-abhmul-dev-ask-chatgpt/memory/MEMORY.md"
+  ],
+  "schema_ref": ".claude/skills/team-lead-v2/references/lead-state.schema.json"
+}
