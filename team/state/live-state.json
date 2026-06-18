@@ -34,7 +34,8 @@
     {
       "id": "M3",
       "title": "Best-of-N detailed design (informed by M2 findings).",
-      "status": "ready",
+      "status": "completed",
+      "run_handle": "Opus MANAGER via claude-watch.sh (task bhoiuk63s). DONE + lead-smoke-checked 2026-06-18: 790-line design at team/evidence/reports/M3-detailed-design.md via best-of-N (5 lenses -> synth -> 3-panel verify [V1 PASS, V2 FAIL, V3 PASS-W-NOTES] -> 2 revisions; all 6 issues landed per revision log). Honors all M2 findings + 4 gotcha fixes + safety incl. repo/install isolation. No separate handoff file (STATUS at design-doc top). 10 open questions in design §12 — lead decisions recorded in M4 notes.",
       "priority": 3,
       "dependencies": ["M2"],
       "node_type": "manager",
@@ -43,7 +44,7 @@
     {
       "id": "M4",
       "title": "Phase-1 offline core (TDD, mock-proven).",
-      "status": "blocked",
+      "status": "ready",
       "priority": 4,
       "dependencies": ["M3"],
       "node_type": "manager",

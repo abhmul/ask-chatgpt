@@ -1,0 +1,38 @@
+STATUS: DONE
+VERDICT: PASS
+
+Verified the current `team/evidence/reports/M3-detailed-design.md` against `docs/REWRITE-SPEC.md` §§5–8, §13, §17; `team/charter.md` “Repository, branch & installed-tool isolation” and “Shared-resource ceilings”; and M2 live facts in `team/evidence/handoffs/M2-ground-truth-probe.md`. I did not rely on the design’s self-summary or revision log.
+
+## Part A — gotcha fixes
+
+1. **Math corruption — COVERED.** Source requirement: `docs/REWRITE-SPEC.md` §5/§17 requires backend canonical markdown primary, copy-button → KaTeX annotation → DOM `textContent` fail-closed fallback, and `\widehat`/`\ne`/`\frac{}{}` checked against web-UI copy; M2 “Backend-api verdict” confirms canonical backend JSON only with web-app auth/OAI headers. Design evidence: `M3-detailed-design.md` §4.1 acquires required headers from the tool-owned page request; §4.4 says “Fallback order is exactly backend-api → per-turn copy button → KaTeX annotation reconstruction → DOM `textContent` last resort,” marks KaTeX/DOM as `partial=true`/lossy, and requires M5/M6 copy-output comparison. No silent ambiguous-math success path found.
+2. **Silent no-op send — COVERED.** Source requirement: `docs/REWRITE-SPEC.md` §6/§17 requires baseline latest user turn/count, submit, verify a new user turn or raise `PromptNotSubmittedError`, retry transient composer unmounts, idle reload, and require a newer assistant. Design evidence: `M3-detailed-design.md` §6 reads `TurnBaseline`, `Store.begin_send`, waits/retries `#prompt-textarea`, reloads when idle, verifies “new id or increased count and text matching the prompt,” and otherwise raises `PromptNotSubmittedError` without waiting for/returning a stale assistant; §2.5 requires assistant id newer than baseline.
+3. **Truncation + hidden 600s ceiling — COVERED.** Source requirement: `docs/REWRITE-SPEC.md` §7/§17 says `timeout` is a no-activity window, `max_total_wait` is explicit and default unbounded, and backend poll handles long Pro/DR. Design evidence: `M3-detailed-design.md` §2.5 exposes `max_total_wait_s: float | None`; §5 says `timeout` is not a wall-clock cap, resets on progress, `max_total_wait_s=None` is unbounded, and long Pro/DR “must not be killed by a hidden 600s ceiling.” Fixed send/header/composer timeouts are not total completion caps.
+4. **`--out` suppresses stdout — COVERED.** Source requirement: `docs/REWRITE-SPEC.md` §4/§17 says `ask`/`scrape` always print stdout and additionally write `--out`. Design evidence: `M3-detailed-design.md` §8 states that exact rule and the verb table gives stdout payloads; §3.4 says `--out` writes are additional and “Stdout still printed.”
+5. **Lose-nothing write discipline — COVERED.** Source requirement: `docs/REWRITE-SPEC.md` §8/§17 requires eager-write prompt + conversation ref, completion update, and partial salvage. Design evidence: `M3-detailed-design.md` §3.4 persists `ConversationRef` before send, appends a pending user stub before UI submission, supersedes it with the canonical user record after verification, appends the complete assistant after capture, and appends salvaged `partial=true` records on timeout/error; §6 calls this flow before/after submission.
+
+## Part B — safety invariants
+
+1. **CDP-attach only; no Playwright-launched browser — COVERED.** Source: `docs/REWRITE-SPEC.md` §13. Design: `M3-detailed-design.md` §2.9 says `CdpChannel` attaches to an already-running browser after `/json/version` and “never calls Playwright launch.”
+2. **No stealth / anti-detection — COVERED.** Source: `docs/REWRITE-SPEC.md` §13 and `team/charter.md` “Shared-resource ceilings.” Design: `M3-detailed-design.md` §7 safety invariants include “no stealth.”
+3. **Domain allowlist enforced — COVERED.** Source: `docs/REWRITE-SPEC.md` §13. Design: `M3-detailed-design.md` §2.11 defines `allowlist.py` and allowed chatgpt/openai/oaiusercontent/oaistatic suffixes; §2.9 says navigation/fetches are allowlist-checked.
+4. **Inspect only tool-opened tabs; never iterate `context.pages` — COVERED.** Source: `docs/REWRITE-SPEC.md` §13 and `team/charter.md` “Shared-resource ceilings.” Design: `M3-detailed-design.md` §2.9 creates only tool-owned targets and “never iterates `context.pages`”; §7 says the pool records only pages it created and mock tests make `context.pages` unavailable.
+5. **Never quit browser; detach/close own tabs only — COVERED.** Source: `docs/REWRITE-SPEC.md` §13. Design: `M3-detailed-design.md` §2.2 says `detach()` closes only tool-owned tabs and never quits Chromium; §7 `close_all()` closes only pool pages then detaches.
+6. **Preflight CDP before real leg; `CDP_UNREACHABLE` if down — COVERED.** Source: `team/charter.md` “Shared-resource ceilings” requires `curl -s --max-time 5 .../json/version` and clean stop/escalation. Design: `M3-detailed-design.md` §2.2 preflights before real CDP use, §2.9 has `preflight(timeout_s=5.0)`, and §9 defines `CDPUnreachableError` with code `CDP_UNREACHABLE` for `/json/version` failures.
+7. **Login/Cloudflare stop, `HUMAN-ACTION-NEEDED`, read-only polling, never automate login — COVERED.** Source: `docs/REWRITE-SPEC.md` §13 and `team/charter.md` “Shared-resource ceilings.” Design: `M3-detailed-design.md` §4.1 says login/Cloudflare stops the action, logs/raises `HumanActionNeededError` code `HUMAN-ACTION-NEEDED`, “only polls read-only from the tool’s own diagnostic tab,” and never sends, enters credentials, solves challenges, or automates login; §9 maps the error.
+8. **Real-site legs operator-attended, never CI/cron/unattended — COVERED.** Source: `docs/REWRITE-SPEC.md` §13/§18. Design: `M3-detailed-design.md` §1 says every real browser leg is operator-attended CDP attach; §10 labels M5/M6 real CDP work as attended.
+9. **Human-paced account; no spamming; no hard message cap — COVERED.** Source: `team/charter.md` “Shared-resource ceilings.” Design: `M3-detailed-design.md` §7 says sends are governed by `AdaptiveSendBudget`, “There is no hard message cap,” politeness/backoff are assumptions/safety nets, and `loop --max-iterations` in §8 is workflow control, not an account cap.
+10. **Authorization token + OAI headers never persisted/logged — COVERED.** Source: M2 “Backend-api verdict” and common constraints require transient forwarding only. Design: `M3-detailed-design.md` §2.3 makes `HeaderBundle` `repr=False` and forbids values in logs, exceptions, raw mapping, transcript, status, fixtures, or disk; §4.2 passes header values only as fetch arguments and never returns/logs them; §2.7 says `store.py` never receives them.
+11. **Never `git push`; never move/commit `stable`; never `uv tool install/upgrade/reinstall` — COVERED.** Source: `docs/REWRITE-SPEC.md` §13 and `team/charter.md` “Repository, branch & installed-tool isolation.” Design: `M3-detailed-design.md` §7 now states never `git push`/merge to published branches, never check out/commit/merge/fast-forward/move `stable`, and never run `uv tool install`, `uv tool upgrade`, or `uv tool ... --reinstall`; §10 repeats `uv run` only and explains why.
+
+## Regression check
+
+No regression found in this dimension. The prior verifier output `team/evidence/reports/M3-work/verify-2-gotcha-safety.md` had all Part A items covered but found safety item 7 WEAK and item 11 GAP; the current design’s actual §4.1, §7, and §10 text covers those requirements. Previously covered gotcha/safety mechanisms remain present in the current design sections cited above. The remaining M5/M6/M7 live confirmations are explicit design-stage assumptions with fail-closed behavior, not gotcha/safety gaps.
+
+## Counts and final verdict
+
+- Part A counts: COVERED 5, WEAK 0, GAP 0.
+- Part B counts: COVERED 11, WEAK 0, GAP 0.
+- Most serious gap: none found.
+
+VERDICT: PASS
