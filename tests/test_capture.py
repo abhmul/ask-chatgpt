@@ -13,7 +13,12 @@ from ask_chatgpt.capture import (
     validate_backend_shape,
 )
 from ask_chatgpt.channels.mock import HEADER_CANARIES, MockBackendResponse, MockChannel, MockScenario
-from ask_chatgpt.errors import BackendAuthUnavailableError, BackendCaptureShapeError, HumanActionNeededError
+from ask_chatgpt.errors import (
+    BackendAuthUnavailableError,
+    BackendCaptureShapeError,
+    CaptureFailedClosedError,
+    HumanActionNeededError,
+)
 from ask_chatgpt.identity import ConversationRef
 from ask_chatgpt.store import Store
 from mock_scenarios import (
@@ -288,3 +293,68 @@ def test_fallback_requires_clipboard_grant_and_explicit_copy_is_not_canonical(tm
     assert turn.partial is False
     assert result.source == "copy_button"
     assert result.fidelity == "ui_copy"
+
+
+def test_fallback_marks_katex_and_dom_salvage_degraded_and_fails_closed_when_empty(tmp_path) -> None:
+    conv = ConversationRef("conv_mock_fallback", "https://chatgpt.com/c/conv_mock_fallback")
+    katex_channel = MockChannel(
+        MockScenario(
+            name="katex_salvage",
+            clipboard_permission="denied",
+            evaluations={
+                "ask_chatgpt_capture_katex_annotations": ["\\widehat{x}", " ", "\\ne", " ", "\\frac{}{}"],
+                "ask_chatgpt_capture_dom_text": "lossy dom should not be used after katex",
+            },
+        )
+    )
+    katex_tab = katex_channel.open_tab("https://chatgpt.com/c/conv_mock_fallback")
+
+    katex_result = fallback_capture_ui(
+        katex_tab,
+        conv,
+        Store(data_dir=tmp_path / "katex"),
+        reason="shape",
+        allow_clipboard=True,
+    )
+
+    katex_turn = katex_result.transcript.turns[0]
+    assert katex_turn.content_markdown == "\\widehat{x} \\ne \\frac{}{}"
+    assert katex_turn.capture_source == "katex_annotation"
+    assert katex_turn.fidelity == "math_annotation_reconstructed"
+    assert katex_turn.status == "partial"
+    assert katex_turn.partial is True
+
+    dom_channel = MockChannel(
+        MockScenario(
+            name="dom_salvage",
+            clipboard_permission="denied",
+            evaluations={"ask_chatgpt_capture_dom_text": "lossy visible DOM text"},
+        )
+    )
+    dom_tab = dom_channel.open_tab("https://chatgpt.com/c/conv_mock_fallback")
+
+    dom_result = fallback_capture_ui(
+        dom_tab,
+        conv,
+        Store(data_dir=tmp_path / "dom"),
+        reason="shape",
+        allow_clipboard=True,
+    )
+
+    dom_turn = dom_result.transcript.turns[0]
+    assert dom_turn.content_markdown == "lossy visible DOM text"
+    assert dom_turn.capture_source == "dom_text"
+    assert dom_turn.fidelity == "lossy_dom_text"
+    assert dom_turn.status == "partial"
+    assert dom_turn.partial is True
+
+    empty_channel = MockChannel(MockScenario(name="empty_fallback", clipboard_permission="denied"))
+    empty_tab = empty_channel.open_tab("https://chatgpt.com/c/conv_mock_fallback")
+    with pytest.raises(CaptureFailedClosedError):
+        fallback_capture_ui(
+            empty_tab,
+            conv,
+            Store(data_dir=tmp_path / "empty"),
+            reason="shape",
+            allow_clipboard=True,
+        )
