@@ -292,6 +292,10 @@ class Store:
         client_send_id: str | None,
         partial_markdown: str,
         error: BaseException,
+        capture_source: str = "dom_text",
+        fidelity: str = "lossy_dom_text",
+        message_id: str | None = None,
+        user_message_id: str | None = None,
     ) -> TurnRecord:
         if ref.conversation_id is None:
             raise StoreError("cannot record partial for a draft conversation without a conversation_id")
@@ -302,7 +306,7 @@ class Store:
             conversation_id=ref.conversation_id,
             conversation_url=conversation_url(ref),
             project_id=ref.project_id,
-            message_id=f"partial:{uuid.uuid4().hex}",
+            message_id=message_id or f"partial:{uuid.uuid4().hex}",
             parent_id=None,
             turn_index=turn_index,
             role="assistant",
@@ -315,12 +319,12 @@ class Store:
             citations=(),
             status="partial" if partial_markdown else "error",
             partial=True,
-            user_message_id=None,
+            user_message_id=user_message_id,
             turn_exchange_id=None,
             client_send_id=client_send_id,
             supersedes_message_id=None,
-            capture_source="dom_text",
-            fidelity="lossy_dom_text",
+            capture_source=capture_source,  # type: ignore[arg-type]
+            fidelity=fidelity,  # type: ignore[arg-type]
             error={"type": type(error).__name__, "message": _redact_error_text(str(error))},
         )
         self.upsert_turn(record)

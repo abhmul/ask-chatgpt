@@ -249,8 +249,11 @@ def iter_current_branch_records(raw_path: Path, conv: ConversationRef, *, send_c
         active_tools = tuple(send_context.active_tools) if send_context else ()
         kind = "normal"
         user_message_id = None
+        supersedes_message_id = None
         if role == "user":
             last_visible_user_id = message_id
+            if send_context and send_context.client_send_id and message_id == send_context.user_message_id:
+                supersedes_message_id = f"local:{send_context.client_send_id}"
         elif role == "assistant":
             user_message_id = send_context.user_message_id if send_context and send_context.user_message_id else last_visible_user_id
             if exchange_id is not None:
@@ -281,7 +284,7 @@ def iter_current_branch_records(raw_path: Path, conv: ConversationRef, *, send_c
             user_message_id=user_message_id,
             turn_exchange_id=exchange_id,
             client_send_id=send_context.client_send_id if send_context else None,
-            supersedes_message_id=None,
+            supersedes_message_id=supersedes_message_id,
             capture_source="backend_api",
             fidelity="canonical",
             error=None,

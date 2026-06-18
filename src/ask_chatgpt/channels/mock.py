@@ -291,6 +291,8 @@ class MockChannel:
             has_arg=arg is not None,
             timeout_s=timeout_s,
         )
+        if js == "ask_chatgpt_send_read_composer_text":
+            return self._composer_text.get(tab.tab_id, "")
         if js in self.scenario.evaluations:
             return self.scenario.evaluations[js]
         return arg
