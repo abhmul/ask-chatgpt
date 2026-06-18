@@ -155,6 +155,22 @@ def test_large_current_branch_linearizes_iteratively_excludes_hidden_and_preserv
     assert "side branch answer" in raw_text
 
 
+def test_message_level_model_slug_overrides_top_level_default(tmp_path) -> None:
+    raw = large_mapping_raw()
+    raw["default_model_slug"] = "top-level-default"
+    raw["mapping"]["node_0002"]["message"]["metadata"]["model_slug"] = "message-level-model"
+    raw_path = _write_raw(tmp_path, raw)
+    conv = ConversationRef("conv_mock_headers", "https://chatgpt.com/c/conv_mock_headers")
+
+    records = tuple(iter_current_branch_records(raw_path, conv))
+    by_id = {record.message_id: record for record in records}
+
+    assert by_id["msg_user_1"].model is not None
+    assert by_id["msg_user_1"].model.slug == "top-level-default"
+    assert by_id["msg_assistant_single"].model is not None
+    assert by_id["msg_assistant_single"].model.slug == "message-level-model"
+
+
 def _malformed_capture_variants() -> dict[str, dict[str, object]]:
     variants = dict(malformed_mapping_variants())
     non_list = large_mapping_raw(conversation_id="conv_mock_non_list_part", leaf_index=5)

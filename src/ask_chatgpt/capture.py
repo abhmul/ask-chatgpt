@@ -242,6 +242,7 @@ def iter_current_branch_records(raw_path: Path, conv: ConversationRef, *, send_c
         metadata = _message_metadata(message)
         exchange_id = _optional_str(metadata.get("turn_exchange_id"))
         message_id = _message_id(message, node_id)
+        model = _model_for_message(metadata, default_model)
         own_attachments = tuple(_attachments_for_message(node_id, message, visible=True))
         own_citations = tuple(_citations_for_message(node_id, message, visible=True))
         attachments = own_attachments
@@ -273,7 +274,7 @@ def iter_current_branch_records(raw_path: Path, conv: ConversationRef, *, send_c
             turn_index=turn_index,
             role=role,
             content_markdown=content_markdown,
-            model=default_model,
+            model=model,
             active_tools=active_tools,
             kind=kind,
             created_at=_created_at(message),
@@ -600,6 +601,13 @@ def _message_role(message: Mapping[str, Any]) -> str | None:
 def _message_metadata(message: Mapping[str, Any]) -> Mapping[str, Any]:
     metadata = message.get("metadata")
     return metadata if isinstance(metadata, Mapping) else {}
+
+
+def _model_for_message(metadata: Mapping[str, Any], default_model: ModelRef | None) -> ModelRef | None:
+    slug = _optional_str(metadata.get("model_slug"))
+    if slug is None:
+        return default_model
+    return ModelRef(slug, default_model.display if default_model is not None else None)
 
 
 def _message_id(message: Mapping[str, Any], node_id: str) -> str:

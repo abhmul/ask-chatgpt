@@ -195,6 +195,152 @@ def test_cli_ask_forwards_flags_and_stdout_and_out_are_identical(tmp_path, capsy
     ]
 
 
+def test_cli_real_session_ask_out_write_failure_keeps_stdout_first(tmp_path, capsys, monkeypatch) -> None:
+    import ask_chatgpt.cli as cli
+    from ask_chatgpt.channels.base import RequestSnapshot, TurnDom, TurnDomSnapshot
+    from ask_chatgpt.channels.mock import (
+        HEADER_CANARIES,
+        MockBackendResponse,
+        MockChannel,
+        MockScenario,
+        ScriptedClock,
+        TimedBackendResponse,
+        TimedTurnSnapshot,
+    )
+    from ask_chatgpt.errors import StoreError
+    from ask_chatgpt.selectors import load_selector_map
+    from ask_chatgpt.session import Session as RealSession
+
+    selectors = load_selector_map(
+        {
+            "composer": "#prompt-textarea",
+            "tools_button": "button[data-testid=\"composer-plus-btn\"]",
+            "message_turn": "[data-message-id][data-message-author-role]",
+            "user_turn": "[data-message-author-role=\"user\"][data-message-id]",
+            "assistant_turn": "[data-message-author-role=\"assistant\"][data-message-id]",
+            "copy_button": "button[data-testid=\"copy-turn-action-button\"]",
+            "stop_button": "button[data-testid=\"stop-button\"]",
+            "send_button_unverified_no_input": "button[data-testid=\"send-button\"], #composer-submit-button",
+            "radix_portal": "[data-radix-popper-content-wrapper]",
+            "model_picker_trigger_candidates": "composer-footer button[aria-haspopup=\"menu\"]",
+        }
+    )
+    conversation_id = "conv_cli_real_out"
+    answer_text = "REAL SESSION STDOUT SURVIVES OUT FAILURE"
+    raw = {
+        "conversation_id": conversation_id,
+        "async_status": "complete",
+        "mapping": {
+            "root": {"id": "root", "parent": None, "children": ["user"], "message": None},
+            "user": {
+                "id": "user",
+                "parent": "root",
+                "children": ["assistant"],
+                "message": {
+                    "id": "user-new-2",
+                    "author": {"role": "user"},
+                    "create_time": 1_700_000_000.0,
+                    "content": {"content_type": "text", "parts": ["literal prompt"]},
+                    "metadata": {"is_complete": True},
+                    "status": "finished_successfully",
+                },
+            },
+            "assistant": {
+                "id": "assistant",
+                "parent": "user",
+                "children": [],
+                "message": {
+                    "id": "assistant-new-2",
+                    "author": {"role": "assistant"},
+                    "create_time": 1_700_000_001.0,
+                    "content": {"content_type": "text", "parts": [answer_text]},
+                    "metadata": {"is_complete": True},
+                    "status": "finished_successfully",
+                },
+            },
+        },
+        "current_node": "assistant",
+        "default_model_slug": "mock-model",
+    }
+    baseline = TurnDomSnapshot(
+        users=(TurnDom("baseline-user-1", "user", "baseline prompt"),),
+        assistants=(TurnDom("baseline-assistant-1", "assistant", "baseline answer"),),
+        stop_visible=False,
+        composer_visible=True,
+        model_labels=(),
+    )
+    submitted = TurnDomSnapshot(
+        users=(*baseline.users, TurnDom("user-new-2", "user", "literal prompt")),
+        assistants=baseline.assistants,
+        stop_visible=True,
+        composer_visible=True,
+        model_labels=(),
+    )
+    complete = TurnDomSnapshot(
+        users=submitted.users,
+        assistants=(*baseline.assistants, TurnDom("assistant-new-2", "assistant", answer_text)),
+        stop_visible=False,
+        composer_visible=True,
+        model_labels=(),
+    )
+    scenario = MockScenario(
+        name="real_session_out_write_failure",
+        turn_timeline=(
+            TimedTurnSnapshot(0.0, baseline),
+            TimedTurnSnapshot(0.5, submitted),
+            TimedTurnSnapshot(1.0, complete),
+        ),
+        backend_timeline=(TimedBackendResponse(0.0, MockBackendResponse(200, raw)),),
+        request_snapshots=tuple(
+            RequestSnapshot(
+                url=f"https://chatgpt.com/backend-api/conversation/{conversation_id}",
+                method="GET",
+                headers={name: f"{value}_{index}" for name, value in HEADER_CANARIES.items()},
+            )
+            for index in range(4)
+        ),
+    )
+    clock = ScriptedClock()
+    mock = MockChannel(scenario, monotonic=clock.monotonic, sleeper=clock.sleep)
+
+    def session_factory(*, cdp_endpoint, data_dir, channel):  # noqa: ANN001
+        del cdp_endpoint, channel
+        return RealSession(
+            data_dir=data_dir,
+            channel=mock,
+            selector_map=selectors,
+            send_verify_timeout_s=2.0,
+            composer_wait_timeout_s=1.0,
+            progress_poll_interval_s=0.5,
+            backend_check_interval_s=0.5,
+            activity_timeout_s=5.0,
+        )
+
+    def fail_atomic_write(self, out, content):  # noqa: ANN001
+        del self, out, content
+        raise StoreError("injected out write failure")
+
+    monkeypatch.setattr(cli, "Session", session_factory)
+    monkeypatch.setattr(Store, "atomic_write_payload", fail_atomic_write)
+
+    code = cli.main([
+        "ask",
+        f"https://chatgpt.com/c/{conversation_id}",
+        "literal prompt",
+        "--selector-channel",
+        "mock",
+        "--data-dir",
+        str(tmp_path / "data"),
+        "--out",
+        str(tmp_path / "answer.md"),
+    ])
+
+    captured = capsys.readouterr()
+    assert code == 70
+    assert captured.out == f"{answer_text}\n"
+    assert captured.err.splitlines() == ["ERROR STORE_ERROR: injected out write failure"]
+
+
 def test_cli_export_dispatches_history_not_scrape_and_out_does_not_suppress_stdout(tmp_path, capsys, monkeypatch) -> None:
     cli = _patch_session(monkeypatch)
     out = tmp_path / "history.md"

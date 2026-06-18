@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -14,16 +15,18 @@ from ask_chatgpt.channels.mock import (
     TimedBackendResponse,
     TimedTurnSnapshot,
 )
-from ask_chatgpt.completion import salvage_partial, wait_for_completion
+from ask_chatgpt.completion import CompletionState, poll_backend_completion, salvage_partial, wait_for_completion
 from ask_chatgpt.errors import (
     CompletionTimeoutError,
     HumanActionNeededError,
+    InternalError,
     MaxTotalWaitExceededError,
     ModelSelectionNotReflectedError,
     PromptNotSubmittedError,
     SelectorNotFoundError,
 )
 from ask_chatgpt.identity import ConversationRef
+from ask_chatgpt.models import Transcript, TurnRecord
 from ask_chatgpt.selectors import load_selector_map
 from ask_chatgpt.send import (
     TurnBaseline,
@@ -121,6 +124,31 @@ def _raw_conversation(
     }
     assert current_branch_ids(raw) == ["root", "user", "assistant"]
     return raw
+
+
+def _assistant_record(message_id: str, text: str, *, user_message_id: str = "user-new-2") -> TurnRecord:
+    return TurnRecord(
+        conversation_id=CONV.conversation_id or "",
+        conversation_url=CONV.url,
+        project_id=CONV.project_id,
+        message_id=message_id,
+        parent_id=user_message_id,
+        turn_index=1,
+        role="assistant",
+        content_markdown=text,
+        model=None,
+        active_tools=(),
+        kind="normal",
+        created_at=None,
+        attachments=(),
+        citations=(),
+        status="complete",
+        partial=False,
+        user_message_id=user_message_id,
+        capture_source="backend_api",
+        fidelity="canonical",
+        error=None,
+    )
 
 
 def _request_snapshots(conversation_id: str = "conv_mock_completion", count: int = 8) -> tuple[RequestSnapshot, ...]:
@@ -386,10 +414,75 @@ def test_successful_ask_returns_new_assistant_and_supersedes_pending(tmp_path) -
     assert answer.content_markdown == "final answer"
     assert answer.message_id != "baseline-assistant-1"
     assert mock.call_order.index("query_turns") < mock.call_order.index("fill") < mock.call_order.index("click")
-    assert mock.method_counts["full_raw_fetches"] == 1
+    assert mock.method_counts["full_raw_fetches"] >= 1
+    assert mock.method_counts.get("backend_checks", 0) == 0
     visible = Store(data_dir=tmp_path).load_transcript(CONV).turns
     assert [turn.message_id for turn in visible] == ["user-new-2", "assistant-new-2"]
     assert all(not turn.message_id.startswith("local:") for turn in visible)
+
+
+def test_session_completion_id_absent_does_not_return_stale_assistant_and_salvages(tmp_path, monkeypatch) -> None:
+    import ask_chatgpt.session as session_module
+
+    baseline = _baseline_snapshot()
+    dom_new = TurnDomSnapshot(
+        users=(*baseline.users, TurnDom("user-new-2", "user", "literal prompt")),
+        assistants=(*baseline.assistants, TurnDom("assistant-new-2", "assistant", "dom new partial")),
+        stop_visible=False,
+        composer_visible=True,
+        model_labels=baseline.model_labels,
+    )
+    clock = ScriptedClock()
+    mock = MockChannel(
+        MockScenario(
+            name="completion_id_absent_from_capture",
+            turn_timeline=(TimedTurnSnapshot(0.0, baseline), TimedTurnSnapshot(0.5, dom_new)),
+        ),
+        monotonic=clock.monotonic,
+        sleeper=clock.sleep,
+    )
+    stale = _assistant_record("assistant-mid", "stale captured answer")
+
+    def wait_completion(*args, **kwargs):  # noqa: ANN001, ANN002, ANN003
+        return CompletionState(
+            True,
+            "assistant-new-2",
+            "complete",
+            "finished_successfully",
+            "verified-new-id",
+            "backend final answer",
+            "backend",
+            clock.monotonic(),
+        )
+
+    def capture(tab, ref, store, *, send_context=None, **kwargs):  # noqa: ANN001, ANN003
+        del tab, store, kwargs
+        stale_for_user = _assistant_record(
+            stale.message_id,
+            stale.content_markdown,
+            user_message_id=send_context.user_message_id if send_context is not None else "user-new-2",
+        )
+        return SimpleNamespace(transcript=Transcript(ref, (stale_for_user,), None, None))
+
+    monkeypatch.setattr(session_module, "wait_for_completion", wait_completion)
+    monkeypatch.setattr(session_module, "capture_conversation", capture)
+    session = Session(
+        data_dir=tmp_path,
+        channel=mock,
+        selector_map=SELECTORS,
+        send_verify_timeout_s=2.0,
+        composer_wait_timeout_s=1.0,
+    )
+
+    with pytest.raises(InternalError) as excinfo:
+        session.ask(CONV, "literal prompt")
+
+    partial = getattr(excinfo.value, "partial", None)
+    assert excinfo.value.code == "INTERNAL_ERROR"
+    assert partial is not None
+    assert partial.message_id == "assistant-new-2"
+    assert partial.content_markdown == "dom new partial"
+    assert partial.content_markdown != stale.content_markdown
 
 
 def test_old_stable_assistant_is_not_completion() -> None:
@@ -509,6 +602,34 @@ def test_session_timeout_salvage_persists_partial_assistant(tmp_path) -> None:
     assert partials[0].capture_source == "dom_text"
 
 
+def test_poll_backend_completion_default_uses_full_conversation_endpoint_not_stream_status() -> None:
+    scenario = MockScenario(
+        name="backend_completion_default_full_raw",
+        backend_responses={
+            "/backend-api/conversation/conv_mock_completion": MockBackendResponse(
+                200,
+                _raw_conversation(assistant_text="full raw default answer"),
+            ),
+            "/backend-api/conversation/conv_mock_completion/stream_status": MockBackendResponse(
+                200,
+                _raw_conversation(assistant_text="stream status answer"),
+            ),
+        },
+        request_snapshots=_request_snapshots(count=1),
+    )
+    mock = MockChannel(scenario)
+    tab = _open_mock_tab(mock)
+    baseline = TurnBaseline("baseline-user-1", 1, "baseline-assistant-1", 1)
+
+    state = poll_backend_completion(tab, CONV, baseline)
+
+    fetch_urls = [call.details["url"] for call in mock.calls if call.method == "fetch_in_page"]
+    assert state.partial_markdown == "full raw default answer"
+    assert fetch_urls == ["/backend-api/conversation/conv_mock_completion"]
+    assert mock.method_counts["full_raw_fetches"] == 1
+    assert mock.method_counts.get("backend_checks", 0) == 0
+
+
 def test_sparse_backend_cadence_uses_fresh_one_use_headers() -> None:
     baseline = _baseline_snapshot()
     growing = TurnDomSnapshot(
@@ -546,11 +667,11 @@ def test_sparse_backend_cadence_uses_fresh_one_use_headers() -> None:
     )
 
     assert state.assistant_message_id == "assistant-new-2"
-    assert mock.method_counts["backend_checks"] == 3
+    assert mock.method_counts["full_raw_fetches"] == 3
     assert mock.method_counts["header_acquisitions"] == 3
-    assert mock.method_counts.get("full_raw_fetches", 0) == 0
+    assert mock.method_counts.get("backend_checks", 0) == 0
     assert mock.method_counts["dom_polls"] >= 30
-    assert mock.method_counts["backend_checks"] < mock.method_counts["dom_polls"]
+    assert mock.method_counts["full_raw_fetches"] < mock.method_counts["dom_polls"]
 
 
 def test_backend_interval_none_uses_sparse_mock_default_not_dom_cadence() -> None:
@@ -587,9 +708,9 @@ def test_backend_interval_none_uses_sparse_mock_default_not_dom_cadence() -> Non
     )
 
     assert state.partial_markdown == "done"
-    assert mock.method_counts["backend_checks"] == 2
+    assert mock.method_counts["full_raw_fetches"] == 2
+    assert mock.method_counts.get("backend_checks", 0) == 0
     assert mock.method_counts["dom_polls"] >= 15
-
 
 
 def test_active_or_unknown_statuses_do_not_complete_conservatively() -> None:
@@ -618,6 +739,35 @@ def test_active_or_unknown_statuses_do_not_complete_conservatively() -> None:
         )
 
 
+def test_salvage_partial_skips_clipboard_by_default_even_when_granted_and_uses_dom() -> None:
+    baseline_snapshot = _baseline_snapshot()
+    dom_partial = TurnDomSnapshot(
+        users=baseline_snapshot.users,
+        assistants=(*baseline_snapshot.assistants, TurnDom("assistant-dom-partial", "assistant", "visible DOM partial")),
+        stop_visible=True,
+        composer_visible=True,
+        model_labels=baseline_snapshot.model_labels,
+    )
+    mock = MockChannel(
+        MockScenario(
+            name="clipboard_would_succeed_but_dom_default",
+            turn_timeline=(TimedTurnSnapshot(0.0, dom_partial),),
+            clipboard_permission="granted",
+            clipboard_text="clipboard text must not be read by default",
+        )
+    )
+    tab = _open_mock_tab(mock)
+    baseline = TurnBaseline("baseline-user-1", 1, "baseline-assistant-1", 1)
+
+    partial = salvage_partial(tab, CONV, baseline, backend_partial=None)
+
+    assert partial is not None
+    assert partial.message_id == "assistant-dom-partial"
+    assert partial.content_markdown == "visible DOM partial"
+    assert partial.capture_source == "dom_text"
+    assert mock.method_counts.get("read_clipboard", 0) == 0
+
+
 def test_clipboard_prompt_salvage_requires_human_action_without_success() -> None:
     clock = ScriptedClock()
     mock = MockChannel(MockScenario(name="clipboard_prompt", clipboard_permission="prompt"), monotonic=clock.monotonic, sleeper=clock.sleep)
@@ -628,6 +778,7 @@ def test_clipboard_prompt_salvage_requires_human_action_without_success() -> Non
         salvage_partial(tab, CONV, baseline, backend_partial=None)
 
     assert excinfo.value.code == "HUMAN-ACTION-NEEDED"
+    assert mock.method_counts.get("read_clipboard", 0) == 0
 
 
 def test_send_and_completion_sources_remain_offline_channel_only() -> None:

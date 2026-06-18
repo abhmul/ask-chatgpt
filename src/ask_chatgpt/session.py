@@ -313,8 +313,7 @@ class Session:
                     setattr(exc, "partial", partial)
                     setattr(exc, "partial_markdown", partial.content_markdown)
                 raise
-            if out is not None:
-                self.store.emit_payload(_ask_payload(answer.content_markdown), out=out, stdout=_NullStdout())
+            del out
             return answer
         finally:
             self.tab_pool.release(tab)
@@ -331,9 +330,8 @@ class Session:
         tab = self.tab_pool.acquire(ref)
         try:
             captured = capture_conversation(tab, ref, self.store, with_attachments=with_attachments)
+            del out
             transcript = self.store.load_transcript(ref)
-            if out is not None:
-                self.store.emit_payload(self.store.render_markdown(transcript), out=out, stdout=_NullStdout())
             return transcript if transcript.turns else captured.transcript
         finally:
             self.tab_pool.release(tab)
@@ -561,13 +559,10 @@ def _select_new_assistant(
         for record in assistants:
             if record.message_id == assistant_message_id:
                 return record
+        raise InternalError("verified assistant turn was absent from backend capture")
     if assistants:
         return assistants[-1]
     raise InternalError("backend capture did not contain a new assistant turn")
-
-
-def _ask_payload(content: str) -> str:
-    return content.rstrip("\n") + "\n"
 
 
 def _conversation_count(store: Store) -> int:
@@ -623,14 +618,6 @@ def _redact_json(value: Any) -> Any:
     if value is None or isinstance(value, bool | int | float):
         return value
     return repr(value)
-
-
-class _NullStdout:
-    def write(self, value: object) -> None:
-        del value
-
-    def flush(self) -> None:
-        pass
 
 
 __all__ = ["AdaptiveSendBudget", "Session", "TabPool"]

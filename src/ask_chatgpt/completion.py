@@ -39,7 +39,7 @@ def poll_backend_completion(
     conv: ConversationRef,
     baseline: TurnBaseline,
     *,
-    prefer_lightweight: bool = True,
+    prefer_lightweight: bool = False,
 ) -> CompletionState:
     conversation_id = _require_conversation_id(conv)
     headers = acquire_backend_headers(tab, conv)
@@ -212,6 +212,7 @@ def salvage_partial(
     baseline: TurnBaseline,
     *,
     backend_partial: CompletionState | None,
+    allow_clipboard: bool = False,
 ) -> TurnRecord | None:
     if (
         backend_partial is not None
@@ -228,19 +229,20 @@ def salvage_partial(
         )
 
     clipboard_error: HumanActionNeededError | None = None
-    try:
-        copied = tab.channel.read_clipboard(tab)
-    except HumanActionNeededError as exc:
-        copied = ""
-        clipboard_error = exc
-    if copied:
-        return _partial_record(
-            conv,
-            message_id="partial:copy-button",
-            text=copied,
-            source="copy_button",
-            fidelity="ui_copy",
-        )
+    if allow_clipboard:
+        try:
+            copied = tab.channel.read_clipboard(tab)
+        except HumanActionNeededError as exc:
+            copied = ""
+            clipboard_error = exc
+        if copied:
+            return _partial_record(
+                conv,
+                message_id="partial:copy-button",
+                text=copied,
+                source="copy_button",
+                fidelity="ui_copy",
+            )
 
     snapshot = tab.channel.query_turns(tab, {  # type: ignore[arg-type]
         "composer": "#prompt-textarea",
@@ -268,7 +270,10 @@ def salvage_partial(
             "clipboard fallback requires explicit permission",
             details={"reason": "clipboard_permission"},
         ) from clipboard_error
-    return None
+    raise HumanActionNeededError(
+        "partial salvage requires backend or DOM content",
+        details={"reason": "no_salvageable_partial"},
+    )
 
 
 def _completion_state_from_backend(
