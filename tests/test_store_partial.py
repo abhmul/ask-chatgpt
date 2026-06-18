@@ -1,0 +1,32 @@
+from __future__ import annotations
+
+from ask_chatgpt.identity import ConversationRef
+from ask_chatgpt.store import Store
+
+
+def test_record_partial_appends_honest_error_salvage_with_redacted_details(tmp_path) -> None:
+    store = Store(data_dir=tmp_path)
+    ref = ConversationRef("chat_123", "https://chatgpt.com/c/chat_123")
+    error = RuntimeError("Bearer SECRET_AUTH cookie=SECRET_COOKIE PROMPT_CANARY should not persist")
+
+    record = store.record_partial(
+        ref,
+        client_send_id="send_123",
+        partial_markdown="partial answer",
+        error=error,
+    )
+
+    assert record.role == "assistant"
+    assert record.content_markdown == "partial answer"
+    assert record.status == "error"
+    assert record.partial is True
+    assert record.client_send_id == "send_123"
+    assert record.capture_source == "dom_text"
+    assert record.fidelity == "lossy_dom_text"
+    assert record.error == {"type": "RuntimeError", "message": "<redacted>"}
+    persisted = (tmp_path / "conversations" / "chat_123" / "transcript.jsonl").read_text(encoding="utf-8")
+    assert "partial answer" in persisted
+    assert "SECRET_AUTH" not in persisted
+    assert "SECRET_COOKIE" not in persisted
+    assert "PROMPT_CANARY" not in persisted
+    assert store.load_transcript("chat_123").turns == (record,)

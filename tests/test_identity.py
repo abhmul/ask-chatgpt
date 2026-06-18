@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import pytest
 
+from ask_chatgpt.errors import ConversationNotFoundError
+from ask_chatgpt.store import Store
 from ask_chatgpt.identity import (
     ConversationRef,
     backend_conversation_url,
@@ -75,6 +77,20 @@ def test_malformed_foreign_and_traversal_addresses_fail_closed(value: str) -> No
         normalize_conversation_id(value)
 
 
-def test_alias_resolution_is_deferred_to_store_step() -> None:
-    with pytest.raises(NotImplementedError, match="M4-E2 store"):
-        resolve_conv_or_alias("alias", store=object())
+def test_resolve_conv_or_alias_passthrough_stateless_ids_urls_and_unknown_alias(tmp_path) -> None:
+    store = Store(data_dir=tmp_path)
+    ref = ConversationRef("chat_123", "https://chatgpt.com/c/chat_123")
+
+    assert resolve_conv_or_alias(ref, store=store) is ref
+    assert resolve_conv_or_alias("chat_456", store=store) == ConversationRef(
+        "chat_456", "https://chatgpt.com/c/chat_456"
+    )
+    assert resolve_conv_or_alias(
+        "https://chatgpt.com/g/g-p-proj_789/c/chat_456?model=x#frag", store=store
+    ) == ConversationRef(
+        "chat_456",
+        "https://chatgpt.com/g/g-p-proj_789/c/chat_456",
+        project_id="proj_789",
+    )
+    with pytest.raises(ConversationNotFoundError):
+        resolve_conv_or_alias("missing-alias", store=store)

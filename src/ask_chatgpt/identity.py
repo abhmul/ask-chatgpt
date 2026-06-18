@@ -140,9 +140,14 @@ def normalize_conversation_id(value: str) -> str:
 
 
 def resolve_conv_or_alias(value: str | ConversationRef, store: object) -> ConversationRef:
-    """E2 stub: alias resolution requires the Store/index.json layer."""
+    """Resolve a conversation address through the supplied store layer."""
 
-    raise NotImplementedError("resolve_conv_or_alias: implemented in M4-E2 store")
+    if isinstance(value, ConversationRef):
+        return value
+    resolver = getattr(store, "resolve_conversation", None)
+    if resolver is None:
+        raise TypeError("store must provide resolve_conversation")
+    return resolver(value)
 
 
 __all__ = [

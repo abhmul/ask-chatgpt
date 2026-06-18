@@ -50,6 +50,7 @@ from ask_chatgpt.models import (
 )
 from ask_chatgpt.selectors import load_selector_map
 from ask_chatgpt.session import Session
+from ask_chatgpt.store import ConversationPaths, Store, emit_payload
 
 __version__ = "0.0.1"
 
@@ -70,6 +71,7 @@ __all__ = [
     "CitationRef",
     "CompletionTimeoutError",
     "ConversationNotFoundError",
+    "ConversationPaths",
     "ConversationRef",
     "DEFAULT_ALLOWED_HOST_SUFFIXES",
     "DomainNotAllowedError",
@@ -86,6 +88,7 @@ __all__ = [
     "SendTimeouts",
     "Session",
     "StatusReport",
+    "Store",
     "StoreError",
     "StoreWarning",
     "TabPoolExhaustedError",
@@ -96,6 +99,7 @@ __all__ = [
     "TurnStatus",
     "backend_conversation_url",
     "conversation_url",
+    "emit_payload",
     "load_selector_map",
     "normalize_conversation_id",
     "parse_conversation_address",
