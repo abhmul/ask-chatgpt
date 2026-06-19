@@ -62,6 +62,31 @@ def _user_turn(text: str = "stored prompt") -> TurnRecord:
     )
 
 
+def _loop_turn(conv: str, index: int, *, partial: bool = False) -> TurnRecord:
+    return TurnRecord(
+        conversation_id=conv,
+        conversation_url=f"https://chatgpt.com/c/{conv}",
+        project_id=None,
+        message_id=f"assistant-loop-{index}",
+        parent_id=f"user-loop-{index}",
+        turn_index=index,
+        role="assistant",
+        content_markdown=("MOCK_ASSISTANT_LOOP_PARTIAL_CANARY" if partial else f"MOCK_ASSISTANT_LOOP_CANARY_{index}"),
+        model=None,
+        active_tools=(),
+        kind="normal",
+        created_at=None,
+        attachments=(),
+        citations=(),
+        status="partial" if partial else "complete",
+        partial=partial,
+        user_message_id=f"user-loop-{index}",
+        capture_source="dom_text",
+        fidelity="lossy_dom_text",
+        error=None,
+    )
+
+
 @dataclass
 class RecordingSession:
     cdp_endpoint: str = ""
@@ -131,6 +156,16 @@ class RecordingSession:
             blocking_code=None,
             details={"selectors": {"composer": {"present": None}}},
         )
+
+    def loop(self, conv, **kwargs):
+        self.calls.append(("loop", (conv,), kwargs))
+        if type(self).raise_from == "loop_sigint":
+            err = KeyboardInterrupt()
+            err.partial = _loop_turn(str(conv), 1, partial=True)
+            raise err
+        iterations = int(kwargs.get("max_iterations") or 1)
+        for index in range(1, iterations + 1):
+            yield _loop_turn(str(conv), index)
 
 
 def _patch_session(monkeypatch):
@@ -448,10 +483,10 @@ def test_cli_status_json_no_browser_probe_uses_exact_top_level_schema(capsys, mo
     assert RecordingSession.instances[-1].calls == [("status", ("conv_cli",), {"probe_browser": False})]
 
 
-def test_cli_loop_max_iterations_two_emits_exactly_two_jsonl_envelopes(tmp_path, capsys) -> None:
-    from ask_chatgpt.cli import main
+def test_cli_loop_max_iterations_two_emits_exactly_two_jsonl_envelopes(tmp_path, capsys, monkeypatch) -> None:
+    cli = _patch_session(monkeypatch)
 
-    code = main([
+    code = cli.main([
         "loop",
         "conv_loop_123",
         "--selector-channel",
@@ -473,6 +508,25 @@ def test_cli_loop_max_iterations_two_emits_exactly_two_jsonl_envelopes(tmp_path,
     assert [item["iteration"] for item in envelopes] == [1, 2]
     assert [item["conversation_id"] for item in envelopes] == ["conv_loop_123", "conv_loop_123"]
     assert [item["status"] for item in envelopes] == ["complete", "complete"]
+
+
+def test_cli_loop_keyboard_interrupt_emits_partial_jsonl_and_returns_130(capsys, monkeypatch) -> None:
+    cli = _patch_session(monkeypatch)
+    RecordingSession.raise_from = "loop_sigint"
+
+    code = cli.main(["loop", "conv_loop_sigint", "--selector-channel", "mock"])
+
+    captured = capsys.readouterr()
+    assert code == 130
+    assert captured.err == ""
+    lines = captured.out.splitlines()
+    assert len(lines) == 1
+    envelope = json.loads(lines[0])
+    assert envelope["iteration"] == 1
+    assert envelope["conversation_id"] == "conv_loop_sigint"
+    assert envelope["status"] == "partial"
+    assert envelope["partial"] is True
+    assert envelope["message_id"] == "assistant-loop-1"
 
 
 def test_cli_version_still_prints_package_version(capsys) -> None:

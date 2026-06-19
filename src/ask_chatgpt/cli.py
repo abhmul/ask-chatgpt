@@ -259,21 +259,32 @@ def _handle_loop(args: argparse.Namespace) -> int:
     if args.max_iterations < 0:
         raise ValueError("--max-iterations must be non-negative")
     session = _new_session(args)
-    for iteration, turn in enumerate(
-        session.loop(
-            args.conv,
-            message=args.message,
-            model=args.model,
-            tools=tuple(args.tool),
-            attach=tuple(args.attach),
-            timeout=args.timeout,
-            max_total_wait=args.max_total_wait,
-            max_iterations=args.max_iterations,
-            out_dir=args.out_dir,
-        ),
-        start=1,
-    ):
-        _write_jsonl_stdout(_loop_envelope(iteration, turn))
+    iteration = 0
+    last_emitted: TurnRecord | None = None
+    try:
+        for iteration, turn in enumerate(
+            session.loop(
+                args.conv,
+                message=args.message,
+                model=args.model,
+                tools=tuple(args.tool),
+                attach=tuple(args.attach),
+                timeout=args.timeout,
+                max_total_wait=args.max_total_wait,
+                max_iterations=args.max_iterations,
+                out_dir=args.out_dir,
+            ),
+            start=1,
+        ):
+            _write_jsonl_stdout(_loop_envelope(iteration, turn))
+            last_emitted = turn
+    except KeyboardInterrupt as exc:
+        partial = getattr(exc, "partial", None)
+        if isinstance(partial, TurnRecord) and (
+            last_emitted is None or last_emitted.message_id != partial.message_id
+        ):
+            _write_jsonl_stdout(_loop_envelope(iteration + 1, partial))
+        return 130
     return 0
 
 

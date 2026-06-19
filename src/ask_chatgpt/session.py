@@ -440,6 +440,12 @@ class Session:
                 ),
             )
             answer = _select_new_assistant(capture.transcript.turns, completion_state.assistant_message_id, baseline)
+        except KeyboardInterrupt as exc:
+            partial = self._record_partial_if_available(tab, ref, baseline, stub, submitted, exc)
+            if partial is not None:
+                setattr(exc, "partial", partial)
+                setattr(exc, "partial_markdown", partial.content_markdown)
+            raise
         except (CompletionTimeoutError, MaxTotalWaitExceededError, AskChatGPTError) as exc:
             partial = self._record_partial_if_available(tab, ref, baseline, stub, submitted, exc)
             if partial is not None:
@@ -529,37 +535,37 @@ class Session:
         max_iterations: int | None = None,
         out_dir: str | Path | None = None,
     ) -> Iterator[TurnRecord]:
-        del model, tools, attach, timeout, max_total_wait, out_dir
-        if isinstance(self._channel_arg, str) and self._channel_arg != "mock":
-            raise HumanActionNeededError("M4 loop stub is mock-only; real browser loop is deferred")
-        iterations = 1 if max_iterations is None else int(max_iterations)
-        if iterations < 0:
+        del out_dir
+        if max_iterations is not None and int(max_iterations) < 0:
             raise ValueError("max_iterations must be non-negative")
         ref = self.store.resolve_conversation(conv_or_url) if not isinstance(conv_or_url, ConversationRef) else conv_or_url
         if ref.conversation_id is None:
             raise StoreError("loop requires a persisted conversation id")
-        for index in range(iterations):
-            yield TurnRecord(
-                conversation_id=ref.conversation_id,
-                conversation_url=conversation_url(ref),
-                project_id=ref.project_id,
-                message_id=f"mock-loop:{index + 1}",
-                parent_id=None,
-                turn_index=index,
-                role="assistant",
-                content_markdown=f"{message} (mock loop iteration {index + 1})",
-                model=None,
-                active_tools=(),
-                kind="normal",
-                created_at=None,
-                attachments=(),
-                citations=(),
-                status="complete",
-                partial=False,
-                capture_source="dom_text",
-                fidelity="lossy_dom_text",
-                error=None,
-            )
+        self.store.put_conversation_ref(ref)
+        tab = self.tab_pool.acquire(ref)
+        iteration = 0
+        try:
+            while max_iterations is None or iteration < int(max_iterations):
+                try:
+                    answer, ref = self._run_send_turn(
+                        tab,
+                        ref,
+                        message,
+                        model=model,
+                        tools=tools,
+                        attach=attach,
+                        timeout=timeout,
+                        max_total_wait=max_total_wait,
+                    )
+                except KeyboardInterrupt as exc:
+                    partial = getattr(exc, "partial", None)
+                    if isinstance(partial, TurnRecord):
+                        yield partial
+                    raise
+                iteration += 1
+                yield answer
+        finally:
+            self.tab_pool.release(tab)
 
     def status(
         self,

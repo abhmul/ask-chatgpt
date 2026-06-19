@@ -13,6 +13,8 @@ from ask_chatgpt.channels.mock import (
 import pytest
 
 from ask_chatgpt.errors import InternalError, PromptNotSubmittedError
+from ask_chatgpt.identity import conversation_url
+from ask_chatgpt.models import TurnRecord
 from ask_chatgpt.session import Session
 from ask_chatgpt.store import Store
 
@@ -44,7 +46,14 @@ def _message(message_id: str, role: str, text: str) -> dict[str, object]:
     }
 
 
-def _raw_conversation(conversation_id: str, *, user_id: str = "user-draft-1", assistant_id: str = "assistant-draft-1") -> dict[str, object]:
+def _raw_conversation(
+    conversation_id: str,
+    *,
+    user_id: str = "user-draft-1",
+    assistant_id: str = "assistant-draft-1",
+    prompt: str = PROMPT,
+    answer: str = ANSWER,
+) -> dict[str, object]:
     return {
         "conversation_id": conversation_id,
         "async_status": "complete",
@@ -54,13 +63,13 @@ def _raw_conversation(conversation_id: str, *, user_id: str = "user-draft-1", as
                 "id": "user",
                 "parent": "root",
                 "children": ["assistant"],
-                "message": _message(user_id, "user", PROMPT),
+                "message": _message(user_id, "user", prompt),
             },
             "assistant": {
                 "id": "assistant",
                 "parent": "user",
                 "children": [],
-                "message": _message(assistant_id, "assistant", ANSWER),
+                "message": _message(assistant_id, "assistant", answer),
             },
         },
         "current_node": "assistant",
@@ -168,3 +177,167 @@ def test_draft_ask_gotcha4_no_new_user_turn_stops_before_id_learning_or_completi
     assert channel.method_counts.get("current_url_reads", 0) == 0
     assert channel.method_counts.get("full_raw_fetches", 0) == 0
     assert not (tmp_path / "conversations").exists()
+
+
+def test_loop_verify_each_turn_no_op_submit_raises_prompt_not_submitted(tmp_path) -> None:
+    conversation_id = "loop-noop-123"
+    message = "MOCK_PROMPT_LOOP_NOOP_CANARY"
+    baseline = TurnDomSnapshot(users=(), assistants=(), stop_visible=False, composer_visible=True, model_labels=())
+    scenario = MockScenario(
+        name="loop_noop_submit",
+        turn_timeline=(TimedTurnSnapshot(0.0, baseline), TimedTurnSnapshot(5.0, baseline)),
+    )
+    clock = ScriptedClock()
+    channel = MockChannel(scenario, monotonic=clock.monotonic, sleeper=clock.sleep)
+    session = _session(tmp_path, channel, send_verify_timeout_s=1.0)
+
+    with pytest.raises(PromptNotSubmittedError):
+        list(session.loop(conversation_id, message=message, max_iterations=1))
+
+    assert session.send_budget.successful_submissions == 0
+    assert channel.method_counts.get("full_raw_fetches", 0) == 0
+
+
+def test_loop_on_cdp_channel_arg_no_longer_raises_mock_only_guard(tmp_path) -> None:
+    conversation_id = "loop-cdp-structural"
+    channel = MockChannel()
+    session = Session(data_dir=tmp_path, channel=channel, selector_map=SELECTORS)
+    session._channel_arg = "cdp"
+
+    def fake_run(tab, ref, prompt, **kwargs):  # noqa: ANN001, ANN003
+        del tab, prompt, kwargs
+        return TurnRecord(
+            conversation_id=conversation_id,
+            conversation_url=conversation_url(ref),
+            project_id=None,
+            message_id="assistant-cdp-structural",
+            parent_id="user-cdp-structural",
+            turn_index=1,
+            role="assistant",
+            content_markdown="MOCK_ASSISTANT_CDP_LOOP_STRUCTURAL_CANARY",
+            model=None,
+            active_tools=(),
+            kind="normal",
+            created_at=None,
+            attachments=(),
+            citations=(),
+            status="complete",
+            partial=False,
+            user_message_id="user-cdp-structural",
+            capture_source="dom_text",
+            fidelity="lossy_dom_text",
+            error=None,
+        ), ref
+
+    session._run_send_turn = fake_run  # type: ignore[method-assign]
+
+    answers = list(session.loop(conversation_id, max_iterations=1))
+
+    assert [answer.message_id for answer in answers] == ["assistant-cdp-structural"]
+    assert channel.method_counts.get("open_tab", 0) == 1
+
+
+def test_loop_sigint_salvages_partial_turn_then_reraises(tmp_path, monkeypatch) -> None:
+    import ask_chatgpt.session as session_module
+
+    conversation_id = "loop-sigint-123"
+    message = "MOCK_PROMPT_LOOP_SIGINT_CANARY"
+    partial_text = "MOCK_ASSISTANT_LOOP_SIGINT_PARTIAL_CANARY"
+    baseline = TurnDomSnapshot(users=(), assistants=(), stop_visible=False, composer_visible=True, model_labels=())
+    submitted_with_partial = TurnDomSnapshot(
+        users=(TurnDom("user-sigint-1", "user", message),),
+        assistants=(TurnDom("assistant-sigint-partial", "assistant", partial_text),),
+        stop_visible=True,
+        composer_visible=True,
+        model_labels=(),
+    )
+    scenario = MockScenario(
+        name="loop_sigint_partial",
+        turn_timeline=(TimedTurnSnapshot(0.0, baseline), TimedTurnSnapshot(0.5, submitted_with_partial)),
+    )
+    clock = ScriptedClock()
+    channel = MockChannel(scenario, monotonic=clock.monotonic, sleeper=clock.sleep)
+    session = _session(tmp_path, channel)
+
+    def interrupt(*args, **kwargs):  # noqa: ANN001, ANN002, ANN003
+        raise KeyboardInterrupt()
+
+    monkeypatch.setattr(session_module, "wait_for_completion", interrupt)
+
+    iterator = session.loop(conversation_id, message=message, max_iterations=1)
+    partial = next(iterator)
+
+    assert partial.partial is True
+    assert partial.status == "partial"
+    assert partial.message_id == "assistant-sigint-partial"
+    assert partial.content_markdown == partial_text
+    assert Store(data_dir=tmp_path).load_transcript(conversation_id).turns[-1].message_id == "assistant-sigint-partial"
+    with pytest.raises(KeyboardInterrupt):
+        next(iterator)
+
+
+def test_loop_two_iterations_sends_real_turns_and_appends_transcript_without_cap(tmp_path) -> None:
+    conversation_id = "loop-real-123"
+    message = "MOCK_PROMPT_LOOP_CANARY"
+    answer1 = "MOCK_ASSISTANT_LOOP_CANARY_ONE"
+    answer2 = "MOCK_ASSISTANT_LOOP_CANARY_TWO"
+    baseline = TurnDomSnapshot(users=(), assistants=(), stop_visible=False, composer_visible=True, model_labels=())
+    submitted1 = TurnDomSnapshot(
+        users=(TurnDom("user-loop-1", "user", message),),
+        assistants=(),
+        stop_visible=True,
+        composer_visible=True,
+        model_labels=(),
+    )
+    complete1 = TurnDomSnapshot(
+        users=submitted1.users,
+        assistants=(TurnDom("assistant-loop-1", "assistant", answer1),),
+        stop_visible=False,
+        composer_visible=True,
+        model_labels=(),
+    )
+    submitted2 = TurnDomSnapshot(
+        users=(*submitted1.users, TurnDom("user-loop-2", "user", message)),
+        assistants=complete1.assistants,
+        stop_visible=True,
+        composer_visible=True,
+        model_labels=(),
+    )
+    complete2 = TurnDomSnapshot(
+        users=submitted2.users,
+        assistants=(*complete1.assistants, TurnDom("assistant-loop-2", "assistant", answer2)),
+        stop_visible=False,
+        composer_visible=True,
+        model_labels=(),
+    )
+    scenario = MockScenario(
+        name="loop_two_real_sends",
+        turn_timeline=(
+            TimedTurnSnapshot(0.0, baseline),
+            TimedTurnSnapshot(0.5, submitted1),
+            TimedTurnSnapshot(1.0, complete1),
+            TimedTurnSnapshot(2.0, submitted2),
+            TimedTurnSnapshot(2.5, complete2),
+        ),
+        backend_timeline=(
+            TimedBackendResponse(0.0, MockBackendResponse(200, _raw_conversation(conversation_id, user_id="user-loop-1", assistant_id="assistant-loop-1", prompt=message, answer=answer1))),
+            TimedBackendResponse(2.0, MockBackendResponse(200, _raw_conversation(conversation_id, user_id="user-loop-2", assistant_id="assistant-loop-2", prompt=message, answer=answer2))),
+        ),
+        request_snapshots=_request_snapshots(conversation_id, count=8),
+    )
+    clock = ScriptedClock()
+    channel = MockChannel(scenario, monotonic=clock.monotonic, sleeper=clock.sleep)
+    session = _session(tmp_path, channel)
+    session.send_budget.politeness_floor_s = 0.0
+    session.send_budget.current_rate_per_min = 60_000.0
+    session.send_budget.max_rate_per_min = 60_000.0
+
+    answers = list(session.loop(conversation_id, message=message, max_iterations=2))
+
+    assert [answer.message_id for answer in answers] == ["assistant-loop-1", "assistant-loop-2"]
+    assert answers[0].message_id != answers[1].message_id
+    transcript = Store(data_dir=tmp_path).load_transcript(conversation_id)
+    assert {turn.message_id for turn in transcript.turns} == {"user-loop-1", "assistant-loop-1", "user-loop-2", "assistant-loop-2"}
+    assert [turn.message_id for turn in transcript.turns if turn.role == "assistant"] == ["assistant-loop-1", "assistant-loop-2"]
+    assert session.send_budget.successful_submissions == 2
+    assert session.tab_pool.snapshot()["managed_tabs"] == 1
