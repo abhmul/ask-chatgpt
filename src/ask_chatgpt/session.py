@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
+import time
 from pathlib import Path
 from typing import Any, Literal
 
@@ -64,11 +65,12 @@ class TabPool:
     small lease/release/close-all behavior needed by the offline core.
     """
 
-    def __init__(self, session: "Session", *, max_tabs: int = 3) -> None:
+    def __init__(self, session: "Session", *, max_tabs: int = 3, monotonic: Callable[[], float] | None = None) -> None:
         self._session = session
         self.max_tabs = max(1, int(max_tabs))
         self._entries: list[_ManagedTab] = []
         self._tick = 0
+        self._monotonic = monotonic or time.monotonic
 
     def acquire(self, ref: ConversationRef) -> TabLease:
         url = conversation_url(ref)
@@ -124,29 +126,117 @@ class TabPool:
 
 
 class AdaptiveSendBudget:
-    """M4 minimal send-budget stub with no hard message cap."""
+    """Single-owner adaptive account send budget with no hard message cap."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        politeness_floor_s: float = 5.0,
+        initial_rate_per_min: float = 3.0,
+        max_rate_per_min: float = 12.0,
+        additive_increase_per_min: float = 1.0,
+        backoff_factor: float = 0.5,
+        min_rate_per_min: float = 0.5,
+        monotonic: Callable[[], float] | None = None,
+        sleeper: Callable[[float], None] | None = None,
+    ) -> None:
+        self.politeness_floor_s = max(0.0, float(politeness_floor_s))
+        self.max_rate_per_min = max(float(min_rate_per_min), float(max_rate_per_min))
+        self.additive_increase_per_min = max(0.0, float(additive_increase_per_min))
+        self.backoff_factor = max(0.0, float(backoff_factor))
+        self.min_rate_per_min = max(0.000001, float(min_rate_per_min))
+        self.current_rate_per_min = min(
+            self.max_rate_per_min,
+            max(self.min_rate_per_min, float(initial_rate_per_min)),
+        )
+        self._monotonic = monotonic or time.monotonic
+        self._sleeper = sleeper or time.sleep
+        self._last_submission_monotonic: float | None = None
         self.successful_submissions = 0
         self.active_submission = False
+        self._hard_paused = False
+        self._hard_pause_reason: str | None = None
+        self._last_signal: str | None = None
 
     @contextmanager
     def submission(self) -> Iterator[None]:
+        if self._hard_paused:
+            raise HumanActionNeededError(
+                "send budget hard-paused",
+                details={"reason": self._hard_pause_reason or "unspecified"},
+            )
         if self.active_submission:
             raise PromptBudgetBusyError("another prompt submission is active")
         self.active_submission = True
         try:
+            self._sleep_until_spacing_allows_submit()
             yield
             self.successful_submissions += 1
+            self.current_rate_per_min = min(
+                self.max_rate_per_min,
+                self.current_rate_per_min + self.additive_increase_per_min,
+            )
+            self._last_submission_monotonic = float(self._monotonic())
         finally:
             self.active_submission = False
+
+    def record_soft_signal(self, kind: str) -> None:
+        self._last_signal = _sanitize_budget_signal(kind)
+        self.current_rate_per_min = max(
+            self.min_rate_per_min,
+            self.current_rate_per_min * self.backoff_factor,
+        )
+
+    def hard_pause(self, reason: str) -> None:
+        self._hard_paused = True
+        self._hard_pause_reason = _sanitize_budget_signal(reason)
+
+    def resume(self) -> None:
+        self._hard_paused = False
+        self._hard_pause_reason = None
 
     def snapshot(self) -> Mapping[str, JsonValue]:
         return {
             "successful_submissions": self.successful_submissions,
             "active_submission": self.active_submission,
             "hard_message_cap": None,
+            "current_rate_per_min": self.current_rate_per_min,
+            "politeness_floor_s": self.politeness_floor_s,
+            "hard_paused": self._hard_paused,
+            "last_signal": self._last_signal,
         }
+
+    def _required_spacing_s(self) -> float:
+        return max(self.politeness_floor_s, 60.0 / self.current_rate_per_min)
+
+    def _sleep_until_spacing_allows_submit(self) -> None:
+        if self._last_submission_monotonic is None:
+            return
+        target = self._last_submission_monotonic + self._required_spacing_s()
+        delay = target - float(self._monotonic())
+        if delay > 0:
+            self._sleeper(delay)
+
+
+def _channel_timing(channel: BrowserChannel | None) -> tuple[Callable[[], float], Callable[[float], None]]:
+    if channel is None:
+        return time.monotonic, time.sleep
+    monotonic = getattr(channel, "monotonic", None)
+    sleeper = getattr(channel, "sleep", None)
+    return (
+        monotonic if callable(monotonic) else time.monotonic,
+        sleeper if callable(sleeper) else time.sleep,
+    )
+
+
+def _sanitize_budget_signal(value: str) -> str:
+    cleaned = "".join(
+        ch.lower() if ch.isalnum() or ch in {"_", "-", "."} else "_"
+        for ch in str(value)
+    ).strip("_")
+    while "__" in cleaned:
+        cleaned = cleaned.replace("__", "_")
+    return (cleaned or "unspecified")[:80]
 
 
 class PromptBudgetBusyError(AskChatGPTError):
@@ -194,8 +284,9 @@ class Session:
         self.progress_poll_interval_s = progress_poll_interval_s
         self.backend_check_interval_s = backend_check_interval_s
         self.strict_selectors = strict_selectors
-        self.tab_pool = TabPool(self, max_tabs=max_tabs)
-        self.send_budget = AdaptiveSendBudget()
+        monotonic, sleeper = _channel_timing(self._browser_channel)
+        self.tab_pool = TabPool(self, max_tabs=max_tabs, monotonic=monotonic)
+        self.send_budget = AdaptiveSendBudget(monotonic=monotonic, sleeper=sleeper)
         self._attached = False
 
     def _channel(self) -> BrowserChannel:

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from ask_chatgpt.channels.mock import MockChannel
+from ask_chatgpt.channels.mock import MockChannel, ScriptedClock
 from ask_chatgpt.completion import CompletionState
 from ask_chatgpt.identity import ConversationRef, conversation_url
 from ask_chatgpt.models import Transcript, TurnRecord
@@ -112,10 +112,13 @@ def test_repeated_successful_mock_sends_in_one_session_have_no_hidden_message_ca
     monkeypatch.setattr(session_module, "wait_for_completion", wait_completion)
     monkeypatch.setattr(session_module, "capture_conversation", capture)
 
-    session = Session(data_dir=tmp_path, channel=MockChannel(), selector_map=SELECTORS)
+    clock = ScriptedClock()
+    channel = MockChannel(monotonic=clock.monotonic, sleeper=clock.sleep)
+    session = Session(data_dir=tmp_path, channel=channel, selector_map=SELECTORS)
 
     answers = [session.ask(CONV, f"prompt {index}") for index in range(15)]
 
     assert [answer.message_id for answer in answers] == [f"assistant-{index}" for index in range(1, 16)]
     assert session.send_budget.successful_submissions == 15
     assert session.tab_pool.snapshot()["managed_tabs"] == 1
+    assert clock.sleeps

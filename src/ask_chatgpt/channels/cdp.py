@@ -453,6 +453,12 @@ class CdpChannel:
             websocket_url_present=True,
         )
 
+    def monotonic(self) -> float:
+        return float(self._clock())
+
+    def sleep(self, seconds: float) -> None:
+        self._sleeper(seconds)
+
     def attach(self) -> None:
         if self._context is not None:
             return
