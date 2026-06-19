@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import time
+from collections import Counter
 from collections.abc import Iterator, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -643,6 +645,89 @@ def _load_backend_raw(raw_path: Path) -> dict[str, Any]:
     return raw
 
 
+def catalogue_completion_status_vocab(raw_path: Path) -> dict[str, dict[str, int]]:
+    raw = _load_backend_raw(raw_path)
+    counters: dict[str, Counter[str]] = {
+        "async_status": Counter(),
+        "node.status": Counter(),
+        "message.status": Counter(),
+        "metadata.is_complete": Counter(),
+        "metadata.is_finalizing": Counter(),
+        "metadata.pro_progress": Counter(),
+    }
+    _count_vocab_value(counters["async_status"], raw.get("async_status"))
+    mapping = raw.get("mapping")
+    if isinstance(mapping, Mapping):
+        for node in mapping.values():
+            if not isinstance(node, Mapping):
+                continue
+            _count_vocab_value(counters["node.status"], node.get("status"))
+            message = node.get("message")
+            if not isinstance(message, Mapping):
+                continue
+            _count_vocab_value(counters["message.status"], message.get("status"))
+            metadata = message.get("metadata")
+            if not isinstance(metadata, Mapping):
+                continue
+            _count_vocab_value(counters["metadata.is_complete"], metadata.get("is_complete"))
+            _count_vocab_value(counters["metadata.is_finalizing"], metadata.get("is_finalizing"))
+            if "pro_progress" in metadata:
+                counters["metadata.pro_progress"][_summarize_progress_value(metadata.get("pro_progress"))] += 1
+    return {name: dict(sorted(counter.items())) for name, counter in counters.items()}
+
+
+def _count_vocab_value(counter: Counter[str], value: Any) -> None:
+    if value is None:
+        return
+    if isinstance(value, bool):
+        counter["true" if value else "false"] += 1
+        return
+    if isinstance(value, str) and value and len(value) <= 80:
+        counter[value] += 1
+        return
+    counter[_summarize_typed_value(value)] += 1
+
+
+def _summarize_progress_value(value: Any) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if value is None:
+        return "null"
+    if isinstance(value, str):
+        if _is_short_enum_token(value):
+            return value
+        return f"str:len={len(value)}:sha256={_short_hash(value)}"
+    if isinstance(value, Mapping):
+        keys = sorted(str(key) for key in value.keys())
+        return f"object:keys={','.join(keys)}:len={len(value)}:sha256={_short_hash(value)}"
+    if isinstance(value, list):
+        return f"list:len={len(value)}:sha256={_short_hash(value)}"
+    return _summarize_typed_value(value)
+
+
+def _is_short_enum_token(value: str) -> bool:
+    if not value or len(value) > 40:
+        return False
+    lowered = value.lower()
+    if any(part in lowered for part in ("authorization", "bearer", "cookie", "password", "secret", "token", "canary")):
+        return False
+    return all(ch.isalnum() or ch in {"_", "-", ".", ":"} for ch in value)
+
+
+def _summarize_typed_value(value: Any) -> str:
+    if isinstance(value, int | float) and not isinstance(value, bool):
+        return type(value).__name__
+    return f"{type(value).__name__}:sha256={_short_hash(value)}"
+
+
+def _short_hash(value: Any) -> str:
+    try:
+        payload = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=repr)
+    except TypeError:
+        payload = repr(value)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:12]
+
+
 def _validate_fetch_meta(meta: BackendFetchMeta) -> None:
     if meta.status < 200 or meta.status >= 300:
         raise BackendCaptureShapeError("backend fetch returned non-2xx status", details={"status": meta.status, "content_type": meta.content_type})
@@ -753,6 +838,7 @@ __all__ = [
     "SendContext",
     "acquire_backend_headers",
     "capture_conversation",
+    "catalogue_completion_status_vocab",
     "fallback_capture_ui",
     "iter_current_branch_records",
     "stream_backend_conversation",

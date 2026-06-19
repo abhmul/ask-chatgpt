@@ -206,7 +206,12 @@ class Session:
 
             self._browser_channel = MockChannel()
             return self._browser_channel
-        raise NotImplementedError("Session CDP channel is deferred beyond M4 offline core")
+        if self._channel_arg == "cdp":
+            from ask_chatgpt.channels.cdp import CdpChannel
+
+            self._browser_channel = CdpChannel(cdp_endpoint=self.cdp_endpoint)
+            return self._browser_channel
+        raise NotImplementedError("unknown browser channel")
 
     def attach(self) -> "Session":
         if not self._attached:
@@ -430,18 +435,7 @@ class Session:
         }
 
         if probe_browser:
-            try:
-                cdp = self._channel().preflight()
-            except NotImplementedError:
-                cdp = PreflightResult(
-                    ok=False,
-                    cdp_endpoint=self.cdp_endpoint,
-                    browser=None,
-                    protocol_version=None,
-                    websocket_url_present=False,
-                    error_code="CDP_UNREACHABLE",
-                    error="CDP channel is deferred beyond M4 offline core",
-                )
+            cdp = self._channel().preflight()
             if cdp.ok:
                 signed_in = True
                 login_or_challenge = False
