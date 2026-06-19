@@ -51,7 +51,11 @@ class Store:
         env_dir = self._env.get("ASK_CHATGPT_DATA_DIR")
         if env_dir:
             return Path(env_dir).expanduser()
-        return Path.home() / ".local" / "state" / "ask-chatgpt"
+        cwd = Path.cwd().resolve()
+        for candidate in (cwd, *cwd.parents):
+            if (candidate / "pyproject.toml").is_file():
+                return candidate / "cache"
+        return cwd / "cache"
 
     def resolve_conversation(self, address: str | ConversationRef) -> ConversationRef:
         if isinstance(address, ConversationRef):
