@@ -1,0 +1,37 @@
+{
+  "version": "team-system-v2-manager-state",
+  "mission": "M6",
+  "title": "Deliver target scrape (with attachments) into repo cache",
+  "manager": "Claude Opus (M6)",
+  "branch": "rewrite-v2",
+  "directive": "Scrape target 6a316aa8-5dc8-83ea-9014-b8ea38dabc31 WITH attachments into repo-local gitignored cache/ (make cache/ the DEFAULT data-dir), confirm math fidelity, deliver transcript FIRST then attachments. Capture/scrape PROVEN in M5.",
+  "ground_truth": {
+    "acceptance_command": "uv run pytest (mock suite; real_site deselected)",
+    "baseline_suite": "205 passed (confirmed 2026-06-18 at M6 start)",
+    "cdp_up_at_start": "Chrome/149.0.7827.53 reachable at 127.0.0.1:9222 (confirmed 2026-06-18 M6 start)",
+    "default_data_dir_change_point": "src/ask_chatgpt/store.py resolve_data_dir() lines 48-54 (currently ~/.local/state/ask-chatgpt)",
+    "history_export_already_browserless": "Session.history -> store.load_transcript (session.py:344-345); no attach/preflight. Cache-read-without-browser already holds; T1 adds falsifiable tests + the cache default.",
+    "with_attachments_is_noop": "capture.py:299 capture_conversation does `del with_attachments`; T4 wires the real byte download. All 4 AttachmentRef shapes ALREADY parsed (capture.py:429-487).",
+    "byte_download_primitive": "channels/cdp.py fetch_in_page (stream_to=) streams bytes to disk, allowlist-checked; channels/mock.py fetch_in_page for offline tests.",
+    "proven_real_harness": "scripts/m5_capture_measure.py --conversation <id/url> --data-dir <cache> --out <md>; constructs Session(channel=cdp), session.scrape(), session.detach(); prints fidelity/vocab/memory JSON; NEVER prints content.",
+    "test_isolation_flag": "tests/test_store_layout.py:32-35 asserts the OLD ~/.local/state home default; T1 MUST update it for the cache default; ensure no test writes into repo cache/.",
+    "allowlist_hosts": "chatgpt.com, openai.com, oaiusercontent.com, oaistatic.com (+ subdomains) — attachment download_url host likely oaiusercontent.com (allowlisted)."
+  },
+  "constraints_safety": "SHARED browser w/ another active agent: own-tab-only, READ-ONLY (scrape+download are reads), ZERO sends/new-turns/model-tool selection, never quit browser (detach only), preflight curl first, login/Cloudflare->STOP HUMAN-ACTION-NEEDED, read ONLY target 6a316aa8, NEVER persist/log authorization/oai-*/cookie values, cache content stays LOCAL (gitignored) never committed. Branch rewrite-v2 only; never move/commit stable; never uv tool install/upgrade/reinstall (uv run/uv sync only); never git push; stage ONLY code/config (NEVER cache/ content, issues/cdp-send-repro/controller.mjs [pre-existing dirty], team/state/live-state.json, human/). Workers=pi via pi-watch.sh; NEVER the Claude Agent tool; this manager=Opus.",
+  "queue": [
+    {"id": "T1", "task": 1, "status": "DONE", "node": "worker", "kind": "offline-editor", "title": "cache/ default data-dir + cache semantics + tests", "deps": [], "contract": "team/contracts/M6-T1-cache-default.md", "commit": "f469f44", "verified": "manager re-ran uv run pytest=207 passed; diff inspected; falsifiable tests confirmed; no repo cache pollution; stable unmoved 779eb40"},
+    {"id": "T2", "task": 2, "status": "DONE", "node": "worker", "kind": "real-leg-readonly", "title": "scrape target into cache + fidelity; DELIVER transcript", "deps": ["T1"], "contract": "team/contracts/M6-T2-transcript.md", "commit": "9648c68 (report)", "verified": "TRANSCRIPT DELIVERED to cache/conversations/6a316aa8.../ (transcript.jsonl 5.4MB, raw-mapping.json 21.4MB, markdown 2.1MB). FIDELITY CONFIRMED via manager content-free re-derivation (zero \\frac/ corruption, zero literal U+2260, widehat/ne/frac present). Worker's PARTIAL was a false-alarm from my over-strict count(\\frac)==count(\\frac{) criterion. cache-as-cache proven (history reads no-browser). Leak bright-line clean. 497 turns/6467 nodes (grew since M5).", "lesson": "history/scrape/export --out mirror to stdout AND file (gotcha-4); agent runs MUST redirect stdout to /dev/null to keep content out of logs."},
+    {"id": "T3", "task": 3, "status": "DONE", "node": "worker", "kind": "real-leg-readonly", "title": "attachment byte-route discovery", "deps": ["T2"], "contract": "team/contracts/M6-T3-routes.md", "commit": "adfee14", "verified": "Route CONFIRMED live read-only: AttachmentRef->file id->GET /backend-api/files/<id>/download (web-app headers)->follow download_url (host chatgpt.com, cookie-bound)->bytes. GOTCHA: 200 alone != success (run_ids return 200 error-JSON; require download_url). Target counts: user_upload 10, file_reference 270(9 distinct), generated_asset 169(47 distinct, sediment:// w/ embedded file token), code_execution_output 216 UNSUPPORTED. Leak-scan clean (no ids/urls/headers in committed scripts/report)."},
+    {"id": "T4", "task": 4, "status": "DONE", "node": "worker", "kind": "editor+real-leg", "title": "implement attachment download + run real download", "deps": ["T3"], "contract": "team/contracts/M6-T4-attachments.md", "commit": "a03a814", "verified": "manager re-ran uv run pytest=212; download wiring inspected (dedup by file_id, requires download_url, fail-closed, headers in-memory only, idempotent, size-verified); leak scan clean. Real shipment: 10 distinct files (55MB) in gitignored cache; last-writer-wins transcript shows downloaded=359 refs->10 paths (0 missing bytes), unsupported=125 (code_execution), 0 pending/error. ~66 estimate was overcount: distinct backend tokens overlap to 10 physical files (honestly flagged)."},
+    {"id": "T6", "task": 5, "status": "DONE", "node": "worker-panel", "kind": "best-of-N-verify-offline", "title": "independent verify panel (3 lenses) incl. leak/no-send audit", "deps": ["T4"], "contract": "team/contracts/M6-T6-verify.md", "commits_under_review": ["f469f44", "9648c68", "adfee14", "a03a814"], "commit": "6e93bf2", "verified": "ALL 3 LENSES PASS, ground-truth-derived. L1 leak/no-send/own-tab clean. L2 212 passed + falsifiability line-cited. L3 cache-default + cache-as-cache(browser_call_count=0) + FIDELITY CONFIRMED(frac/=0,U+2260=0) + attachment shipment(10 distinct paths,0 missing,code_exec unsupported)."}
+  ],
+  "mission_status": "DONE",
+  "handoff_written": "team/evidence/handoffs/M6-target-scrape.md (commit 839c670)",
+  "commits": ["f469f44 T1 cache-default", "9648c68 T2 transcript+fidelity", "adfee14 T3 routes+scripts", "a03a814 T4 attachment download", "6e93bf2 T6 panel", "839c670 handoff"],
+  "stable_unmoved": "779eb40",
+  "artifacts_trust": [],
+  "blockers": [],
+  "commit_policy": "Workers edit + report; MANAGER independently re-derives (uv run pytest + diff inspect) then commits explicit code/config paths (no -A, no push, no Co-Authored-By). Reports under team/evidence/ committed after leak check. cache/ content NEVER committed. M6-manager-state.json kept uncommitted.",
+  "handoff_target": "team/evidence/handoffs/M6-target-scrape.md",
+  "notes": "Real-legs serialized (shared browser + transcript-first). T1 offline runs alone. Deliver transcript even if attachments partially fail."
+}
