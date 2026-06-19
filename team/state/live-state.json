@@ -74,7 +74,8 @@
     {
       "id": "M7",
       "title": "Model/tools selection + keep-pushing loop + tab-pool/rate.",
-      "status": "blocked",
+      "status": "in_progress",
+      "run_handle": "Opus MANAGER (claude-watch.sh), dispatched 2026-06-19 (operator: continue). Build OFFLINE first (menus Radix select/verify, TabPool, AdaptiveSendBudget, loop; mock-proven). Then MINIMAL real legs (attended, own-tab, FRESH throwaway chats ONLY, NOT the target/foreign tabs): real model/tool selection (NO send, sustained-read per model-label-transient); FIRST REAL SEND = one trivial smoke 'Reply with only the word: PONG' to a fresh chat (verify new-turn gotcha-4 + completion + capture); loop-verify 2 iters. Total real sends <=4. Human-paced (other agent shares the account). Contract team/contracts/M7-model-tools-loop.md.",
       "priority": 7,
       "dependencies": ["M5"],
       "node_type": "manager",
