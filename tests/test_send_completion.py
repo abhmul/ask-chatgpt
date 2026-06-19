@@ -386,7 +386,7 @@ def test_requested_model_change_fails_before_submit_and_committing_user(tmp_path
 
     assert excinfo.value.code == "MODEL_SELECTION_NOT_REFLECTED"
     assert mock.method_counts.get("fill", 0) == 0
-    assert mock.method_counts.get("click", 0) == 0
+    assert mock.method_counts.get("menu_label_clicks", 0) == 0
     store = Store(data_dir=tmp_path)
     assert store.load_transcript(CONV).turns == ()
     assert store.load_transcript(CONV, include_pending=True).turns == ()

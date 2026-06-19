@@ -147,6 +147,63 @@ JS_READ_COMPOSER_TEXT = """
 }
 """
 
+JS_CURRENT_URL = """() => window.location.href"""
+
+JS_MENU_ENUMERATE = r"""
+(a) => {
+  const portal = document.querySelector(a.portal_selector || '[data-radix-popper-content-wrapper]');
+  if (!portal) return [];
+  const norm = value => (value || '').replace(/\s+/g, ' ').trim();
+  const visible = el => {
+    const style = getComputedStyle(el);
+    const rect = el.getBoundingClientRect();
+    return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+  };
+  const disabled = el => Boolean(el.disabled || el.getAttribute('aria-disabled') === 'true' || el.hasAttribute('disabled'));
+  return Array.from(portal.querySelectorAll('[role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"]'))
+    .filter(visible)
+    .map(el => {
+      const ariaChecked = el.getAttribute('aria-checked');
+      return {
+        label: norm(el.innerText || el.textContent || el.getAttribute('aria-label') || ''),
+        role: el.getAttribute('role'),
+        checked: ariaChecked === 'true' ? true : (ariaChecked === 'false' ? false : null),
+        disabled: disabled(el),
+        path: []
+      };
+    })
+    .filter(item => item.label);
+}
+"""
+
+JS_MENU_CLICK_LABEL = r"""
+(a) => {
+  const portal = document.querySelector('[data-radix-popper-content-wrapper]');
+  if (!portal) return {ok: false, reason: 'portal_absent'};
+  const norm = value => (value || '').replace(/\s+/g, ' ').trim();
+  const requested = norm(a.label);
+  const visible = el => {
+    const style = getComputedStyle(el);
+    const rect = el.getBoundingClientRect();
+    return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+  };
+  const enabled = el => !(el.disabled || el.getAttribute('aria-disabled') === 'true' || el.hasAttribute('disabled'));
+  const matches = Array.from(portal.querySelectorAll('[role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"]'))
+    .filter(el => visible(el) && enabled(el))
+    .filter(el => norm(el.innerText || el.textContent || el.getAttribute('aria-label') || '') === requested)
+    .filter(el => !a.role || el.getAttribute('role') === a.role);
+  if (matches.length !== 1) return {ok: false, reason: 'match_count', count: matches.length};
+  const target = matches[0];
+  if (a.action === 'open_submenu') {
+    target.dispatchEvent(new MouseEvent('mouseover', {bubbles: true, cancelable: true, view: window}));
+    target.dispatchEvent(new MouseEvent('mouseenter', {bubbles: true, cancelable: true, view: window}));
+    target.focus();
+  }
+  target.click();
+  return {ok: true};
+}
+"""
+
 JS_FILL_COMPOSER = """
 (a) => {
   const c = document.querySelector(a.selector);
@@ -560,6 +617,12 @@ class CdpChannel:
             return state.page.evaluate(JS_DOM_TEXT)
         if js == "ask_chatgpt_send_read_composer_text":
             return state.page.evaluate(JS_READ_COMPOSER_TEXT, arg)
+        if js == "ask_chatgpt_menu_enumerate":
+            return state.page.evaluate(JS_MENU_ENUMERATE, arg)
+        if js == "ask_chatgpt_menu_click_label":
+            return state.page.evaluate(JS_MENU_CLICK_LABEL, arg)
+        if js == "ask_chatgpt_current_url":
+            return state.page.evaluate(JS_CURRENT_URL)
         return state.page.evaluate(js, arg)
 
     def wait_for_selector(

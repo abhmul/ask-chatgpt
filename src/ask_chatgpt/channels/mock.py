@@ -12,7 +12,7 @@ import json
 import time
 from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Literal
 from urllib.parse import unquote, urlsplit
@@ -58,6 +58,10 @@ def _empty_turn_snapshot() -> TurnDomSnapshot:
         composer_visible=True,
         model_labels=(),
     )
+
+
+def _menu_norm(value: str) -> str:
+    return " ".join(str(value).split()).strip().lower()
 
 
 @dataclass(frozen=True)
@@ -131,6 +135,10 @@ class MockScenario:
     fill_truncate_to: int | None = None
     disabled_click_selectors: tuple[str, ...] = ()
     disallow_global_enter: bool = False
+    menu_options: Mapping[str, Sequence[Mapping[str, JsonValue]]] = field(default_factory=dict)
+    menu_trigger_keys: Mapping[str, str] = field(default_factory=dict)
+    menu_reflected_model_labels: Mapping[str, Sequence[str]] = field(default_factory=dict)
+    current_url: str | None = None
     private_page_canary: str = "MOCK_PRIVATE_PAGE_CANARY_DO_NOT_LEAK"
 
 
@@ -204,6 +212,13 @@ class MockChannel:
         self._composer_text: dict[str, str] = {}
         self._request_index = 0
         self._used_header_fingerprints: set[str] = set()
+        self._active_menu_key: str | None = None
+        self._menu_options_by_key: dict[str, list[dict[str, JsonValue]]] = {
+            key: [dict(option) for option in options]
+            for key, options in self.scenario.menu_options.items()
+        }
+        self._model_labels_override: tuple[str, ...] | None = None
+        self.menu_clicks: list[dict[str, JsonValue]] = []
 
     @property
     def call_order(self) -> tuple[str, ...]:
@@ -295,6 +310,12 @@ class MockChannel:
         )
         if js == "ask_chatgpt_send_read_composer_text":
             return self._composer_text.get(tab.tab_id, "")
+        if js == "ask_chatgpt_menu_enumerate":
+            return self._current_menu_options()
+        if js == "ask_chatgpt_menu_click_label":
+            return self._menu_click_label(arg)
+        if js == "ask_chatgpt_current_url":
+            return self.scenario.current_url or self._tabs.get(tab.tab_id, tab.url)
         if js in self.scenario.evaluations:
             return self.scenario.evaluations[js]
         return arg
@@ -336,6 +357,9 @@ class MockChannel:
         self._record("click", tab=tab, selector=selector)
         if selector in self.scenario.disabled_click_selectors:
             raise RuntimeError(f"mock selector is disabled: {selector}")
+        menu_key = self._menu_key_for_trigger(selector)
+        if menu_key is not None:
+            self._active_menu_key = menu_key
 
     def hover(self, tab: TabLease, selector: str) -> None:
         self._validate_tab(tab)
@@ -351,7 +375,10 @@ class MockChannel:
         self._validate_tab(tab)
         self._record("query_turns", tab=tab, selector_keys=tuple(sorted(selectors.keys())))
         self.counters["dom_polls"] += 1
-        return self._current_turn_snapshot()
+        snapshot = self._current_turn_snapshot()
+        if self._model_labels_override is not None:
+            return replace(snapshot, model_labels=self._model_labels_override)
+        return snapshot
 
     def wait_for_request(
         self,
@@ -448,6 +475,8 @@ class MockChannel:
         return self._allowlist.sanitize_for_log(url)
 
     def _selector_present(self, selector: str) -> bool:
+        if "data-radix-popper-content-wrapper" in selector and self._active_menu_key is not None:
+            return self._active_menu_key in self._menu_options_by_key or bool(self._menu_options_by_key)
         if selector in self.scenario.selector_timeline:
             return bool(self._select_timed(self.scenario.selector_timeline[selector]).present)
         return self.scenario.selector_presence.get(selector, True)
@@ -466,6 +495,63 @@ class MockChannel:
         if not self.scenario.turn_timeline:
             return _empty_turn_snapshot()
         return self._select_timed(self.scenario.turn_timeline).snapshot
+
+    def _menu_key_for_trigger(self, selector: str) -> str | None:
+        if selector in self.scenario.menu_trigger_keys:
+            return self.scenario.menu_trigger_keys[selector]
+        if "composer-plus-btn" in selector:
+            return "tools"
+        if "aria-haspopup" in selector or "composer-footer" in selector:
+            return "model"
+        if selector in self._menu_options_by_key:
+            return selector
+        if len(self._menu_options_by_key) == 1:
+            return next(iter(self._menu_options_by_key))
+        return None
+
+    def _current_menu_options(self) -> list[dict[str, JsonValue]]:
+        key = self._active_menu_key
+        if key is None:
+            return []
+        return [dict(option) for option in self._menu_options_by_key.get(key, [])]
+
+    def _menu_click_label(self, arg: JsonValue | None) -> JsonValue:
+        if not isinstance(arg, Mapping):
+            return {"ok": False, "reason": "invalid_arg"}
+        label = str(arg.get("label") or "")
+        role = arg.get("role")
+        role_str = role if isinstance(role, str) else None
+        action = str(arg.get("action") or "select")
+        path_value = arg.get("path")
+        path = [str(item) for item in path_value] if isinstance(path_value, list | tuple) else []
+        key = self._active_menu_key
+        if key is None:
+            return {"ok": False, "reason": "no_active_menu"}
+        options = self._menu_options_by_key.setdefault(key, [])
+        matches = [
+            option
+            for option in options
+            if _menu_norm(str(option.get("label") or "")) == _menu_norm(label)
+            and (role_str is None or option.get("role") == role_str)
+            and not bool(option.get("disabled"))
+        ]
+        if len(matches) != 1:
+            return {"ok": False, "reason": "match_count", "count": len(matches)}
+        matched = matches[0]
+        click = {"menu_key": key, "label": label, "role": role_str, "action": action, "path": path}
+        self.menu_clicks.append(click)
+        self.counters["menu_label_clicks"] += 1
+        if action == "open_submenu":
+            submenu_key = f"{key}>{label}"
+            if submenu_key in self._menu_options_by_key:
+                self._active_menu_key = submenu_key
+            return {"ok": True}
+        if isinstance(matched.get("checked"), bool):
+            matched["checked"] = True
+        reflected = self.scenario.menu_reflected_model_labels.get(label)
+        if reflected is not None:
+            self._model_labels_override = tuple(str(item) for item in reflected)
+        return {"ok": True}
 
     def _scripted_fetch_response(
         self, url: str, headers: Mapping[str, str]
