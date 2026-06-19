@@ -31,7 +31,17 @@
       "run_dir": ".pi-workers/M5-T2-editor/pi-20260618-192527-784484-32537",
       "expected_artifacts": ["src/ask_chatgpt/channels/cdp.py", "tests/test_cdp_channel.py", "scripts/m5_capture_measure.py", "team/evidence/reports/M5-E1-cdp-channel.md"],
       "manager_verified": "205 passed (re-derived); no-playwright-import invariant holds (manager-derived); cdp.py: lone playwright import inside _start_playwright, no context.pages, no launch/new_context, action methods raise HumanActionNeededError (behavior-verified); detach=close own tabs+browser.close()(disconnect)+playwright.stop(); leak scan clean; session/capture diffs match design."},
-    {"id": "T3", "title": "Real-leg pi worker (ATTENDED CDP, READ-ONLY): production scrape on smoke 6a3483b3; measure RSS/tracemalloc; catalogue completion vocab; fidelity booleans; read-only target scale measure", "status": "ready", "dependencies": ["T2"], "node_type": "worker"},
+    {"id": "T3", "title": "Real-leg pi worker (ATTENDED CDP, READ-ONLY): production scrape on smoke 6a3483b3; measure RSS/tracemalloc; catalogue completion vocab; fidelity booleans; read-only target scale measure", "status": "done", "dependencies": ["T2"], "node_type": "worker", "contract": "team/contracts/M5-T3-real-leg.md", "run_dir": ".pi-workers/M5-T3-realleg/pi-20260618-195042-821346-13357", "expected_artifacts": ["team/evidence/reports/M5-T3-real-leg.md"],
+      "manager_verified": "browser ALIVE after run (Chrome/149 re-derived by manager); report leak-scan clean; repo clean (capture artifacts stayed in /tmp; worker made no git changes).",
+      "key_findings": {
+        "real_capture": "CONFIRMED end-to-end: smoke 7 turns/87 nodes/445KB; target 481 turns/6124 nodes/20.19MB. transcript.jsonl + raw-mapping.json + markdown written (out-of-repo /tmp).",
+        "fidelity": "math unambiguous on real data: target \\widehat=T, \\ne/\\neq=T, \\frac=T, no literal ≠ replacement. smoke \\widehat=T,\\frac=T (no ≠ in that convo).",
+        "memory_openQ8": "RESOLVED: target end-to-end 353.9 MiB RSS / 253.8 MiB tracemalloc-peak — within 512/256 thresholds -> KEEP whole-file json.load for M5/M6. CAUTION: tracemalloc peak 253.8 is CLOSE to 256 and target is actively growing -> M6 must re-measure; event parser may be needed if it grew further.",
+        "bytes_per_node": 3297,
+        "header_mechanism": "RESOLVED: request.all_headers() exposes ALL 8 required header names -> CDP requestWillBeSentExtraInfo fallback NOT load-bearing (kept as defense).",
+        "completion_vocab_openQ3_4": "target: async_status is an INT (not str); message.status={finished_successfully,in_progress}; metadata.is_complete=true; is_finalizing={false,true}; pro_progress=float (94). node.status empty. M7 completion must handle int async_status.",
+        "wallclock": "target scrape ESTIMATE 60s vs ACTUAL 147s (fetch-only 130.5s for 20MB binding-pump). M6 budget >=130s for target."
+      }},
     {"id": "T5", "title": "Verification panel (N=3, OFFLINE, over T3 artifacts + git): safety/leak audit + offline falsifiability + acceptance-conformance", "status": "blocked", "dependencies": ["T3"], "node_type": "worker-panel"},
     {"id": "T6", "title": "Final handoff team/evidence/handoffs/M5-capture-scrape.md + commit", "status": "blocked", "dependencies": ["T5"], "node_type": "manager-self"}
   ],
