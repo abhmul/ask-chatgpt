@@ -8,6 +8,11 @@ tmp/
 .claude/
 .claude-orchestrators/
 .pi-workers/
+.managers/
+
+# Scraped-conversation cache (operator conversation content + attachments;
+# gitignored, regenerable by re-scraping — never committed)
+cache/
 
 # Python
 __pycache__/

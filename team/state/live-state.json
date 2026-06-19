@@ -64,7 +64,8 @@
     {
       "id": "M6",
       "title": "Run the scrape of /c/6a316aa8... + verify fidelity (PRESSING DELIVERABLE).",
-      "status": "blocked",
+      "status": "in_progress",
+      "run_handle": "Opus MANAGER (claude-watch.sh), dispatched 2026-06-18. OPERATOR DECISION: scraped conversations live in a repo-local cache folder <repo>/cache/ (GITIGNORED, acts as a cache; history/export read from it without re-scrape). M6: make cache/ the default data-dir; scrape target 6a316aa8 WITH attachments into cache/ (transcript FIRST -> deliver, then attachments via byte-route discovery); confirm math fidelity; NEVER commit cache content. Capture/scrape PROVEN in M5. Attended, own-tab-only, ZERO sends. Contract team/contracts/M6-target-scrape.md.",
       "priority": 6,
       "dependencies": ["M5"],
       "node_type": "worker",
