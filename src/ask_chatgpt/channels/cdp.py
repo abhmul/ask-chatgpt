@@ -247,6 +247,21 @@ JS_CLICK_VISIBLE_ENABLED = """
 }
 """
 
+JS_SEND_BUTTON_STATE = """
+(a) => {
+  const visible = el => {
+    if (!el) return false;
+    const style = getComputedStyle(el);
+    const rect = el.getBoundingClientRect();
+    return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+  };
+  const enabled = el => !(el.disabled || el.getAttribute('aria-disabled') === 'true' || el.hasAttribute('disabled'));
+  const visibleMatches = Array.from(document.querySelectorAll(a.selector)).filter(visible);
+  const enabledMatch = visibleMatches.find(enabled);
+  return {visible: visibleMatches.length > 0, enabled: !!enabledMatch, visible_enabled: !!enabledMatch};
+}
+"""
+
 
 def _absolute_fetch_url(tab_url: str, url: str) -> str:
     raw = str(url).strip()
@@ -617,6 +632,8 @@ class CdpChannel:
             return state.page.evaluate(JS_DOM_TEXT)
         if js == "ask_chatgpt_send_read_composer_text":
             return state.page.evaluate(JS_READ_COMPOSER_TEXT, arg)
+        if js == "ask_chatgpt_send_button_state":
+            return state.page.evaluate(JS_SEND_BUTTON_STATE, arg)
         if js == "ask_chatgpt_menu_enumerate":
             return state.page.evaluate(JS_MENU_ENUMERATE, arg)
         if js == "ask_chatgpt_menu_click_label":

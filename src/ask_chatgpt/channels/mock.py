@@ -122,6 +122,8 @@ class MockScenario:
     request_snapshots: tuple[RequestSnapshot, ...] = ()
     selector_presence: Mapping[str, bool] = field(default_factory=dict)
     selector_timeline: Mapping[str, tuple[TimedSelectorPresence, ...]] = field(default_factory=dict)
+    selector_enabled: Mapping[str, bool] = field(default_factory=dict)
+    selector_enabled_sequence: Mapping[str, Sequence[bool]] = field(default_factory=dict)
     evaluations: Mapping[str, JsonValue] = field(default_factory=dict)
     clipboard_permission: Literal["prompt", "granted", "denied"] = "prompt"
     clipboard_text: str | None = None
@@ -215,6 +217,8 @@ class MockChannel:
         self._used_header_fingerprints: set[str] = set()
         self._active_menu_key: str | None = None
         self._model_label_sequence_index = 0
+        self._selector_enabled_indexes: Counter[str] = Counter()
+        self._selector_enabled_last: dict[str, bool] = {}
         self._menu_options_by_key: dict[str, list[dict[str, JsonValue]]] = {
             key: [dict(option) for option in options]
             for key, options in self.scenario.menu_options.items()
@@ -312,6 +316,8 @@ class MockChannel:
         )
         if js == "ask_chatgpt_send_read_composer_text":
             return self._composer_text.get(tab.tab_id, "")
+        if js == "ask_chatgpt_send_button_state":
+            return self._send_button_state(arg)
         if js == "ask_chatgpt_menu_enumerate":
             return self._current_menu_options()
         if js == "ask_chatgpt_menu_click_label":
@@ -358,8 +364,11 @@ class MockChannel:
     def click(self, tab: TabLease, selector: str) -> None:
         self._validate_tab(tab)
         self._record("click", tab=tab, selector=selector)
-        if selector in self.scenario.disabled_click_selectors:
-            raise RuntimeError(f"mock selector is disabled: {selector}")
+        if not self._selector_present(selector) or not self._selector_enabled(selector, advance=False):
+            raise SelectorNotFoundError(
+                "mock selector had no visible enabled match",
+                details={"selector": selector},
+            )
         menu_key = self._menu_key_for_trigger(selector)
         if menu_key is not None:
             self._active_menu_key = menu_key
@@ -486,6 +495,29 @@ class MockChannel:
         if selector in self.scenario.selector_timeline:
             return bool(self._select_timed(self.scenario.selector_timeline[selector]).present)
         return self.scenario.selector_presence.get(selector, True)
+
+    def _selector_enabled(self, selector: str, *, advance: bool) -> bool:
+        if selector in self.scenario.disabled_click_selectors:
+            return False
+        sequence = self.scenario.selector_enabled_sequence.get(selector)
+        if sequence:
+            if advance:
+                index = self._selector_enabled_indexes[selector]
+                enabled = bool(sequence[min(index, len(sequence) - 1)])
+                self._selector_enabled_indexes[selector] += 1
+                self._selector_enabled_last[selector] = enabled
+                return enabled
+            if selector in self._selector_enabled_last:
+                return self._selector_enabled_last[selector]
+            index = self._selector_enabled_indexes[selector]
+            return bool(sequence[min(index, len(sequence) - 1)])
+        return self.scenario.selector_enabled.get(selector, True)
+
+    def _send_button_state(self, arg: JsonValue | None) -> JsonValue:
+        selector = str(arg.get("selector") or "") if isinstance(arg, Mapping) else ""
+        visible = bool(selector) and self._selector_present(selector)
+        enabled = visible and self._selector_enabled(selector, advance=True)
+        return {"visible": visible, "enabled": enabled, "visible_enabled": visible and enabled}
 
     def _apply_fill(self, tab: TabLease, text: str, *, append: bool) -> None:
         if self.scenario.fill_behavior == "ignored":

@@ -292,6 +292,51 @@ def test_composer_transient_fill_normalization_and_safe_click() -> None:
     assert not any(call.method == "press" and call.details.get("selector") in {"body", "html", "document"} for call in mock.calls)
 
 
+def test_submit_waits_for_enabled_send_button() -> None:
+    clock = ScriptedClock()
+    selector = SELECTORS["send_button_unverified_no_input"]
+    mock = MockChannel(
+        MockScenario(
+            name="send_button_enables_after_settle",
+            selector_enabled_sequence={selector: (False, False, True)},
+            turn_timeline=(TimedTurnSnapshot(0.0, _baseline_snapshot()),),
+        ),
+        monotonic=clock.monotonic,
+        sleeper=clock.sleep,
+    )
+    tab = _open_mock_tab(mock)
+
+    submit_composer(tab, SELECTORS)
+
+    assert mock.method_counts["click"] == 1
+    assert mock.method_counts["wait_for_selector"] >= 3
+    assert mock.method_counts["evaluate"] >= 3
+    assert clock.monotonic() > 0.0
+
+
+def test_submit_fails_closed_if_send_button_never_enables() -> None:
+    clock = ScriptedClock()
+    selector = SELECTORS["send_button_unverified_no_input"]
+    mock = MockChannel(
+        MockScenario(
+            name="send_button_never_enables",
+            selector_enabled={selector: False},
+            turn_timeline=(TimedTurnSnapshot(0.0, _baseline_snapshot()),),
+        ),
+        monotonic=clock.monotonic,
+        sleeper=clock.sleep,
+    )
+    tab = _open_mock_tab(mock)
+
+    with pytest.raises(SelectorNotFoundError) as excinfo:
+        submit_composer(tab, SELECTORS)
+
+    assert excinfo.value.code == "SELECTOR_NOT_FOUND"
+    assert mock.method_counts["wait_for_selector"] > 1
+    assert mock.method_counts.get("click", 0) == 0
+    assert clock.monotonic() >= 2.0
+
+
 def test_composer_never_visible_raises_selector_not_found() -> None:
     clock = ScriptedClock()
     mock = MockChannel(

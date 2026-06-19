@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
 from ask_chatgpt.channels.base import TabLease, TurnDom, TurnDomSnapshot
 from ask_chatgpt.errors import PromptNotSubmittedError, SelectorNotFoundError
 from ask_chatgpt.models import AttachmentRef, AttachmentSpec, SelectorMap, SendTimeouts
+
+_SEND_BUTTON_STATE_KEY = "ask_chatgpt_send_button_state"
+_SEND_BUTTON_SETTLE_TIMEOUT_S = 2.0
+_SEND_BUTTON_POLL_INTERVAL_S = 0.25
+_SEND_BUTTON_CLICK_RETRY_INTERVAL_S = 0.25
 
 
 @dataclass(frozen=True)
@@ -122,7 +127,32 @@ def fill_composer(tab: TabLease, selectors: SelectorMap, prompt: str) -> None:
 
 
 def submit_composer(tab: TabLease, selectors: SelectorMap) -> None:
-    tab.channel.click(tab, selectors["send_button_unverified_no_input"])
+    selector = selectors["send_button_unverified_no_input"]
+    _wait_for_enabled_send_button(
+        tab,
+        selector,
+        timeout_s=_SEND_BUTTON_SETTLE_TIMEOUT_S,
+        interval_s=_SEND_BUTTON_POLL_INTERVAL_S,
+    )
+    try:
+        tab.channel.click(tab, selector)
+        return
+    except SelectorNotFoundError:
+        _sleep_until(tab, _monotonic(tab) + _SEND_BUTTON_CLICK_RETRY_INTERVAL_S)
+        _wait_for_enabled_send_button(
+            tab,
+            selector,
+            timeout_s=_SEND_BUTTON_CLICK_RETRY_INTERVAL_S,
+            interval_s=_SEND_BUTTON_POLL_INTERVAL_S,
+        )
+        try:
+            tab.channel.click(tab, selector)
+            return
+        except SelectorNotFoundError as exc:
+            raise SelectorNotFoundError(
+                "send button did not remain visible and enabled",
+                details={"selector": selector},
+            ) from exc
 
 
 def verify_prompt_submitted(
@@ -212,6 +242,50 @@ def _read_composer_text(tab: TabLease, selector: str) -> str:
         timeout_s=5.0,
     )
     return value if isinstance(value, str) else ""
+
+
+def _wait_for_enabled_send_button(
+    tab: TabLease,
+    selector: str,
+    *,
+    timeout_s: float,
+    interval_s: float,
+) -> None:
+    deadline = _monotonic(tab) + max(0.0, float(timeout_s))
+    last_error: BaseException | None = None
+    visible = False
+    enabled = False
+    while True:
+        try:
+            tab.channel.wait_for_selector(tab, selector, state="visible", timeout_s=0.0)
+            visible = True
+            enabled = _send_button_visible_enabled(tab, selector)
+            if enabled:
+                return
+        except SelectorNotFoundError as exc:
+            last_error = exc
+            visible = False
+            enabled = False
+        if _monotonic(tab) >= deadline:
+            raise SelectorNotFoundError(
+                "send button did not become visible and enabled",
+                details={"selector": selector, "visible": visible, "enabled": enabled},
+            ) from last_error
+        _sleep_until(tab, min(deadline, _monotonic(tab) + max(0.0, float(interval_s))))
+
+
+def _send_button_visible_enabled(tab: TabLease, selector: str) -> bool:
+    state = tab.channel.evaluate(
+        tab,
+        _SEND_BUTTON_STATE_KEY,
+        arg={"selector": selector},
+        timeout_s=0.0,
+    )
+    if not isinstance(state, Mapping):
+        return False
+    return state.get("visible_enabled") is True or (
+        state.get("visible") is True and state.get("enabled") is True
+    )
 
 
 def _monotonic(tab: TabLease) -> float:
