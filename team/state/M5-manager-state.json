@@ -42,7 +42,10 @@
         "completion_vocab_openQ3_4": "target: async_status is an INT (not str); message.status={finished_successfully,in_progress}; metadata.is_complete=true; is_finalizing={false,true}; pro_progress=float (94). node.status empty. M7 completion must handle int async_status.",
         "wallclock": "target scrape ESTIMATE 60s vs ACTUAL 147s (fetch-only 130.5s for 20MB binding-pump). M6 budget >=130s for target."
       }},
-    {"id": "T5", "title": "Verification panel (N=3, OFFLINE, over T3 artifacts + git): safety/leak audit + offline falsifiability + acceptance-conformance", "status": "blocked", "dependencies": ["T3"], "node_type": "worker-panel"},
+    {"id": "T5", "title": "Verification panel (N=3, OFFLINE, over T3 artifacts + git): safety/leak audit + offline falsifiability + acceptance-conformance", "status": "dispatched", "dependencies": ["T3"], "node_type": "worker-panel", "contract": "team/contracts/M5-verify-common.md",
+      "manager_pre_verification": "205 passed (re-derived); no-playwright invariant holds; mutation spot-check (fill no-op + redaction-leak) -> 2 tests RED then restored 205 green (falsifiable); browser alive post-leg; leak scans clean; repo clean.",
+      "expected_artifacts": ["team/evidence/reports/M5-verify-V1.md", "team/evidence/reports/M5-verify-V2.md", "team/evidence/reports/M5-verify-V3.md"],
+      "run_dirs": {"V1": ".pi-workers/M5-T5-verify/pi-20260618-200231-828025-26373", "V2": ".pi-workers/M5-T5-verify/pi-20260618-200231-828049-3258", "V3": ".pi-workers/M5-T5-verify/pi-20260618-200231-828080-24380"}},
     {"id": "T6", "title": "Final handoff team/evidence/handoffs/M5-capture-scrape.md + commit", "status": "blocked", "dependencies": ["T5"], "node_type": "manager-self"}
   ],
   "artifacts_trust": [
