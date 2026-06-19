@@ -38,6 +38,9 @@ def test_packaged_real_selector_map_loads_with_exact_required_keys() -> None:
 
     assert tuple(selector_map.keys()) == REQUIRED_KEYS
     assert selector_map["composer"] == "#prompt-textarea"
+    assert selector_map["send_button_unverified_no_input"] == (
+        'button[data-testid="send-button"], #composer-submit-button, button[aria-label="Send prompt"]'
+    )
     assert selector_map["radix_portal"] == "[data-radix-popper-content-wrapper]"
     assert selector_map["model_picker_trigger_candidates"] == (
         'composer-footer button[aria-haspopup="menu"]'

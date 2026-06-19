@@ -51,7 +51,7 @@ SELECTORS = load_selector_map(
         "assistant_turn": "[data-message-author-role=\"assistant\"][data-message-id]",
         "copy_button": "button[data-testid=\"copy-turn-action-button\"]",
         "stop_button": "button[data-testid=\"stop-button\"]",
-        "send_button_unverified_no_input": "button[data-testid=\"send-button\"], #composer-submit-button",
+        "send_button_unverified_no_input": "button[data-testid=\"send-button\"], #composer-submit-button, button[aria-label=\"Send prompt\"]",
         "radix_portal": "[data-radix-popper-content-wrapper]",
         "model_picker_trigger_candidates": "composer-footer button[aria-haspopup=\"menu\"]",
     }

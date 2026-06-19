@@ -16,7 +16,7 @@ from ask_chatgpt.channels.mock import (
 )
 
 COMPOSER_SELECTOR = "#prompt-textarea"
-SEND_BUTTON_SELECTOR = "button[data-testid=\"send-button\"], #composer-submit-button"
+SEND_BUTTON_SELECTOR = "button[data-testid=\"send-button\"], #composer-submit-button, button[aria-label=\"Send prompt\"]"
 CONVERSATION_URL = "https://chatgpt.com/c/conv_mock_headers"
 
 CONTENT_PARTS_EXPECTED: dict[str, str] = {

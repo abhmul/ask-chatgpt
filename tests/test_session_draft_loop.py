@@ -27,7 +27,7 @@ SELECTORS = {
     "assistant_turn": "[data-message-author-role=\"assistant\"][data-message-id]",
     "copy_button": "button[data-testid=\"copy-turn-action-button\"]",
     "stop_button": "button[data-testid=\"stop-button\"]",
-    "send_button_unverified_no_input": "button[data-testid=\"send-button\"], #composer-submit-button",
+    "send_button_unverified_no_input": "button[data-testid=\"send-button\"], #composer-submit-button, button[aria-label=\"Send prompt\"]",
     "radix_portal": "[data-radix-popper-content-wrapper]",
     "model_picker_trigger_candidates": "composer-footer button[aria-haspopup=\"menu\"]",
 }
@@ -160,7 +160,8 @@ def test_draft_ask_fails_closed_when_post_submit_url_has_no_conversation_id(tmp_
 
     assert channel.method_counts.get("current_url_reads", 0) == 1
     assert channel.method_counts.get("full_raw_fetches", 0) == 0
-    assert not (tmp_path / "conversations" / "learned-123" / "transcript.jsonl").exists()
+    assert not (tmp_path / "conversations").exists()
+    assert not list(tmp_path.rglob("transcript.jsonl"))
 
 
 def test_draft_ask_gotcha4_no_new_user_turn_stops_before_id_learning_or_completion(tmp_path) -> None:

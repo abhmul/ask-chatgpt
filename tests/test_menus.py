@@ -16,7 +16,7 @@ SELECTORS = {
     "assistant_turn": "[data-message-author-role=\"assistant\"][data-message-id]",
     "copy_button": "button[data-testid=\"copy-turn-action-button\"]",
     "stop_button": "button[data-testid=\"stop-button\"]",
-    "send_button_unverified_no_input": "button[data-testid=\"send-button\"], #composer-submit-button",
+    "send_button_unverified_no_input": "button[data-testid=\"send-button\"], #composer-submit-button, button[aria-label=\"Send prompt\"]",
     "radix_portal": "[data-radix-popper-content-wrapper]",
     "model_picker_trigger_candidates": "composer-footer button[aria-haspopup=\"menu\"]",
 }
@@ -242,6 +242,21 @@ def test_set_tools_toggles_web_search_and_verifies_checked_state() -> None:
     assert results[0].reflected == "Web search"
     assert results[0].verified is True
     assert [click["label"] for click in channel.menu_clicks] == ["Web search"]
+
+
+def test_set_tools_clicked_tool_must_reflect_checked_state() -> None:
+    channel = MockChannel(
+        MockScenario(
+            name="tool_clicked_but_not_checked",
+            menu_options={"tools": (_option("Web search", "menuitem", checked=None),)},
+        )
+    )
+
+    with pytest.raises(ToolSelectionNotReflectedError):
+        set_tools(_tab(channel), SELECTORS, ("Web search",))
+
+    assert [click["label"] for click in channel.menu_clicks] == ["Web search"]
+    assert channel.method_counts.get("fill", 0) == 0
 
 
 def test_set_tools_absent_tool_fails_without_menu_selection() -> None:
