@@ -12,6 +12,7 @@ from ask_chatgpt.capture import (
     iter_current_branch_records,
     validate_backend_shape,
 )
+from ask_chatgpt.channels.base import RequestSnapshot
 from ask_chatgpt.channels.mock import HEADER_CANARIES, MockBackendResponse, MockChannel, MockScenario
 from ask_chatgpt.errors import (
     BackendAuthUnavailableError,
@@ -20,6 +21,7 @@ from ask_chatgpt.errors import (
     HumanActionNeededError,
 )
 from ask_chatgpt.identity import ConversationRef
+from ask_chatgpt.session import Session
 from ask_chatgpt.store import Store
 from mock_scenarios import (
     CONTENT_PARTS_EXPECTED,
@@ -109,6 +111,64 @@ def _write_raw(tmp_path: Path, raw: dict[str, object]) -> Path:
     raw_path = tmp_path / "raw.json"
     raw_path.write_text(json.dumps(raw, ensure_ascii=False), encoding="utf-8")
     return raw_path
+
+
+def _attachment_request_snapshot(conversation_id: str) -> RequestSnapshot:
+    return RequestSnapshot(
+        url=f"https://chatgpt.com/backend-api/conversation/{conversation_id}",
+        method="GET",
+        headers=dict(HEADER_CANARIES),
+    )
+
+
+def _attachment_download_raw(
+    conversation_id: str,
+    *,
+    user_metadata: dict[str, object] | None = None,
+    assistant_metadata: dict[str, object] | None = None,
+    assistant_content_extra: dict[str, object] | None = None,
+) -> dict[str, object]:
+    assistant_content: dict[str, object] = {"content_type": "text", "parts": ["assistant"]}
+    if assistant_content_extra:
+        assistant_content.update(assistant_content_extra)
+    return {
+        "conversation_id": conversation_id,
+        "mapping": {
+            "root": {"id": "root", "parent": None, "children": ["user"], "message": None},
+            "user": {
+                "id": "user",
+                "parent": "root",
+                "children": ["assistant"],
+                "message": {
+                    "id": "msg_user",
+                    "author": {"role": "user"},
+                    "content": {"content_type": "text", "parts": ["prompt"]},
+                    "metadata": user_metadata or {},
+                    "status": "finished_successfully",
+                },
+            },
+            "assistant": {
+                "id": "assistant",
+                "parent": "user",
+                "children": [],
+                "message": {
+                    "id": "msg_assistant",
+                    "author": {"role": "assistant"},
+                    "content": assistant_content,
+                    "metadata": assistant_metadata or {},
+                    "status": "finished_successfully",
+                },
+            },
+        },
+        "current_node": "assistant",
+    }
+
+
+def _scrape_attachment_fixture(tmp_path: Path, scenario: MockScenario, conversation_id: str):
+    channel = MockChannel(scenario)
+    session = Session(data_dir=tmp_path, channel=channel)
+    transcript = session.scrape(ConversationRef(conversation_id, f"https://chatgpt.com/c/{conversation_id}"), with_attachments=True)
+    return channel, transcript
 
 
 def test_large_current_branch_linearizes_iteratively_excludes_hidden_and_preserves_parts_math(tmp_path) -> None:
@@ -244,6 +304,225 @@ def test_all_attachment_shapes_and_citations_normalize_separately_without_downlo
     assert not any(hasattr(citation, "download_state") for citation in all_citations)
     assert not any(citation.url == "file_reference_1" for citation in all_citations)
     assert "mock search query" not in repr(all_citations)
+
+
+def test_scrape_with_attachments_downloads_bytes_and_rewrites_local_path(tmp_path) -> None:
+    conversation_id = "conv_mock_attachment_download"
+    payload = b"downloaded attachment bytes"
+    download_url = "https://chatgpt.com/backend-api/mock-downloads/downloadable"
+    raw = _attachment_download_raw(
+        conversation_id,
+        user_metadata={
+            "attachments": [
+                {
+                    "id": "file_mock_downloadable",
+                    "name": "downloadable.txt",
+                    "mime_type": "text/plain",
+                    "size": len(payload),
+                }
+            ]
+        },
+    )
+    scenario = MockScenario(
+        name="attachment_download",
+        backend_conversations={conversation_id: raw},
+        request_snapshots=(_attachment_request_snapshot(conversation_id),),
+        file_downloads={
+            "file_mock_downloadable": MockBackendResponse(
+                200,
+                {
+                    "download_url": download_url,
+                    "file_size_bytes": len(payload),
+                    "mime_type": "text/plain",
+                    "file_name": "downloadable.txt",
+                    "status": "success",
+                },
+            )
+        },
+        download_responses={download_url: MockBackendResponse(200, payload, headers={"content-type": "text/plain"})},
+    )
+
+    channel, transcript = _scrape_attachment_fixture(tmp_path, scenario, conversation_id)
+
+    attachment = transcript.turns[0].attachments[0]
+    assert attachment.download_state == "downloaded"
+    assert attachment.local_path is not None
+    assert attachment.metadata == {}
+    cached = tmp_path / "conversations" / conversation_id / attachment.local_path
+    assert cached.exists()
+    assert cached.parent == tmp_path / "conversations" / conversation_id / "attachments"
+    assert cached.read_bytes() == payload
+    assert channel.method_counts["attachment_descriptor_fetches"] == 1
+    assert channel.method_counts["attachment_byte_fetches"] == 1
+
+
+def test_attachment_200_error_json_without_download_url_is_not_downloadable(tmp_path) -> None:
+    conversation_id = "conv_mock_attachment_error_json"
+    raw = _attachment_download_raw(
+        conversation_id,
+        user_metadata={
+            "attachments": [
+                {
+                    "id": "file_mock_error_json",
+                    "name": "not-downloadable.txt",
+                    "mime_type": "text/plain",
+                    "size": 12,
+                }
+            ]
+        },
+    )
+    scenario = MockScenario(
+        name="attachment_200_error_json",
+        backend_conversations={conversation_id: raw},
+        request_snapshots=(_attachment_request_snapshot(conversation_id),),
+        file_downloads={
+            "file_mock_error_json": MockBackendResponse(
+                200,
+                {
+                    "error_code": "mock_error",
+                    "error_message": "mock 200 error shape",
+                    "error_type": "not_found",
+                    "status": "error",
+                },
+            )
+        },
+    )
+
+    channel, transcript = _scrape_attachment_fixture(tmp_path, scenario, conversation_id)
+
+    attachment = transcript.turns[0].attachments[0]
+    assert attachment.download_state == "not_downloadable"
+    assert attachment.local_path is None
+    assert channel.method_counts["attachment_descriptor_fetches"] == 1
+    assert channel.method_counts.get("attachment_byte_fetches", 0) == 0
+    assert list((tmp_path / "conversations" / conversation_id / "attachments").iterdir()) == []
+
+
+def test_unsupported_attachment_kinds_and_schemes_skip_download_fetches(tmp_path) -> None:
+    conversation_id = "conv_mock_attachment_unsupported"
+    raw = _attachment_download_raw(
+        conversation_id,
+        assistant_metadata={"aggregate_result": {"run_id": "run_mock_unsupported", "status": "success"}},
+        assistant_content_extra={
+            "assets": [
+                {
+                    "asset_pointer": "sediment://mock-without-token",
+                    "filename": "unsupported.bin",
+                    "content_type": "application/octet-stream",
+                }
+            ]
+        },
+    )
+    scenario = MockScenario(
+        name="attachment_unsupported",
+        backend_conversations={conversation_id: raw},
+        request_snapshots=(_attachment_request_snapshot(conversation_id),),
+    )
+
+    channel, transcript = _scrape_attachment_fixture(tmp_path, scenario, conversation_id)
+
+    states = [attachment.download_state for turn in transcript.turns for attachment in turn.attachments]
+    assert states == ["unsupported", "unsupported"]
+    assert channel.method_counts.get("attachment_descriptor_fetches", 0) == 0
+    assert channel.method_counts.get("attachment_byte_fetches", 0) == 0
+    assert list((tmp_path / "conversations" / conversation_id / "attachments").iterdir()) == []
+
+
+def test_attachment_downloads_are_deduped_by_resolved_file_id(tmp_path) -> None:
+    conversation_id = "conv_mock_attachment_dedup"
+    payload = b"dedup bytes"
+    download_url = "https://chatgpt.com/backend-api/mock-downloads/dedup"
+    raw = _attachment_download_raw(
+        conversation_id,
+        user_metadata={
+            "attachments": [
+                {
+                    "id": "file_mock_dedup",
+                    "name": "first.txt",
+                    "mime_type": "text/plain",
+                    "size": len(payload),
+                }
+            ]
+        },
+        assistant_metadata={
+            "content_references": [
+                {
+                    "type": "file",
+                    "id": "file_mock_dedup",
+                    "name": "second.txt",
+                    "mime_type": "text/plain",
+                    "size": len(payload),
+                }
+            ]
+        },
+    )
+    scenario = MockScenario(
+        name="attachment_dedup",
+        backend_conversations={conversation_id: raw},
+        request_snapshots=(_attachment_request_snapshot(conversation_id),),
+        file_downloads={
+            "file_mock_dedup": MockBackendResponse(
+                200,
+                {
+                    "download_url": download_url,
+                    "file_size_bytes": len(payload),
+                    "mime_type": "text/plain",
+                    "status": "success",
+                },
+            )
+        },
+        download_responses={download_url: MockBackendResponse(200, payload, headers={"content-type": "text/plain"})},
+    )
+
+    channel, transcript = _scrape_attachment_fixture(tmp_path, scenario, conversation_id)
+
+    attachments = [attachment for turn in transcript.turns for attachment in turn.attachments]
+    assert [attachment.download_state for attachment in attachments] == ["downloaded", "downloaded"]
+    assert attachments[0].local_path is not None
+    assert attachments[0].local_path == attachments[1].local_path
+    assert channel.method_counts["attachment_descriptor_fetches"] == 1
+    assert channel.method_counts["attachment_byte_fetches"] == 1
+    cached = tmp_path / "conversations" / conversation_id / attachments[0].local_path
+    assert cached.read_bytes() == payload
+
+
+def test_scrape_without_attachments_keeps_pending_refs_and_does_not_fetch_bytes(tmp_path) -> None:
+    conversation_id = "conv_mock_attachment_default_noop"
+    raw = _attachment_download_raw(
+        conversation_id,
+        user_metadata={
+            "attachments": [
+                {
+                    "id": "file_mock_default_noop",
+                    "name": "default.txt",
+                    "mime_type": "text/plain",
+                    "size": 3,
+                }
+            ]
+        },
+    )
+    scenario = MockScenario(
+        name="attachment_default_noop",
+        backend_conversations={conversation_id: raw},
+        request_snapshots=(_attachment_request_snapshot(conversation_id),),
+        file_downloads={
+            "file_mock_default_noop": MockBackendResponse(
+                200,
+                {"download_url": "https://chatgpt.com/backend-api/mock-downloads/default", "file_size_bytes": 3},
+            )
+        },
+    )
+    channel = MockChannel(scenario)
+    session = Session(data_dir=tmp_path, channel=channel)
+
+    transcript = session.scrape(ConversationRef(conversation_id, f"https://chatgpt.com/c/{conversation_id}"))
+
+    attachment = transcript.turns[0].attachments[0]
+    assert attachment.download_state == "pending"
+    assert attachment.local_path is None
+    assert channel.method_counts.get("attachment_descriptor_fetches", 0) == 0
+    assert channel.method_counts.get("attachment_byte_fetches", 0) == 0
+    assert list((tmp_path / "conversations" / conversation_id / "attachments").iterdir()) == []
 
 
 def test_header_bundle_is_one_use_and_header_canaries_do_not_persist_on_failed_capture(tmp_path) -> None:

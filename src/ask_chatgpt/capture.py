@@ -5,14 +5,15 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import time
 from collections import Counter
 from collections.abc import Iterator, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlsplit
 
 from ask_chatgpt.channels.base import FetchResult, RequestSnapshot, TabLease
 from ask_chatgpt.errors import (
@@ -167,10 +168,11 @@ def acquire_backend_headers(tab: TabLease, conv: ConversationRef, *, timeout_s: 
     )
 
 
-def stream_backend_conversation(tab: TabLease, conv: ConversationRef, headers: HeaderBundle, *, raw_tmp: Path) -> BackendFetchMeta:
+def stream_backend_conversation(tab: TabLease, conv: ConversationRef, headers: HeaderBundle | Mapping[str, str], *, raw_tmp: Path) -> BackendFetchMeta:
     conversation_id = _require_conversation_id(conv)
     started = _channel_monotonic(tab)
-    fetch_headers = {"accept": "application/json", **headers.for_single_fetch()}
+    backend_headers = headers.for_single_fetch() if isinstance(headers, HeaderBundle) else dict(headers)
+    fetch_headers = {"accept": "application/json", **backend_headers}
     result = tab.channel.fetch_in_page(
         tab,
         f"/backend-api/conversation/{conversation_id}",
@@ -296,18 +298,23 @@ def iter_current_branch_records(raw_path: Path, conv: ConversationRef, *, send_c
 
 
 def capture_conversation(tab: TabLease, conv: ConversationRef, store: Store, *, with_attachments: bool = False, send_context: SendContext | None = None) -> CaptureResult:
-    del with_attachments
     conversation_id = _require_conversation_id(conv)
     tmp_dir = store.ensure_conversation(conv).root
     raw_tmp = tmp_dir / f"raw-mapping.json.tmp.{os.getpid()}.{id(tab)}"
     try:
         headers = acquire_backend_headers(tab, conv)
-        meta = stream_backend_conversation(tab, conv, headers, raw_tmp=raw_tmp)
+        backend_headers = headers.for_single_fetch()
+        meta = stream_backend_conversation(tab, conv, backend_headers, raw_tmp=raw_tmp)
         _validate_fetch_meta(meta)
         top = validate_backend_shape(raw_tmp, conversation_id)
         records = tuple(iter_current_branch_records(raw_tmp, conv, send_context=send_context))
         raw_path = store.write_raw_mapping_atomic(conversation_id, raw_tmp)
         store.upsert_many(records)
+        if with_attachments:
+            updated_records = download_attachments(tab, conv, backend_headers, records, store)
+            if updated_records != records:
+                store.upsert_many(updated_records)
+                records = updated_records
         transcript_path = store.ensure_conversation(conv).transcript_jsonl
         transcript = Transcript(conv, records, raw_path, transcript_path)
         return CaptureResult(transcript=transcript, async_status=top.async_status, raw_top_level_keys=top.top_level_keys, source="backend_api", fidelity="canonical")
@@ -320,6 +327,167 @@ def capture_conversation(tab: TabLease, conv: ConversationRef, store: Store, *, 
     finally:
         if raw_tmp.exists():
             _unlink_if_exists(raw_tmp)
+
+
+_FILE_ID_RE = re.compile(r"file[-_][A-Za-z0-9._-]+")
+
+
+@dataclass(frozen=True)
+class _AttachmentDownloadOutcome:
+    download_state: str
+    local_path: str | None = None
+
+
+def download_attachments(
+    tab: TabLease,
+    conv: ConversationRef,
+    headers: Mapping[str, str],
+    records: tuple[TurnRecord, ...],
+    store: Store,
+    *,
+    pace_s: float = 0.25,
+) -> tuple[TurnRecord, ...]:
+    """Resolve pending attachment refs to local cached bytes using the channel fetch seam."""
+
+    conversation_id = _require_conversation_id(conv)
+    outcomes_by_file_id: dict[str, _AttachmentDownloadOutcome] = {}
+    updated_records: list[TurnRecord] = []
+    changed = False
+    for record in records:
+        if not record.attachments:
+            updated_records.append(record)
+            continue
+        updated_attachments: list[AttachmentRef] = []
+        record_changed = False
+        for ref in record.attachments:
+            file_id = _resolved_attachment_file_id(ref)
+            if file_id is None:
+                updated = _replace_attachment_download(ref, "unsupported", None)
+            else:
+                outcome = outcomes_by_file_id.get(file_id)
+                if outcome is None:
+                    outcome = _download_one_attachment(tab, conv, headers, store, conversation_id, ref, file_id)
+                    outcomes_by_file_id[file_id] = outcome
+                    if pace_s > 0 and outcome.download_state == "downloaded":
+                        _channel_sleep(tab, pace_s)
+                updated = _replace_attachment_download(ref, outcome.download_state, outcome.local_path)
+            if updated != ref:
+                record_changed = True
+            updated_attachments.append(updated)
+        if record_changed:
+            changed = True
+            updated_records.append(replace(record, attachments=tuple(updated_attachments)))
+        else:
+            updated_records.append(record)
+    return tuple(updated_records) if changed else records
+
+
+def _download_one_attachment(
+    tab: TabLease,
+    conv: ConversationRef,
+    headers: Mapping[str, str],
+    store: Store,
+    conversation_id: str,
+    ref: AttachmentRef,
+    file_id: str,
+) -> _AttachmentDownloadOutcome:
+    try:
+        descriptor = _fetch_attachment_descriptor(tab, headers, file_id)
+        if descriptor is None:
+            return _AttachmentDownloadOutcome("error")
+        download_url = descriptor.get("download_url")
+        if not isinstance(download_url, str) or not download_url:
+            return _AttachmentDownloadOutcome("not_downloadable")
+        expected_size = _known_attachment_size(descriptor, ref)
+        target = store.attachment_path(conversation_id, ref)
+        local_path = _local_attachment_path(store, conv, target)
+        existing_size = _existing_file_size(target)
+        if existing_size is not None:
+            if expected_size is None or existing_size == expected_size:
+                return _AttachmentDownloadOutcome("downloaded", local_path)
+            target.unlink()
+        result = tab.channel.fetch_in_page(tab, download_url, method="GET", stream_to=target, timeout_s=None)
+        if result.status < 200 or result.status >= 300:
+            _unlink_if_exists(target)
+            return _AttachmentDownloadOutcome("error")
+        written = _fetch_bytes_written(result, target)
+        if expected_size is not None and written != expected_size:
+            _unlink_if_exists(target)
+            return _AttachmentDownloadOutcome("error")
+        return _AttachmentDownloadOutcome("downloaded", local_path)
+    except Exception:
+        return _AttachmentDownloadOutcome("error")
+
+
+def _fetch_attachment_descriptor(tab: TabLease, headers: Mapping[str, str], file_id: str) -> Mapping[str, Any] | None:
+    descriptor_url = f"/backend-api/files/{quote(file_id, safe='')}/download"
+    result = tab.channel.fetch_in_page(
+        tab,
+        descriptor_url,
+        method="GET",
+        headers={"accept": "application/json", **dict(headers)},
+        timeout_s=None,
+    )
+    if result.status < 200 or result.status >= 300 or result.body_bytes is None:
+        return None
+    try:
+        data = json.loads(result.body_bytes.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return None
+    return data if isinstance(data, Mapping) else None
+
+
+def _resolved_attachment_file_id(ref: AttachmentRef) -> str | None:
+    source_ref = ref.source_ref
+    if not isinstance(source_ref, str) or not source_ref:
+        return None
+    if ref.source_kind in {"user_upload", "file_reference"}:
+        return source_ref if _looks_like_file_id(source_ref) else None
+    if ref.source_kind == "generated_asset":
+        if source_ref.startswith("file-service://"):
+            candidate = source_ref.removeprefix("file-service://")
+            return candidate if _looks_like_file_id(candidate) else None
+        if source_ref.startswith("sediment://"):
+            match = _FILE_ID_RE.search(source_ref)
+            return match.group(0) if match else None
+    return None
+
+
+def _looks_like_file_id(value: str) -> bool:
+    return _FILE_ID_RE.fullmatch(value) is not None
+
+
+def _replace_attachment_download(ref: AttachmentRef, state: str, local_path: str | None) -> AttachmentRef:
+    return replace(ref, download_state=state, local_path=local_path)  # type: ignore[arg-type]
+
+
+def _known_attachment_size(descriptor: Mapping[str, Any], ref: AttachmentRef) -> int | None:
+    descriptor_size = descriptor.get("file_size_bytes")
+    if isinstance(descriptor_size, int) and not isinstance(descriptor_size, bool) and descriptor_size >= 0:
+        return descriptor_size
+    if ref.bytes is not None and ref.bytes >= 0:
+        return ref.bytes
+    return None
+
+
+def _existing_file_size(path: Path) -> int | None:
+    try:
+        return path.stat().st_size
+    except FileNotFoundError:
+        return None
+
+
+def _local_attachment_path(store: Store, conv: ConversationRef, path: Path) -> str:
+    paths = store.ensure_conversation(conv)
+    return path.resolve().relative_to(paths.root.resolve()).as_posix()
+
+
+def _channel_sleep(tab: TabLease, seconds: float) -> None:
+    sleeper = getattr(tab.channel, "sleep", None)
+    if callable(sleeper):
+        sleeper(seconds)
+    else:
+        time.sleep(seconds)
 
 
 def fallback_capture_ui(tab: TabLease, conv: ConversationRef, store: Store, *, reason: str, allow_clipboard: bool = False) -> CaptureResult:

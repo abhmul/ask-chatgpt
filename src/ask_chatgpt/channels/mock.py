@@ -15,7 +15,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
-from urllib.parse import urlsplit
+from urllib.parse import unquote, urlsplit
 
 from ask_chatgpt.allowlist import Allowlist
 from ask_chatgpt.channels.base import (
@@ -110,6 +110,8 @@ class MockScenario:
     name: str = "default"
     backend_conversations: Mapping[str, JsonValue] = field(default_factory=dict)
     backend_responses: Mapping[str, MockBackendResponse] = field(default_factory=dict)
+    file_downloads: Mapping[str, MockBackendResponse] = field(default_factory=dict)
+    download_responses: Mapping[str, MockBackendResponse] = field(default_factory=dict)
     backend_timeline: tuple[TimedBackendResponse, ...] = ()
     turn_timeline: tuple[TimedTurnSnapshot, ...] = ()
     request_snapshots: tuple[RequestSnapshot, ...] = ()
@@ -468,6 +470,26 @@ class MockChannel:
     def _scripted_fetch_response(
         self, url: str, headers: Mapping[str, str]
     ) -> MockBackendResponse:
+        if url in self.scenario.download_responses:
+            return self.scenario.download_responses[url]
+        file_id = self._backend_file_download_id(url)
+        if file_id is not None:
+            lower_headers = self._lower_headers(headers)
+            missing = set(REQUIRED_BACKEND_HEADERS) - set(lower_headers)
+            if missing:
+                return MockBackendResponse(
+                    404,
+                    {
+                        "detail": "required backend authorization/OAI headers were not present",
+                        "missing_headers": sorted(missing),
+                    },
+                )
+            self._check_one_use_headers(lower_headers)
+            if file_id in self.scenario.file_downloads:
+                return self.scenario.file_downloads[file_id]
+            if url in self.scenario.backend_responses:
+                return self.scenario.backend_responses[url]
+            return MockBackendResponse(404, {"detail": "file fixture not found"})
         conversation_id = self._backend_conversation_id(url)
         if conversation_id is None:
             if url in self.scenario.backend_responses:
@@ -505,21 +527,35 @@ class MockChannel:
         self._used_header_fingerprints.add(fingerprint)
 
     def _count_backend_fetch_kind(self, url: str) -> None:
-        path = urlsplit(url).path if not url.startswith("/") else url
+        path = urlsplit(url).path
         self.counters["backend_fetches"] += 1
         if path.endswith("/stream_status"):
             self.counters["backend_checks"] += 1
-        else:
+        elif self._backend_file_download_id(url) is not None:
+            self.counters["attachment_descriptor_fetches"] += 1
+        elif url in self.scenario.download_responses:
+            self.counters["attachment_byte_fetches"] += 1
+        elif self._backend_conversation_id(url) is not None:
             self.counters["full_raw_fetches"] += 1
 
     def _backend_conversation_id(self, url: str) -> str | None:
-        path = urlsplit(url).path if not url.startswith("/") else url
+        path = urlsplit(url).path
         marker = "/backend-api/conversation/"
         if marker not in path:
             return None
         suffix = path.split(marker, 1)[1]
         conversation_id = suffix.split("/", 1)[0]
         return conversation_id or None
+
+    def _backend_file_download_id(self, url: str) -> str | None:
+        path = urlsplit(url).path
+        marker = "/backend-api/files/"
+        suffix_marker = "/download"
+        if marker not in path or not path.endswith(suffix_marker):
+            return None
+        suffix = path.split(marker, 1)[1]
+        encoded_file_id = suffix[: -len(suffix_marker)]
+        return unquote(encoded_file_id) if encoded_file_id else None
 
     def _select_timed(self, steps: Sequence[Any]) -> Any:
         now = self.monotonic()
