@@ -23,7 +23,7 @@ from ask_chatgpt.errors import (
     StoreError,
     TabPoolExhaustedError,
 )
-from ask_chatgpt.identity import ConversationRef, conversation_url, parse_project_address
+from ask_chatgpt.identity import ConversationRef, conversation_url, parse_conversation_address, parse_project_address
 from ask_chatgpt.menus import assert_reflected_model, assert_reflected_tools
 from ask_chatgpt.models import (
     AttachmentSpec,
@@ -349,70 +349,125 @@ class Session:
         max_total_wait: float | None = None,
         out: str | Path | None = None,
     ) -> TurnRecord:
-        if conv_or_url is None:
-            raise NotImplementedError("draft conversation sends are deferred beyond M4")
-        ref = self.store.resolve_conversation(conv_or_url) if not isinstance(conv_or_url, ConversationRef) else conv_or_url
-        self.store.put_conversation_ref(ref)
+        ref = self.create() if conv_or_url is None else (
+            self.store.resolve_conversation(conv_or_url) if not isinstance(conv_or_url, ConversationRef) else conv_or_url
+        )
+        if ref.conversation_id is not None:
+            self.store.put_conversation_ref(ref)
         tab = self.tab_pool.acquire(ref)
-        stub: TurnRecord | None = None
-        submitted: SubmittedTurn | None = None
-        model_ref = ModelRef(None, model) if model is not None else None
-        active_tools = tuple(tools)
         try:
-            wait_for_idle_and_reload_if_needed(tab, self.selector_map, timeout_s=self.composer_wait_timeout_s)
-            if model is not None:
-                assert_reflected_model(tab, self.selector_map, model)
-            if active_tools:
-                assert_reflected_tools(tab, self.selector_map, active_tools)
-            baseline = read_turn_baseline(tab, self.selector_map)
-            stub = self.store.begin_send(ref, prompt, model=model_ref, active_tools=active_tools)
-            with self.send_budget.submission():
-                wait_for_composer(tab, self.selector_map, timeout_s=self.composer_wait_timeout_s)
-                upload_attachments(tab, self.selector_map, _attachment_specs(attach))
-                fill_composer(tab, self.selector_map, prompt)
-                submit_composer(tab, self.selector_map)
-                submitted = verify_prompt_submitted(
-                    tab,
-                    self.selector_map,
-                    baseline,
-                    prompt,
-                    timeout_s=self.send_verify_timeout_s,
-                )
-            canonical_user = _canonical_user_record(ref, submitted, stub, model_ref, active_tools)
-            self.store.commit_send(stub.client_send_id or "", canonical_user)
-            try:
-                completion_state = wait_for_completion(
-                    tab,
-                    ref,
-                    self.selector_map,
-                    baseline,
-                    activity_timeout_s=timeout if timeout is not None else self.activity_timeout_s,
-                    max_total_wait_s=max_total_wait if max_total_wait is not None else self.max_total_wait_s,
-                    progress_poll_interval_s=self.progress_poll_interval_s,
-                    backend_check_interval_s=self.backend_check_interval_s,
-                )
-                capture = capture_conversation(
-                    tab,
-                    ref,
-                    self.store,
-                    send_context=SendContext(
-                        client_send_id=stub.client_send_id,
-                        user_message_id=submitted.user_message_id,
-                        model=model_ref,
-                        active_tools=active_tools,
-                    ),
-                )
-                answer = _select_new_assistant(capture.transcript.turns, completion_state.assistant_message_id, baseline)
-            except (CompletionTimeoutError, MaxTotalWaitExceededError, AskChatGPTError) as exc:
-                partial = self._record_partial_if_available(tab, ref, baseline, stub, submitted, exc)
-                if partial is not None:
-                    setattr(exc, "partial", partial)
-                    setattr(exc, "partial_markdown", partial.content_markdown)
-                raise
+            answer, _ref = self._run_send_turn(
+                tab,
+                ref,
+                prompt,
+                model=model,
+                tools=tools,
+                attach=attach,
+                timeout=timeout,
+                max_total_wait=max_total_wait,
+            )
             del out
             return answer
         finally:
             self.tab_pool.release(tab)
+
+    def _run_send_turn(
+        self,
+        tab: TabLease,
+        ref: ConversationRef,
+        prompt: str,
+        *,
+        model: str | None = None,
+        tools: Sequence[str] = (),
+        attach: Sequence[str | Path | AttachmentSpec] = (),
+        timeout: float | None = None,
+        max_total_wait: float | None = None,
+    ) -> tuple[TurnRecord, ConversationRef]:
+        stub: TurnRecord | None = None
+        submitted: SubmittedTurn | None = None
+        model_ref = ModelRef(None, model) if model is not None else None
+        active_tools = tuple(tools)
+        draft = ref.conversation_id is None or ref.is_draft
+        wait_for_idle_and_reload_if_needed(tab, self.selector_map, timeout_s=self.composer_wait_timeout_s)
+        if model is not None:
+            assert_reflected_model(tab, self.selector_map, model)
+        if active_tools:
+            assert_reflected_tools(tab, self.selector_map, active_tools)
+        baseline = read_turn_baseline(tab, self.selector_map)
+        if not draft:
+            self.store.put_conversation_ref(ref)
+            stub = self.store.begin_send(ref, prompt, model=model_ref, active_tools=active_tools)
+        with self.send_budget.submission():
+            wait_for_composer(tab, self.selector_map, timeout_s=self.composer_wait_timeout_s)
+            upload_attachments(tab, self.selector_map, _attachment_specs(attach))
+            fill_composer(tab, self.selector_map, prompt)
+            submit_composer(tab, self.selector_map)
+            submitted = verify_prompt_submitted(
+                tab,
+                self.selector_map,
+                baseline,
+                prompt,
+                timeout_s=self.send_verify_timeout_s,
+            )
+        if draft:
+            ref = self._learn_post_submit_ref(tab, ref)
+            self.store.put_conversation_ref(ref)
+            stub = self.store.begin_send(ref, prompt, model=model_ref, active_tools=active_tools)
+        if stub is None or submitted is None:
+            raise InternalError("send pipeline did not produce a committed user turn")
+        canonical_user = _canonical_user_record(ref, submitted, stub, model_ref, active_tools)
+        self.store.commit_send(stub.client_send_id or "", canonical_user)
+        try:
+            completion_state = wait_for_completion(
+                tab,
+                ref,
+                self.selector_map,
+                baseline,
+                activity_timeout_s=timeout if timeout is not None else self.activity_timeout_s,
+                max_total_wait_s=max_total_wait if max_total_wait is not None else self.max_total_wait_s,
+                progress_poll_interval_s=self.progress_poll_interval_s,
+                backend_check_interval_s=self.backend_check_interval_s,
+            )
+            capture = capture_conversation(
+                tab,
+                ref,
+                self.store,
+                send_context=SendContext(
+                    client_send_id=stub.client_send_id,
+                    user_message_id=submitted.user_message_id,
+                    model=model_ref,
+                    active_tools=active_tools,
+                ),
+            )
+            answer = _select_new_assistant(capture.transcript.turns, completion_state.assistant_message_id, baseline)
+        except (CompletionTimeoutError, MaxTotalWaitExceededError, AskChatGPTError) as exc:
+            partial = self._record_partial_if_available(tab, ref, baseline, stub, submitted, exc)
+            if partial is not None:
+                setattr(exc, "partial", partial)
+                setattr(exc, "partial_markdown", partial.content_markdown)
+            raise
+        return answer, ref
+
+    def _learn_post_submit_ref(self, tab: TabLease, draft_ref: ConversationRef) -> ConversationRef:
+        value = tab.channel.evaluate(tab, "ask_chatgpt_current_url", timeout_s=5.0)
+        if not isinstance(value, str):
+            raise InternalError("post-submit URL did not expose a conversation id")
+        parsed = parse_conversation_address(value)
+        if parsed is None or parsed.conversation_id is None:
+            raise InternalError("post-submit URL did not contain /c/<conversation_id>")
+        if draft_ref.project_id is not None and parsed.project_id != draft_ref.project_id:
+            raise InternalError("post-submit URL did not preserve the draft project")
+        return ConversationRef(
+            conversation_id=parsed.conversation_id,
+            url=conversation_url(parsed),
+            project_id=parsed.project_id,
+            title=draft_ref.title,
+            current_node=parsed.current_node,
+            default_model_slug=parsed.default_model_slug,
+            created_at=draft_ref.created_at,
+            updated_at=draft_ref.updated_at,
+            is_draft=False,
+        )
 
     def scrape(
         self,

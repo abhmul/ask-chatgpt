@@ -315,6 +315,7 @@ class MockChannel:
         if js == "ask_chatgpt_menu_click_label":
             return self._menu_click_label(arg)
         if js == "ask_chatgpt_current_url":
+            self.counters["current_url_reads"] += 1
             return self.scenario.current_url or self._tabs.get(tab.tab_id, tab.url)
         if js in self.scenario.evaluations:
             return self.scenario.evaluations[js]

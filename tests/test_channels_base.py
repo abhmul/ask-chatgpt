@@ -17,6 +17,8 @@ from ask_chatgpt.channels.base import (
     TurnDom,
     TurnDomSnapshot,
 )
+from ask_chatgpt.channels.mock import MockChannel, ScriptedClock
+from ask_chatgpt.errors import PromptNotSubmittedError
 from ask_chatgpt.models import PreflightResult
 
 
@@ -108,9 +110,16 @@ def test_browser_channel_protocol_exposes_required_methods() -> None:
     } <= method_names
 
 
-def test_importing_public_api_and_session_stub_is_offline_and_not_implemented() -> None:
-    session = Session(channel="mock")
+def test_importing_public_api_and_draft_ask_remain_offline_without_playwright() -> None:
+    clock = ScriptedClock()
+    channel = MockChannel(monotonic=clock.monotonic, sleeper=clock.sleep)
+    session = Session(
+        channel=channel,
+        send_verify_timeout_s=0.0,
+        composer_wait_timeout_s=0.0,
+    )
 
     assert not any(name == "playwright" or name.startswith("playwright.") for name in sys.modules)
-    with pytest.raises(NotImplementedError):
-        session.ask(None, "hello")
+    with pytest.raises(PromptNotSubmittedError):
+        session.ask(None, "MOCK_PROMPT_PUBLIC_API_CANARY")
+    assert clock.monotonic() == 0.0
