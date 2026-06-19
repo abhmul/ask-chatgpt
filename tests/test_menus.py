@@ -18,7 +18,7 @@ SELECTORS = {
     "stop_button": "button[data-testid=\"stop-button\"]",
     "send_button_unverified_no_input": "button[data-testid=\"send-button\"], #composer-submit-button, button[aria-label=\"Send prompt\"]",
     "radix_portal": "[data-radix-popper-content-wrapper]",
-    "model_picker_trigger_candidates": "composer-footer button[aria-haspopup=\"menu\"]",
+    "model_picker_trigger_candidates": "form button[aria-haspopup=\"menu\"]:not([data-testid])",
 }
 
 
@@ -38,6 +38,21 @@ def _tab(channel: MockChannel):
 
 def _option(label: str, role: str | None = "menuitemradio", *, checked: bool | None = False, disabled: bool = False, path: tuple[str, ...] = ()) -> dict[str, object]:
     return {"label": label, "role": role, "checked": checked, "disabled": disabled, "path": list(path)}
+
+
+def test_open_radix_menu_uses_pointer_activation_evaluate_not_click() -> None:
+    # Falsifiability: reverting open_radix_menu to channel.click removes this evaluate call and increments click.
+    channel = MockChannel(MockScenario(name="radix_open_path", menu_options={"model": (_option("High"),)}))
+    tab = _tab(channel)
+
+    open_radix_menu(tab, SELECTORS["model_picker_trigger_candidates"])
+
+    assert channel.method_counts.get("click", 0) == 0
+    assert any(
+        call.method == "evaluate" and call.details.get("js_key") == "ask_chatgpt_open_radix_trigger"
+        for call in channel.calls
+    )
+    assert channel.method_counts.get("wait_for_selector", 0) == 1
 
 
 def test_select_model_opens_enumerates_selects_tier_and_verifies_reflected_label() -> None:

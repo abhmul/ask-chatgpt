@@ -188,6 +188,16 @@ JS_MENU_CLICK_LABEL = r"""
     return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
   };
   const enabled = el => !(el.disabled || el.getAttribute('aria-disabled') === 'true' || el.hasAttribute('disabled'));
+  const dispatchPointerActivation = el => {
+    el.scrollIntoView({block: 'center', inline: 'center'});
+    el.focus();
+    const rect = el.getBoundingClientRect();
+    const base = {bubbles: true, cancelable: true, view: window, button: 0, buttons: 1, clientX: rect.left + rect.width / 2, clientY: rect.top + rect.height / 2};
+    try { el.dispatchEvent(new PointerEvent('pointerdown', {...base, pointerType: 'mouse', pointerId: 1, isPrimary: true})); } catch (_) {}
+    el.dispatchEvent(new MouseEvent('mousedown', base));
+    try { el.dispatchEvent(new PointerEvent('pointerup', {...base, pointerType: 'mouse', pointerId: 1, isPrimary: true, buttons: 0})); } catch (_) {}
+    el.dispatchEvent(new MouseEvent('mouseup', {...base, buttons: 0}));
+  };
   const matches = Array.from(portal.querySelectorAll('[role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"]'))
     .filter(el => visible(el) && enabled(el))
     .filter(el => norm(el.innerText || el.textContent || el.getAttribute('aria-label') || '') === requested)
@@ -199,8 +209,36 @@ JS_MENU_CLICK_LABEL = r"""
     target.dispatchEvent(new MouseEvent('mouseenter', {bubbles: true, cancelable: true, view: window}));
     target.focus();
   }
+  if (a.action === 'select') {
+    dispatchPointerActivation(target);
+  }
   target.click();
   return {ok: true};
+}
+"""
+
+JS_OPEN_RADIX_TRIGGER = r"""
+(a) => {
+  const visible = el => {
+    if (!el) return false;
+    const style = getComputedStyle(el);
+    const rect = el.getBoundingClientRect();
+    return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+  };
+  const enabled = el => !(el.disabled || el.getAttribute('aria-disabled') === 'true' || el.hasAttribute('disabled'));
+  const matches = Array.from(document.querySelectorAll(a.selector));
+  const target = matches.filter(visible).find(enabled);
+  if (!target) return {ok: false, reason: 'no_visible_enabled_match', count: matches.length};
+  target.scrollIntoView({block: 'center', inline: 'center'});
+  target.focus();
+  const rect = target.getBoundingClientRect();
+  const base = {bubbles: true, cancelable: true, view: window, button: 0, buttons: 1, clientX: rect.left + rect.width / 2, clientY: rect.top + rect.height / 2};
+  try { target.dispatchEvent(new PointerEvent('pointerdown', {...base, pointerType: 'mouse', pointerId: 1, isPrimary: true})); } catch (_) {}
+  target.dispatchEvent(new MouseEvent('mousedown', base));
+  try { target.dispatchEvent(new PointerEvent('pointerup', {...base, pointerType: 'mouse', pointerId: 1, isPrimary: true, buttons: 0})); } catch (_) {}
+  target.dispatchEvent(new MouseEvent('mouseup', {...base, buttons: 0}));
+  target.click();
+  return {ok: true, count: matches.length};
 }
 """
 
@@ -638,6 +676,8 @@ class CdpChannel:
             return state.page.evaluate(JS_MENU_ENUMERATE, arg)
         if js == "ask_chatgpt_menu_click_label":
             return state.page.evaluate(JS_MENU_CLICK_LABEL, arg)
+        if js == "ask_chatgpt_open_radix_trigger":
+            return state.page.evaluate(JS_OPEN_RADIX_TRIGGER, arg)
         if js == "ask_chatgpt_current_url":
             return state.page.evaluate(JS_CURRENT_URL)
         return state.page.evaluate(js, arg)

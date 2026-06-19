@@ -435,6 +435,9 @@ class Session:
                 progress_poll_interval_s=self.progress_poll_interval_s,
                 backend_check_interval_s=self.backend_check_interval_s,
             )
+            if draft:
+                tab.channel.reload(tab)
+                tab.channel.wait_for_load_state(tab, timeout_s=self.composer_wait_timeout_s)
             capture = capture_conversation(
                 tab,
                 ref,

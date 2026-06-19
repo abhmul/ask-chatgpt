@@ -171,6 +171,28 @@ def _scrape_attachment_fixture(tmp_path: Path, scenario: MockScenario, conversat
     return channel, transcript
 
 
+def test_mock_request_snapshots_can_require_reload_before_header_capture() -> None:
+    # Falsifiability: removing the mock reload gate makes the pre-reload header acquisition succeed unexpectedly.
+    conversation_id = "conv_mock_requires_reload"
+    scenario = MockScenario(
+        name="request_requires_reload",
+        requests_require_reload=True,
+        request_snapshots=(_attachment_request_snapshot(conversation_id),),
+    )
+    channel = MockChannel(scenario)
+    tab = channel.open_tab(f"https://chatgpt.com/c/{conversation_id}")
+    conv = ConversationRef(conversation_id, f"https://chatgpt.com/c/{conversation_id}")
+
+    with pytest.raises(BackendAuthUnavailableError):
+        acquire_backend_headers(tab, conv, timeout_s=0.0)
+
+    channel.reload(tab)
+    bundle = acquire_backend_headers(tab, conv, timeout_s=0.0)
+
+    assert set(bundle.for_single_fetch()) == set(HEADER_CANARIES)
+    assert channel.method_counts.get("reload", 0) == 1
+
+
 def test_large_current_branch_linearizes_iteratively_excludes_hidden_and_preserves_parts_math(tmp_path) -> None:
     raw = large_mapping_raw()
     raw["mapping"]["node_0005"]["message"].pop("create_time")

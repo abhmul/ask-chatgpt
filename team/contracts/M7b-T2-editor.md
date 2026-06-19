@@ -1,0 +1,58 @@
+# M7b-T2 — Single src editor: gap-1 live selectors + activation, gap-2 fresh-chat capture-auth (OFFLINE, mock-proven)
+
+You are the **single pi source editor** for team `ask-chatgpt-dev`, task **M7b-T2**. You inherit **nothing** but this file. Read it in full and execute exactly. Repo: `/home/abhmul/dev/ask-chatgpt`, branch **`rewrite-v2`**. **This is OFFLINE work — do NOT open a browser, do NOT touch CDP, send nothing.** You are the ONLY editor of `src/` this mission; make all source edits here.
+
+## Constraints (transcribed; obey all)
+- Branch **`rewrite-v2`** only. **NEVER** `git checkout`/move/commit the **`stable`** branch. **NEVER** run `uv tool install/upgrade/reinstall`. **NEVER** `git push`. **Do NOT `git commit`** — leave your changes in the working tree; the **manager** inspects the diff and commits. Do not stage/commit `cache/`, `issues/cdp-send-repro/controller.mjs`, or `human/`.
+- Acceptance command: **`uv run pytest`** (offline mock suite) must be **green** when you finish. Baseline before your work is **247 passed**; your additions should raise the count and keep all green. Use `uv run …` (project `.venv`); never `uv tool`.
+- Tests must be **falsifiable**: each new test must FAIL if the specific fix it guards is reverted. State, in a comment on each new test, what reverting would break.
+- Keep the change **minimal and correct** (Occam). Do not refactor unrelated code. Do not perturb the send/submit path (`channel.click` is used by `send.py:138,149` for the real-proven submit — do NOT change `click`/`JS_CLICK_VISIBLE_ENABLED`).
+
+## Read first (ground truth)
+- `team/evidence/reports/M7b-T1-selectors.md` — the LIVE-DOM discovery that drives gap-1 (already verified against the real composer).
+- `scripts/m7b_t1_discover.py` — its `JS_ACTIVATE_SELECTOR` constant is the **proven** Radix-open activation sequence (you will mirror it).
+- `src/ask_chatgpt/selectors/real.json`, `src/ask_chatgpt/selectors/__init__.py` (note `REQUIRED_SELECTOR_KEYS` + that `load_selector_map` returns ONLY those keys).
+- `src/ask_chatgpt/menus.py`, `src/ask_chatgpt/channels/cdp.py` (esp. `JS_MENU_ENUMERATE`, `JS_MENU_CLICK_LABEL`, `JS_CLICK_VISIBLE_ENABLED`, `evaluate` string-dispatch, `reload`), `src/ask_chatgpt/channels/mock.py` (esp. `evaluate` dispatch, `click`, `_menu_key_for_trigger`, `_active_menu_key`, `wait_for_request`, `reload`), `src/ask_chatgpt/channels/base.py`.
+- `src/ask_chatgpt/session.py` (esp. `_run_send_turn` — the draft branch `_learn_post_submit_ref` → `wait_for_completion` → `capture_conversation`), `src/ask_chatgpt/capture.py` (`acquire_backend_headers` waits for the page's own `GET /backend-api/conversation/<id>` then harvests headers).
+- Tests you will extend: `tests/test_menus.py`, `tests/test_selectors.py`, `tests/test_session_draft_loop.py`, `tests/test_capture.py`, `tests/test_cdp_channel.py`.
+
+---
+## GAP-1 — model/tool selection on the live composer (TWO fixes: selector + activation)
+**Discovery (verified live in T1):**
+- The model-picker trigger selector `composer-footer button[aria-haspopup="menu"]` matches **0** live elements (no more `composer-footer` ancestor). The correct live selector, matching **exactly 1** and opening the model Radix portal, is:
+  - `form button[aria-haspopup="menu"]:not([data-testid])`  — this is the model "pill"; its own text IS the current-model label (e.g. "Pro Extended"), so the label readout = the same element. **No new selector key is needed.**
+- The tools button `button[data-testid="composer-plus-btn"]` is **already correct** (matches 1, opens the tools portal with direct `menuitemradio` items "Web search"/"Deep research"/"Create image"). Leave `tools_button` unchanged.
+- **Root cause of the M7-T3 tools `TimeoutError` (critical):** the production menu-open path `menus.open_radix_menu` → `CdpChannel.click` → `JS_CLICK_VISIBLE_ENABLED` opens the trigger with a **bare `el.click()`**, which does **NOT** open a Radix dropdown (Radix opens on **pointerdown**). T1 only opened the menus by dispatching a full pointer sequence. So even the correctly-selected tools menu fails. Fix the **menu-open activation**.
+
+**Gap-1 edits:**
+1. `src/ask_chatgpt/selectors/real.json`: set `"model_picker_trigger_candidates": "form button[aria-haspopup=\"menu\"]:not([data-testid])"`. Leave all other keys (incl. `tools_button`) unchanged.
+2. Add a dedicated **Radix-open activation** through the existing `evaluate` string-dispatch seam (do NOT modify `click`):
+   - In `cdp.py`: add `JS_OPEN_RADIX_TRIGGER` mirroring `scripts/m7b_t1_discover.py`'s `JS_ACTIVATE_SELECTOR` exactly (scrollIntoView + focus, then dispatch on the matched visible+enabled element: `PointerEvent('pointerdown')`, `MouseEvent('mousedown')`, `PointerEvent('pointerup')`, `MouseEvent('mouseup')`, then `el.click()`; return `{ok:true,count}` or `{ok:false,reason}`). Wire a new `evaluate` branch: `if js == "ask_chatgpt_open_radix_trigger": return state.page.evaluate(JS_OPEN_RADIX_TRIGGER, arg)`.
+   - In `mock.py` `evaluate`: add a branch `if js == "ask_chatgpt_open_radix_trigger":` that mirrors `click()`'s menu behavior — require `_selector_present` & `_selector_enabled(advance=False)` (else return `{ok:false,...}`), then set `self._active_menu_key = self._menu_key_for_trigger(selector)` and return `{ok:true}`. Record the call (so tests can assert it).
+   - In `menus.py` `open_radix_menu`: replace `tab.channel.click(tab, trigger_selector)` with a call to `tab.channel.evaluate(tab, "ask_chatgpt_open_radix_trigger", arg={"selector": trigger_selector}, timeout_s=5.0)`; if the result is not `{ok:true}`, raise `SelectorNotFoundError("radix trigger did not open", details={"selector": trigger_selector})` (so `select_model`/`set_tools` fail closed exactly as today). Keep the subsequent `wait_for_selector(_RADIX_PORTAL_SELECTOR, ...)`.
+3. Make the menu-**item** selection robust too (Radix items also prefer pointer events; T1 did not exercise item-select, T3 will). In `cdp.py` `JS_MENU_CLICK_LABEL`, before the existing `target.click()` for the `select` action, dispatch the same pointerdown/mousedown/pointerup/mouseup sequence on the matched item (keep the existing `mouseover`/`mouseenter`/`focus` for `open_submenu`). Do not change the mock's `_menu_click_label`.
+4. **Falsifiable offline tests:**
+   - `tests/test_selectors.py`: assert `load_selector_map("real")["model_picker_trigger_candidates"] == 'form button[aria-haspopup="menu"]:not([data-testid])'` and that it is NOT the old broken `composer-footer …` value. (Reverting real.json fails this.)
+   - `tests/test_menus.py`: assert that `open_radix_menu`/`select_model` routes the open through the new `ask_chatgpt_open_radix_trigger` evaluate path (e.g. the mock records an `evaluate` call with that js key, or expose a counter) — i.e. the open no longer goes through `click`. (Reverting the activation to `click` fails this.) Keep ALL existing menu tests green (the mock's `_menu_key_for_trigger` already maps the new `aria-haspopup` selector to the "model" key, so scripted options still resolve).
+
+---
+## GAP-2 — fresh-chat capture-auth (`BACKEND_AUTH_UNAVAILABLE`)
+**Root cause (confirmed in code):** in `session._run_send_turn`, the **draft** branch learns `/c/<id>` from `window.location.href` (client-side SPA nav), then calls `capture_conversation` → `acquire_backend_headers`, which `wait_for_request`s the page's own `GET /backend-api/conversation/<id>` to harvest the auth/OAI headers. A **fresh, client-navigated** tab **never issues that GET** (the SPA already holds the conversation from the send/SSE stream), so it times out → `BackendAuthUnavailableError` → clipboard fallback → `HumanActionNeededError`. Existing-conversation capture works (M6) because opening/navigating to `/c/<id>` **does** trigger that authenticated GET.
+
+**Fix (reuse the M6-proven mechanism):** on the **draft** branch only, after the assistant turn is complete and **before** `capture_conversation`, force the SPA to issue the authenticated `GET /backend-api/conversation/<id>` by **reloading/navigating the tab to the learned `/c/<id>`**. Then `acquire_backend_headers` harvests headers exactly as in the existing-conv path and capture proceeds via `backend_api` (canonical fidelity).
+
+**Gap-2 edits:**
+1. In `session._run_send_turn`: when `draft` is true, after `wait_for_completion(...)` returns and **immediately before** `capture_conversation(...)`, trigger the backend GET. Implement as: `tab.channel.reload(tab)` then `tab.channel.wait_for_load_state(tab, timeout_s=self.composer_wait_timeout_s)` (reload reloads the current `/c/<id>` document, re-hydrating the SPA which issues the authenticated GET). Gate strictly on `draft` so existing-conv `ask` and `scrape`/`loop`-on-existing are unchanged. Do not reload before completion (never interrupt generation). If you prefer, factor a small private helper `self._prime_backend_headers_for_draft(tab, ref)`; keep it minimal.
+   - Note the `wait_for_request` buffer in `cdp.py` persists across `reload()` (it is not cleared), and `acquire_backend_headers` scans it from its cursor, so the post-reload GET is found. Do not change `cdp.wait_for_request`.
+   - Fail-closed: if after the reload capture still cannot harvest headers, the existing `capture_conversation` fallback path must still apply (do not introduce a hang). Keep `acquire_backend_headers`' 30s timeout or lower it if clearly safe — your call, but justify in a comment.
+2. **Falsifiable offline test** — model the real bug in the mock so the test fails if the reload is removed:
+   - Extend `MockScenario` with a flag e.g. `requests_require_reload: bool = False`, and a `reload()`-tracking bit on `MockChannel` (set when `reload` is called). In `MockChannel.wait_for_request`, when `scenario.requests_require_reload and not self._reloaded`, raise `TimeoutError` (modeling "no GET yet on a fresh chat"); once a `reload` has occurred, return the scripted `request_snapshots` as today.
+   - In `tests/test_session_draft_loop.py`: add a test where a **draft** `ask(None, PROMPT)` runs against a scenario with `requests_require_reload=True`. Assert it **succeeds** with `answer` captured via `capture_source == "backend_api"`, the transcript is written under the learned id, AND `channel.method_counts.get("reload", 0) >= 1` occurring **before** the successful backend fetch. (Reverting the session reload makes the gated mock never supply the GET → capture fails → test fails. This is the falsifiability guard.)
+   - Keep the existing draft tests green (they use `requests_require_reload=False` default, so they are unaffected — but the new session reload will add a `reload` call on the draft path; verify the existing draft happy-path test still passes, and if it asserts an exact `reload` count, update it intentionally).
+
+---
+## Output / acceptance for T2
+- All edits in the working tree (NOT committed). Run `uv run pytest` and ensure **all green** (report the exact pass count).
+- Write a short report `team/evidence/reports/M7b-T2-editor.md` with: `Status:` (DONE/PARTIAL); the exact files changed; the gap-1 selector + activation change summary; the gap-2 reload-before-capture change summary; the new test names + what reverting each would break (falsifiability); the final `uv run pytest` count; confirmation you did NOT open a browser, did NOT commit, branch is `rewrite-v2`, `stable` not moved, no `uv tool` used, nothing staged.
+- Do NOT commit. The manager verifies the diff + re-runs `uv run pytest` and commits.
+- If something in T1's findings turns out inconsistent (e.g., a selector that does not satisfy the loader), implement what is correct, and flag the discrepancy clearly in your report rather than forcing a wrong value.

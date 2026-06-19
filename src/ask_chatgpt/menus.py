@@ -7,12 +7,13 @@ from dataclasses import dataclass
 from typing import Any
 
 from ask_chatgpt.channels.base import TabLease
-from ask_chatgpt.errors import ModelSelectionNotReflectedError, ToolSelectionNotReflectedError
+from ask_chatgpt.errors import ModelSelectionNotReflectedError, SelectorNotFoundError, ToolSelectionNotReflectedError
 from ask_chatgpt.models import JsonValue, SelectorMap
 from ask_chatgpt.send import _monotonic, _sleep_until, normalize_prompt
 
 _MENU_ENUMERATE_KEY = "ask_chatgpt_menu_enumerate"
 _MENU_CLICK_LABEL_KEY = "ask_chatgpt_menu_click_label"
+_OPEN_RADIX_TRIGGER_KEY = "ask_chatgpt_open_radix_trigger"
 _RADIX_PORTAL_SELECTOR = "[data-radix-popper-content-wrapper]"
 _FORBIDDEN_SUBMENUS = {normalize_prompt("Recent files"), normalize_prompt("Projects")}
 _MODEL_LABEL_ATTEMPTS = 6
@@ -36,7 +37,17 @@ class SelectionResult:
 
 
 def open_radix_menu(tab: TabLease, trigger_selector: str) -> None:
-    tab.channel.click(tab, trigger_selector)
+    result = tab.channel.evaluate(
+        tab,
+        _OPEN_RADIX_TRIGGER_KEY,
+        arg={"selector": trigger_selector},
+        timeout_s=5.0,
+    )
+    if not _ok_result(result):
+        raise SelectorNotFoundError(
+            "radix trigger did not open",
+            details={"selector": trigger_selector},
+        )
     tab.channel.wait_for_selector(tab, _RADIX_PORTAL_SELECTOR, state="visible", timeout_s=5.0)
 
 

@@ -608,6 +608,62 @@ def test_cdp_click_filters_visible_enabled_and_reports_missing_selector() -> Non
     assert exc_info.value.details["selector"] == selector
 
 
+def test_cdp_open_radix_trigger_dispatches_pointer_sequence_through_evaluate_key() -> None:
+    # Falsifiability: removing the CDP dispatch branch or pointer sequence makes the evaluated JS/token assertions fail.
+    from ask_chatgpt.channels.cdp import CdpChannel
+
+    context = FakeContext()
+    browser = FakeBrowser(context)
+    playwright = FakePlaywright(browser)
+    channel = CdpChannel(playwright_factory=lambda: playwright)
+    channel.attach()
+    tab = channel.open_tab("https://chatgpt.com/c/conv_actions")
+    page = context.pages_created[0]
+    selector = 'form button[aria-haspopup="menu"]:not([data-testid])'
+
+    result = channel.evaluate(tab, "ask_chatgpt_open_radix_trigger", arg={"selector": selector}, timeout_s=5.0)
+
+    open_js, open_arg = page.evaluate_calls[-1]
+    assert result == {"ok": True}
+    assert "querySelectorAll(a.selector)" in open_js
+    assert "scrollIntoView({block: 'center', inline: 'center'})" in open_js
+    assert "new PointerEvent('pointerdown'" in open_js
+    assert "new MouseEvent('mousedown'" in open_js
+    assert "new PointerEvent('pointerup'" in open_js
+    assert "new MouseEvent('mouseup'" in open_js
+    assert "target.click();" in open_js
+    assert open_arg == {"selector": selector}
+
+
+def test_cdp_menu_select_label_dispatches_pointer_events_before_click() -> None:
+    # Falsifiability: reverting JS_MENU_CLICK_LABEL to a bare target.click() removes these pointer-event tokens.
+    from ask_chatgpt.channels.cdp import CdpChannel
+
+    context = FakeContext()
+    browser = FakeBrowser(context)
+    playwright = FakePlaywright(browser)
+    channel = CdpChannel(playwright_factory=lambda: playwright)
+    channel.attach()
+    tab = channel.open_tab("https://chatgpt.com/c/conv_actions")
+    page = context.pages_created[0]
+
+    channel.evaluate(
+        tab,
+        "ask_chatgpt_menu_click_label",
+        arg={"label": "High", "role": "menuitemradio", "path": [], "action": "select"},
+        timeout_s=5.0,
+    )
+
+    menu_js, _menu_arg = page.evaluate_calls[-1]
+    assert "if (a.action === 'select')" in menu_js
+    assert "dispatchPointerActivation(target);" in menu_js
+    assert "new PointerEvent('pointerdown'" in menu_js
+    assert "new MouseEvent('mousedown'" in menu_js
+    assert "new PointerEvent('pointerup'" in menu_js
+    assert "new MouseEvent('mouseup'" in menu_js
+    assert "target.click();" in menu_js
+
+
 def test_cdp_action_methods_validate_own_open_tab_before_touching_page() -> None:
     from ask_chatgpt.channels.cdp import CdpChannel
 

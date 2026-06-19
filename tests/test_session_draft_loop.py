@@ -29,7 +29,7 @@ SELECTORS = {
     "stop_button": "button[data-testid=\"stop-button\"]",
     "send_button_unverified_no_input": "button[data-testid=\"send-button\"], #composer-submit-button, button[aria-label=\"Send prompt\"]",
     "radix_portal": "[data-radix-popper-content-wrapper]",
-    "model_picker_trigger_candidates": "composer-footer button[aria-haspopup=\"menu\"]",
+    "model_picker_trigger_candidates": "form button[aria-haspopup=\"menu\"]:not([data-testid])",
 }
 PROMPT = "MOCK_PROMPT_DRAFT_SEND_CANARY"
 ANSWER = "MOCK_ASSISTANT_DRAFT_SEND_CANARY"
@@ -94,6 +94,7 @@ def _draft_scenario(
     conversation_id: str = "learned-123",
     submit_turn: bool = True,
     current_url_sequence: tuple[str, ...] = (),
+    requests_require_reload: bool = False,
 ) -> MockScenario:
     baseline = TurnDomSnapshot(users=(), assistants=(), stop_visible=False, composer_visible=True, model_labels=())
     submitted = TurnDomSnapshot(
@@ -122,6 +123,7 @@ def _draft_scenario(
         turn_timeline=timeline,
         backend_timeline=(TimedBackendResponse(0.0, MockBackendResponse(200, _raw_conversation(conversation_id))),),
         request_snapshots=_request_snapshots(conversation_id),
+        requests_require_reload=requests_require_reload,
     )
 
 
@@ -159,6 +161,31 @@ def test_draft_ask_learns_server_conversation_id_and_writes_transcript_under_rea
     assert [turn.message_id for turn in transcript.turns] == ["user-draft-1", "assistant-draft-1"]
     assert all(turn.conversation_id == "learned-123" for turn in transcript.turns)
     assert (tmp_path / "conversations" / "learned-123" / "transcript.jsonl").is_file()
+
+
+def test_draft_ask_reloads_learned_chat_before_capture_when_backend_get_requires_reload(tmp_path) -> None:
+    # Falsifiability: removing the draft-path reload leaves the mock with no backend GET and capture cannot succeed.
+    clock = ScriptedClock()
+    channel = MockChannel(
+        _draft_scenario(requests_require_reload=True),
+        monotonic=clock.monotonic,
+        sleeper=clock.sleep,
+    )
+    session = _session(tmp_path, channel)
+
+    answer = session.ask(None, PROMPT)
+
+    assert answer.conversation_id == "learned-123"
+    assert answer.content_markdown == ANSWER
+    assert answer.capture_source == "backend_api"
+    transcript = Store(data_dir=tmp_path).load_transcript("learned-123")
+    assert [turn.message_id for turn in transcript.turns] == ["user-draft-1", "assistant-draft-1"]
+    assert (tmp_path / "conversations" / "learned-123" / "transcript.jsonl").is_file()
+    assert channel.method_counts.get("reload", 0) >= 1
+    methods = list(channel.call_order)
+    reload_index = methods.index("reload")
+    fetch_index = methods.index("fetch_in_page")
+    assert reload_index < fetch_index
 
 
 def test_draft_url_poll_tolerates_spa_navigation_latency(tmp_path) -> None:

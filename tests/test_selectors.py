@@ -43,9 +43,17 @@ def test_packaged_real_selector_map_loads_with_exact_required_keys() -> None:
     )
     assert selector_map["radix_portal"] == "[data-radix-popper-content-wrapper]"
     assert selector_map["model_picker_trigger_candidates"] == (
-        'composer-footer button[aria-haspopup="menu"]'
+        'form button[aria-haspopup="menu"]:not([data-testid])'
     )
     assert "model_picker_trigger" not in selector_map
+
+
+def test_real_model_picker_selector_uses_live_form_pill_not_legacy_composer_footer() -> None:
+    # Falsifiability: reverting real.json to the old composer-footer selector makes this fail.
+    selector_map = load_selector_map("real")
+
+    assert selector_map["model_picker_trigger_candidates"] == 'form button[aria-haspopup="menu"]:not([data-testid])'
+    assert selector_map["model_picker_trigger_candidates"] != 'composer-footer button[aria-haspopup="menu"]'
 
 
 @pytest.mark.parametrize("missing_key", REQUIRED_KEYS)

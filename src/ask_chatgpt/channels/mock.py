@@ -120,6 +120,7 @@ class MockScenario:
     turn_timeline: tuple[TimedTurnSnapshot, ...] = ()
     model_label_sequence: tuple[Sequence[str], ...] = ()
     request_snapshots: tuple[RequestSnapshot, ...] = ()
+    requests_require_reload: bool = False
     selector_presence: Mapping[str, bool] = field(default_factory=dict)
     selector_timeline: Mapping[str, tuple[TimedSelectorPresence, ...]] = field(default_factory=dict)
     selector_enabled: Mapping[str, bool] = field(default_factory=dict)
@@ -215,6 +216,7 @@ class MockChannel:
         self._tabs: dict[str, str] = {}
         self._composer_text: dict[str, str] = {}
         self._request_index = 0
+        self._reloaded_on_conversation = False
         self._used_header_fingerprints: set[str] = set()
         self._active_menu_key: str | None = None
         self._model_label_sequence_index = 0
@@ -294,6 +296,12 @@ class MockChannel:
     def reload(self, tab: TabLease) -> None:
         self._validate_tab(tab)
         self._raise_if_human_blocked()
+        # A backend conversation GET is only (re)issued when the page reloads while
+        # on a /c/<id> conversation URL. A fresh-chat pre-send idle reload reloads
+        # the new-chat root (no conversation) and must NOT expose the GET; only the
+        # post-id-learn reload of /c/<id> does (this is the gap-2 fix's signature).
+        if "/c/" in self._tabs.get(tab.tab_id, tab.url):
+            self._reloaded_on_conversation = True
         self._record("reload", tab=tab)
 
     def wait_for_load_state(self, tab: TabLease, *, timeout_s: float) -> None:
@@ -313,6 +321,7 @@ class MockChannel:
             "evaluate",
             tab=tab,
             js_hash=self._hash_text(js),
+            js_key=js if js.startswith("ask_chatgpt_") else None,
             has_arg=arg is not None,
             timeout_s=timeout_s,
         )
@@ -324,6 +333,8 @@ class MockChannel:
             return self._current_menu_options()
         if js == "ask_chatgpt_menu_click_label":
             return self._menu_click_label(arg)
+        if js == "ask_chatgpt_open_radix_trigger":
+            return self._open_radix_trigger(arg)
         if js == "ask_chatgpt_current_url":
             self.counters["current_url_reads"] += 1
             return self._current_url(tab)
@@ -407,6 +418,8 @@ class MockChannel:
         self._validate_tab(tab)
         self._record("wait_for_request", tab=tab, timeout_s=timeout_s)
         self.counters["header_acquisitions"] += 1
+        if self.scenario.requests_require_reload and not self._reloaded_on_conversation:
+            raise TimeoutError("mock request requires reload before capture")
         for index in range(self._request_index, len(self.scenario.request_snapshots)):
             request = self.scenario.request_snapshots[index]
             if predicate(request):
@@ -515,6 +528,15 @@ class MockChannel:
             return bool(sequence[min(index, len(sequence) - 1)])
         return self.scenario.selector_enabled.get(selector, True)
 
+    def _open_radix_trigger(self, arg: JsonValue | None) -> JsonValue:
+        if not isinstance(arg, Mapping):
+            return {"ok": False, "reason": "invalid_arg"}
+        selector = str(arg.get("selector") or "")
+        if not selector or not self._selector_present(selector) or not self._selector_enabled(selector, advance=False):
+            return {"ok": False, "reason": "no_visible_enabled_match", "count": 0}
+        self._active_menu_key = self._menu_key_for_trigger(selector)
+        return {"ok": True}
+
     def _send_button_state(self, arg: JsonValue | None) -> JsonValue:
         selector = str(arg.get("selector") or "") if isinstance(arg, Mapping) else ""
         visible = bool(selector) and self._selector_present(selector)
@@ -541,8 +563,13 @@ class MockChannel:
         if self._current_url_sequence_index < len(sequence):
             value = sequence[self._current_url_sequence_index]
             self._current_url_sequence_index += 1
-            return value
-        return self.scenario.current_url or self._tabs.get(tab.tab_id, tab.url)
+        else:
+            value = self.scenario.current_url or self._tabs.get(tab.tab_id, tab.url)
+        # Model SPA client-navigation: once the tab is observed on /c/<id>, the tab's
+        # URL is that conversation (so a later reload reloads the conversation page).
+        if "/c/" in value:
+            self._tabs[tab.tab_id] = value
+        return value
 
     def _next_model_label_sequence(self) -> tuple[str, ...] | None:
         sequence = self.scenario.model_label_sequence
