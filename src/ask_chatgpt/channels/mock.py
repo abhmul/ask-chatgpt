@@ -141,6 +141,7 @@ class MockScenario:
     disallow_global_enter: bool = False
     menu_options: Mapping[str, Sequence[Mapping[str, JsonValue]]] = field(default_factory=dict)
     menu_trigger_keys: Mapping[str, str] = field(default_factory=dict)
+    menu_closes_on_select: bool = False
     menu_reflected_model_labels: Mapping[str, Sequence[str]] = field(default_factory=dict)
     current_url: str | None = None
     current_url_sequence: tuple[str, ...] = ()
@@ -393,6 +394,8 @@ class MockChannel:
     def press(self, tab: TabLease, selector: str, key: str) -> None:
         self._validate_tab(tab)
         self._record("press", tab=tab, selector=selector, key=key)
+        if key == "Escape":
+            self._active_menu_key = None
         if self.scenario.disallow_global_enter and key == "Enter" and selector in {"body", "html", "document"}:
             raise RuntimeError("mock forbids global Enter submission")
 
@@ -634,6 +637,8 @@ class MockChannel:
         reflected = self.scenario.menu_reflected_model_labels.get(label)
         if reflected is not None:
             self._model_labels_override = tuple(str(item) for item in reflected)
+        if action == "select" and self.scenario.menu_closes_on_select:
+            self._active_menu_key = None
         return {"ok": True}
 
     def _scripted_fetch_response(

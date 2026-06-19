@@ -259,6 +259,29 @@ def test_set_tools_toggles_web_search_and_verifies_checked_state() -> None:
     assert [click["label"] for click in channel.menu_clicks] == ["Web search"]
 
 
+def test_set_tools_reopens_tools_menu_after_select_when_menu_closes() -> None:
+    channel = MockChannel(
+        MockScenario(
+            name="tool_menu_closes_on_select",
+            menu_options={"tools": (_option("Web search", "menuitem", checked=False),)},
+            menu_closes_on_select=True,
+        )
+    )
+
+    results = set_tools(_tab(channel), SELECTORS, ("Web search",))
+
+    # Falsifiability: reverting to the old immediate enumerate would see an empty portal after select and raise TOOL_SELECTION_NOT_REFLECTED instead of returning this result.
+    assert results[0].requested == "Web search"
+    assert results[0].reflected == "Web search"
+    assert results[0].verified is True
+    assert [click["label"] for click in channel.menu_clicks] == ["Web search"]
+    assert sum(
+        1
+        for call in channel.calls
+        if call.method == "evaluate" and call.details.get("js_key") == "ask_chatgpt_open_radix_trigger"
+    ) == 2
+
+
 def test_set_tools_clicked_tool_must_reflect_checked_state() -> None:
     channel = MockChannel(
         MockScenario(

@@ -136,10 +136,13 @@ def set_tools(
         return ()
     results: list[SelectionResult] = []
     try:
-        open_radix_menu(tab, selectors["tools_button"])
         for label in labels:
+            open_radix_menu(tab, selectors["tools_button"])
             selected = select_radix_label(tab, label)
-            reflected = _reflected_tool(tab, label)
+            try:
+                reflected = _reflected_tool_by_reopen(tab, selectors, label)
+            finally:
+                _close_radix_menu(tab)
             if reflected is None:
                 raise ToolSelectionNotReflectedError(
                     "requested tool was selected but not reflected",
@@ -286,12 +289,23 @@ def _sustained_model_labels(
     return last_labels
 
 
+def _reflected_tool_by_reopen(tab: TabLease, selectors: SelectorMap, label: str) -> str | None:
+    open_radix_menu(tab, selectors["tools_button"])
+    return _reflected_tool(tab, label)
+
+
+def _close_radix_menu(tab: TabLease) -> None:
+    try:
+        tab.channel.press(tab, "body", "Escape")
+    except Exception:  # noqa: BLE001 - best-effort cleanup must not mask selection failures.
+        return
+
+
 def _reflected_tool(tab: TabLease, label: str) -> str | None:
-    requested = normalize_prompt(label)
     matches = [
         option
-        for option in enumerate_radix_options(tab)
-        if not option.disabled and option.checked is True and normalize_prompt(option.label) == requested
+        for option in _enabled_matches(enumerate_radix_options(tab), normalize_prompt(label), role=None)
+        if option.checked is True
     ]
     if len(matches) == 1:
         return matches[0].label
