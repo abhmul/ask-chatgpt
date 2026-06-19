@@ -118,6 +118,7 @@ class MockScenario:
     download_responses: Mapping[str, MockBackendResponse] = field(default_factory=dict)
     backend_timeline: tuple[TimedBackendResponse, ...] = ()
     turn_timeline: tuple[TimedTurnSnapshot, ...] = ()
+    model_label_sequence: tuple[Sequence[str], ...] = ()
     request_snapshots: tuple[RequestSnapshot, ...] = ()
     selector_presence: Mapping[str, bool] = field(default_factory=dict)
     selector_timeline: Mapping[str, tuple[TimedSelectorPresence, ...]] = field(default_factory=dict)
@@ -213,6 +214,7 @@ class MockChannel:
         self._request_index = 0
         self._used_header_fingerprints: set[str] = set()
         self._active_menu_key: str | None = None
+        self._model_label_sequence_index = 0
         self._menu_options_by_key: dict[str, list[dict[str, JsonValue]]] = {
             key: [dict(option) for option in options]
             for key, options in self.scenario.menu_options.items()
@@ -377,6 +379,9 @@ class MockChannel:
         self._record("query_turns", tab=tab, selector_keys=tuple(sorted(selectors.keys())))
         self.counters["dom_polls"] += 1
         snapshot = self._current_turn_snapshot()
+        sequenced_labels = self._next_model_label_sequence()
+        if sequenced_labels is not None:
+            return replace(snapshot, model_labels=sequenced_labels)
         if self._model_labels_override is not None:
             return replace(snapshot, model_labels=self._model_labels_override)
         return snapshot
@@ -496,6 +501,14 @@ class MockChannel:
         if not self.scenario.turn_timeline:
             return _empty_turn_snapshot()
         return self._select_timed(self.scenario.turn_timeline).snapshot
+
+    def _next_model_label_sequence(self) -> tuple[str, ...] | None:
+        sequence = self.scenario.model_label_sequence
+        if not sequence:
+            return None
+        index = min(self._model_label_sequence_index, len(sequence) - 1)
+        self._model_label_sequence_index += 1
+        return tuple(str(label) for label in sequence[index])
 
     def _menu_key_for_trigger(self, selector: str) -> str | None:
         if selector in self.scenario.menu_trigger_keys:

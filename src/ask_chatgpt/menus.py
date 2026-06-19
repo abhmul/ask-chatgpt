@@ -9,12 +9,14 @@ from typing import Any
 from ask_chatgpt.channels.base import TabLease
 from ask_chatgpt.errors import ModelSelectionNotReflectedError, ToolSelectionNotReflectedError
 from ask_chatgpt.models import JsonValue, SelectorMap
-from ask_chatgpt.send import normalize_prompt
+from ask_chatgpt.send import _monotonic, _sleep_until, normalize_prompt
 
 _MENU_ENUMERATE_KEY = "ask_chatgpt_menu_enumerate"
 _MENU_CLICK_LABEL_KEY = "ask_chatgpt_menu_click_label"
 _RADIX_PORTAL_SELECTOR = "[data-radix-popper-content-wrapper]"
 _FORBIDDEN_SUBMENUS = {normalize_prompt("Recent files"), normalize_prompt("Projects")}
+_MODEL_LABEL_ATTEMPTS = 6
+_MODEL_LABEL_INTERVAL_S = 2.0
 
 
 @dataclass(frozen=True)
@@ -233,11 +235,7 @@ def _ok_result(result: object) -> bool:
 
 
 def _require_unambiguous_model_trigger(tab: TabLease, selectors: SelectorMap) -> None:
-    labels = tuple(
-        label
-        for label in tab.channel.query_turns(tab, selectors).model_labels
-        if normalize_prompt(label)
-    )
+    labels = _sustained_model_labels(tab, selectors, want=None)
     if len(labels) != 1:
         raise ModelSelectionNotReflectedError(
             "model picker trigger is absent or ambiguous",
@@ -246,12 +244,35 @@ def _require_unambiguous_model_trigger(tab: TabLease, selectors: SelectorMap) ->
 
 
 def _reflected_model(tab: TabLease, selectors: SelectorMap, label: str) -> str | None:
-    snapshot = tab.channel.query_turns(tab, selectors)
+    labels = _sustained_model_labels(tab, selectors, want=label)
     requested = normalize_prompt(label)
-    for candidate in snapshot.model_labels:
+    for candidate in labels:
         if normalize_prompt(candidate) == requested:
             return candidate
     return None
+
+
+def _sustained_model_labels(
+    tab: TabLease,
+    selectors: SelectorMap,
+    *,
+    want: str | None,
+    attempts: int = _MODEL_LABEL_ATTEMPTS,
+    interval_s: float = _MODEL_LABEL_INTERVAL_S,
+) -> tuple[str, ...]:
+    requested = normalize_prompt(want) if want is not None else None
+    last_labels: tuple[str, ...] = ()
+    for _attempt in range(max(1, int(attempts))):
+        snapshot = tab.channel.query_turns(tab, selectors)
+        labels = tuple(label for label in snapshot.model_labels if normalize_prompt(label))
+        last_labels = labels
+        if requested is not None:
+            if any(normalize_prompt(candidate) == requested for candidate in labels):
+                return labels
+        elif len(labels) == 1:
+            return labels
+        _sleep_until(tab, _monotonic(tab) + max(0.0, float(interval_s)))
+    return last_labels
 
 
 def _reflected_tool(tab: TabLease, label: str) -> str | None:

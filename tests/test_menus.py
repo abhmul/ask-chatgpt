@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 
 from ask_chatgpt.channels.base import TurnDomSnapshot
-from ask_chatgpt.channels.mock import MockChannel, MockScenario, TimedTurnSnapshot
+from ask_chatgpt.channels.mock import MockChannel, MockScenario, ScriptedClock, TimedTurnSnapshot
 from ask_chatgpt.errors import ModelSelectionNotReflectedError, ToolSelectionNotReflectedError
 from ask_chatgpt.menus import enumerate_radix_options, open_radix_menu, select_model, set_tools
 
@@ -115,12 +115,15 @@ def test_select_model_ambiguous_label_fails_without_menu_selection_or_send() -> 
 
 
 def test_select_model_not_reflected_after_click_fails_closed() -> None:
+    clock = ScriptedClock()
     channel = MockChannel(
         MockScenario(
             name="model_not_reflected",
             turn_timeline=(TimedTurnSnapshot(0.0, _snapshot()),),
             menu_options={"model": (_option("High"),)},
-        )
+        ),
+        monotonic=clock.monotonic,
+        sleeper=clock.sleep,
     )
 
     with pytest.raises(ModelSelectionNotReflectedError):
@@ -128,6 +131,67 @@ def test_select_model_not_reflected_after_click_fails_closed() -> None:
 
     assert [click["label"] for click in channel.menu_clicks] == ["High"]
     assert channel.method_counts.get("fill", 0) == 0
+
+
+def test_select_model_sustained_tolerates_transient_model_label() -> None:
+    clock = ScriptedClock()
+    channel = MockChannel(
+        MockScenario(
+            name="model_sustained_transient_then_reflected",
+            model_label_sequence=(("Medium",), ("Extra High",), ("Extra High",), ("High",)),
+            menu_options={"model": (_option("High"),)},
+        ),
+        monotonic=clock.monotonic,
+        sleeper=clock.sleep,
+    )
+
+    result = select_model(_tab(channel), SELECTORS, "High")
+
+    assert result.requested == "High"
+    assert result.reflected == "High"
+    assert result.verified is True
+    assert [click["label"] for click in channel.menu_clicks] == ["High"]
+    assert channel.method_counts["dom_polls"] >= 4
+
+
+def test_select_model_sustained_absence_fails_closed_after_multiple_samples() -> None:
+    clock = ScriptedClock()
+    channel = MockChannel(
+        MockScenario(
+            name="model_sustained_absence",
+            model_label_sequence=(("Medium",), ("Extra High",), ("Extra High",), ("Extra High",), ("Extra High",), ("Extra High",), ("Extra High",)),
+            menu_options={"model": (_option("High"),)},
+        ),
+        monotonic=clock.monotonic,
+        sleeper=clock.sleep,
+    )
+
+    with pytest.raises(ModelSelectionNotReflectedError):
+        select_model(_tab(channel), SELECTORS, "High")
+
+    assert [click["label"] for click in channel.menu_clicks] == ["High"]
+    assert channel.method_counts["dom_polls"] >= 7
+    assert channel.method_counts.get("fill", 0) == 0
+
+
+def test_select_model_trigger_tolerates_transient_then_unambiguous_label() -> None:
+    clock = ScriptedClock()
+    channel = MockChannel(
+        MockScenario(
+            name="model_trigger_transient_then_unambiguous",
+            model_label_sequence=((), ("Medium", "High"), ("Medium",), ("High",)),
+            menu_options={"model": (_option("High"),)},
+        ),
+        monotonic=clock.monotonic,
+        sleeper=clock.sleep,
+    )
+
+    result = select_model(_tab(channel), SELECTORS, "High")
+
+    assert result.verified is True
+    assert result.reflected == "High"
+    assert [click["label"] for click in channel.menu_clicks] == ["High"]
+    assert channel.method_counts["dom_polls"] >= 4
 
 
 def test_forbidden_recent_files_and_projects_submenus_are_listed_but_never_opened() -> None:
