@@ -88,7 +88,13 @@ def _request_snapshots(conversation_id: str, count: int = 6) -> tuple[RequestSna
     )
 
 
-def _draft_scenario(*, learned_url: str = "https://chatgpt.com/c/learned-123", submit_turn: bool = True) -> MockScenario:
+def _draft_scenario(
+    *,
+    learned_url: str = "https://chatgpt.com/c/learned-123",
+    conversation_id: str = "learned-123",
+    submit_turn: bool = True,
+    current_url_sequence: tuple[str, ...] = (),
+) -> MockScenario:
     baseline = TurnDomSnapshot(users=(), assistants=(), stop_visible=False, composer_visible=True, model_labels=())
     submitted = TurnDomSnapshot(
         users=(TurnDom("user-draft-1", "user", PROMPT),),
@@ -112,13 +118,20 @@ def _draft_scenario(*, learned_url: str = "https://chatgpt.com/c/learned-123", s
     return MockScenario(
         name="draft_send_happy",
         current_url=learned_url,
+        current_url_sequence=current_url_sequence,
         turn_timeline=timeline,
-        backend_timeline=(TimedBackendResponse(0.0, MockBackendResponse(200, _raw_conversation("learned-123"))),),
-        request_snapshots=_request_snapshots("learned-123"),
+        backend_timeline=(TimedBackendResponse(0.0, MockBackendResponse(200, _raw_conversation(conversation_id))),),
+        request_snapshots=_request_snapshots(conversation_id),
     )
 
 
-def _session(tmp_path, channel: MockChannel, *, send_verify_timeout_s: float = 2.0) -> Session:
+def _session(
+    tmp_path,
+    channel: MockChannel,
+    *,
+    send_verify_timeout_s: float = 2.0,
+    draft_url_learn_timeout_s: float = 2.0,
+) -> Session:
     return Session(
         data_dir=tmp_path,
         channel=channel,
@@ -127,6 +140,7 @@ def _session(tmp_path, channel: MockChannel, *, send_verify_timeout_s: float = 2
         composer_wait_timeout_s=1.0,
         progress_poll_interval_s=0.5,
         backend_check_interval_s=0.5,
+        draft_url_learn_timeout_s=draft_url_learn_timeout_s,
         activity_timeout_s=5.0,
     )
 
@@ -147,7 +161,33 @@ def test_draft_ask_learns_server_conversation_id_and_writes_transcript_under_rea
     assert (tmp_path / "conversations" / "learned-123" / "transcript.jsonl").is_file()
 
 
-def test_draft_ask_fails_closed_when_post_submit_url_has_no_conversation_id(tmp_path) -> None:
+def test_draft_url_poll_tolerates_spa_navigation_latency(tmp_path) -> None:
+    clock = ScriptedClock()
+    channel = MockChannel(
+        _draft_scenario(
+            learned_url="https://chatgpt.com/c/learned-xyz",
+            conversation_id="learned-xyz",
+            current_url_sequence=(
+                "https://chatgpt.com/",
+                "https://chatgpt.com/",
+                "https://chatgpt.com/c/learned-xyz",
+            ),
+        ),
+        monotonic=clock.monotonic,
+        sleeper=clock.sleep,
+    )
+    session = _session(tmp_path, channel)
+
+    answer = session.ask(None, PROMPT)
+
+    assert answer.conversation_id == "learned-xyz"
+    transcript = Store(data_dir=tmp_path).load_transcript("https://chatgpt.com/c/learned-xyz")
+    assert [turn.message_id for turn in transcript.turns] == ["user-draft-1", "assistant-draft-1"]
+    assert (tmp_path / "conversations" / "learned-xyz" / "transcript.jsonl").is_file()
+    assert channel.method_counts.get("current_url_reads", 0) >= 3
+
+
+def test_draft_url_poll_fails_closed_when_never_navigates(tmp_path) -> None:
     clock = ScriptedClock()
     channel = MockChannel(
         _draft_scenario(learned_url="https://chatgpt.com/"),
@@ -155,10 +195,16 @@ def test_draft_ask_fails_closed_when_post_submit_url_has_no_conversation_id(tmp_
         sleeper=clock.sleep,
     )
 
-    with pytest.raises(InternalError):
-        _session(tmp_path, channel).ask(None, PROMPT)
+    with pytest.raises(
+        InternalError,
+        match=r"post-submit URL did not navigate to /c/<id> within 1s",
+    ) as exc_info:
+        _session(tmp_path, channel, draft_url_learn_timeout_s=1.0).ask(None, PROMPT)
 
-    assert channel.method_counts.get("current_url_reads", 0) == 1
+    assert exc_info.value.details["saw_url"] is True
+    assert exc_info.value.details["attempts"] == channel.method_counts.get("current_url_reads", 0)
+    assert "https://chatgpt.com" not in str(exc_info.value)
+    assert channel.method_counts.get("current_url_reads", 0) > 1
     assert channel.method_counts.get("full_raw_fetches", 0) == 0
     assert not (tmp_path / "conversations").exists()
     assert not list(tmp_path.rglob("transcript.jsonl"))

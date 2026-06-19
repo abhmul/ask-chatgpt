@@ -38,6 +38,8 @@ from ask_chatgpt.models import (
 from ask_chatgpt.selectors import load_selector_map
 from ask_chatgpt.send import (
     SubmittedTurn,
+    _monotonic,
+    _sleep_until,
     fill_composer,
     read_turn_baseline,
     submit_composer,
@@ -47,6 +49,9 @@ from ask_chatgpt.send import (
     wait_for_idle_and_reload_if_needed,
 )
 from ask_chatgpt.store import Store
+
+
+_POST_SUBMIT_URL_POLL_INTERVAL_S = 0.5
 
 
 @dataclass
@@ -267,6 +272,7 @@ class Session:
         composer_wait_timeout_s: float = 20.0,
         progress_poll_interval_s: float = 2.0,
         backend_check_interval_s: float | None = None,
+        draft_url_learn_timeout_s: float = 15.0,
         strict_selectors: bool = True,
     ) -> None:
         self.cdp_endpoint = cdp_endpoint
@@ -283,6 +289,7 @@ class Session:
         self.composer_wait_timeout_s = composer_wait_timeout_s
         self.progress_poll_interval_s = progress_poll_interval_s
         self.backend_check_interval_s = backend_check_interval_s
+        self.draft_url_learn_timeout_s = draft_url_learn_timeout_s
         self.strict_selectors = strict_selectors
         monotonic, sleeper = _channel_timing(self._browser_channel)
         self.tab_pool = TabPool(self, max_tabs=max_tabs, monotonic=monotonic)
@@ -455,25 +462,37 @@ class Session:
         return answer, ref
 
     def _learn_post_submit_ref(self, tab: TabLease, draft_ref: ConversationRef) -> ConversationRef:
-        value = tab.channel.evaluate(tab, "ask_chatgpt_current_url", timeout_s=5.0)
-        if not isinstance(value, str):
-            raise InternalError("post-submit URL did not expose a conversation id")
-        parsed = parse_conversation_address(value)
-        if parsed is None or parsed.conversation_id is None:
-            raise InternalError("post-submit URL did not contain /c/<conversation_id>")
-        if draft_ref.project_id is not None and parsed.project_id != draft_ref.project_id:
-            raise InternalError("post-submit URL did not preserve the draft project")
-        return ConversationRef(
-            conversation_id=parsed.conversation_id,
-            url=conversation_url(parsed),
-            project_id=parsed.project_id,
-            title=draft_ref.title,
-            current_node=parsed.current_node,
-            default_model_slug=parsed.default_model_slug,
-            created_at=draft_ref.created_at,
-            updated_at=draft_ref.updated_at,
-            is_draft=False,
-        )
+        timeout_s = max(0.0, float(self.draft_url_learn_timeout_s))
+        deadline = _monotonic(tab) + timeout_s
+        attempts = 0
+        saw_url = False
+        while True:
+            value = tab.channel.evaluate(tab, "ask_chatgpt_current_url", timeout_s=5.0)
+            attempts += 1
+            parsed = None
+            if isinstance(value, str):
+                saw_url = saw_url or bool(value)
+                parsed = parse_conversation_address(value)
+            if parsed is not None and parsed.conversation_id is not None:
+                if draft_ref.project_id is not None and parsed.project_id != draft_ref.project_id:
+                    raise InternalError("post-submit URL did not preserve the draft project")
+                return ConversationRef(
+                    conversation_id=parsed.conversation_id,
+                    url=conversation_url(parsed),
+                    project_id=parsed.project_id,
+                    title=draft_ref.title,
+                    current_node=parsed.current_node,
+                    default_model_slug=parsed.default_model_slug,
+                    created_at=draft_ref.created_at,
+                    updated_at=draft_ref.updated_at,
+                    is_draft=False,
+                )
+            if _monotonic(tab) >= deadline:
+                raise InternalError(
+                    f"post-submit URL did not navigate to /c/<id> within {timeout_s:g}s",
+                    details={"saw_url": saw_url, "attempts": attempts},
+                )
+            _sleep_until(tab, min(deadline, _monotonic(tab) + _POST_SUBMIT_URL_POLL_INTERVAL_S))
 
     def scrape(
         self,

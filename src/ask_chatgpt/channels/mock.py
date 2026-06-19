@@ -142,6 +142,7 @@ class MockScenario:
     menu_trigger_keys: Mapping[str, str] = field(default_factory=dict)
     menu_reflected_model_labels: Mapping[str, Sequence[str]] = field(default_factory=dict)
     current_url: str | None = None
+    current_url_sequence: tuple[str, ...] = ()
     private_page_canary: str = "MOCK_PRIVATE_PAGE_CANARY_DO_NOT_LEAK"
 
 
@@ -217,6 +218,7 @@ class MockChannel:
         self._used_header_fingerprints: set[str] = set()
         self._active_menu_key: str | None = None
         self._model_label_sequence_index = 0
+        self._current_url_sequence_index = 0
         self._selector_enabled_indexes: Counter[str] = Counter()
         self._selector_enabled_last: dict[str, bool] = {}
         self._menu_options_by_key: dict[str, list[dict[str, JsonValue]]] = {
@@ -324,7 +326,7 @@ class MockChannel:
             return self._menu_click_label(arg)
         if js == "ask_chatgpt_current_url":
             self.counters["current_url_reads"] += 1
-            return self.scenario.current_url or self._tabs.get(tab.tab_id, tab.url)
+            return self._current_url(tab)
         if js in self.scenario.evaluations:
             return self.scenario.evaluations[js]
         return arg
@@ -533,6 +535,14 @@ class MockChannel:
         if not self.scenario.turn_timeline:
             return _empty_turn_snapshot()
         return self._select_timed(self.scenario.turn_timeline).snapshot
+
+    def _current_url(self, tab: TabLease) -> str:
+        sequence = self.scenario.current_url_sequence
+        if self._current_url_sequence_index < len(sequence):
+            value = sequence[self._current_url_sequence_index]
+            self._current_url_sequence_index += 1
+            return value
+        return self.scenario.current_url or self._tabs.get(tab.tab_id, tab.url)
 
     def _next_model_label_sequence(self) -> tuple[str, ...] | None:
         sequence = self.scenario.model_label_sequence
