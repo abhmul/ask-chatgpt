@@ -252,29 +252,21 @@ def _wait_for_enabled_send_button(
     interval_s: float,
 ) -> None:
     deadline = _monotonic(tab) + max(0.0, float(timeout_s))
-    last_error: BaseException | None = None
     visible = False
     enabled = False
     while True:
-        try:
-            tab.channel.wait_for_selector(tab, selector, state="visible", timeout_s=0.0)
-            visible = True
-            enabled = _send_button_visible_enabled(tab, selector)
-            if enabled:
-                return
-        except SelectorNotFoundError as exc:
-            last_error = exc
-            visible = False
-            enabled = False
+        visible, enabled = _send_button_visible_enabled(tab, selector)
+        if visible and enabled:
+            return
         if _monotonic(tab) >= deadline:
             raise SelectorNotFoundError(
                 "send button did not become visible and enabled",
                 details={"selector": selector, "visible": visible, "enabled": enabled},
-            ) from last_error
+            )
         _sleep_until(tab, min(deadline, _monotonic(tab) + max(0.0, float(interval_s))))
 
 
-def _send_button_visible_enabled(tab: TabLease, selector: str) -> bool:
+def _send_button_visible_enabled(tab: TabLease, selector: str) -> tuple[bool, bool]:
     state = tab.channel.evaluate(
         tab,
         _SEND_BUTTON_STATE_KEY,
@@ -282,10 +274,11 @@ def _send_button_visible_enabled(tab: TabLease, selector: str) -> bool:
         timeout_s=0.0,
     )
     if not isinstance(state, Mapping):
-        return False
-    return state.get("visible_enabled") is True or (
-        state.get("visible") is True and state.get("enabled") is True
-    )
+        return False, False
+    visible_enabled = state.get("visible_enabled") is True
+    visible = state.get("visible") is True or visible_enabled
+    enabled = state.get("enabled") is True or visible_enabled
+    return visible, enabled
 
 
 def _monotonic(tab: TabLease) -> float:

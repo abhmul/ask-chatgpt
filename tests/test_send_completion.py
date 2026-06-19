@@ -309,7 +309,6 @@ def test_submit_waits_for_enabled_send_button() -> None:
     submit_composer(tab, SELECTORS)
 
     assert mock.method_counts["click"] == 1
-    assert mock.method_counts["wait_for_selector"] >= 3
     assert mock.method_counts["evaluate"] >= 3
     assert clock.monotonic() > 0.0
 
@@ -332,7 +331,7 @@ def test_submit_fails_closed_if_send_button_never_enables() -> None:
         submit_composer(tab, SELECTORS)
 
     assert excinfo.value.code == "SELECTOR_NOT_FOUND"
-    assert mock.method_counts["wait_for_selector"] > 1
+    assert mock.method_counts["evaluate"] > 1
     assert mock.method_counts.get("click", 0) == 0
     assert clock.monotonic() >= 2.0
 
