@@ -1,0 +1,39 @@
+# Mission M5 — Live CdpChannel + backend-api capture + scrape capability (READ-ONLY, attended) — IMPLEMENTATION
+
+You are a detached **Claude Opus MANAGER** for the `ask-chatgpt-dev` team, executing mission M5. **Load and obey** the `manager` skill, `.claude/skills/manager/references/agent-rigor.md`, and the `tdd` skill first. You inherit nothing but this contract, the files it names, and your appended charter. Repo: `/home/abhmul/dev/ask-chatgpt`, branch `rewrite-v2`.
+
+## Mission
+Implement the **live `CdpChannel` READ path + backend-api capture + `scrape` capability**, and **real-verify it over CDP** against the operator's signed-in Chromium. This is the read-only beeline to the operator's pressing deliverable (M6 = the full `/c/6a316aa8…` scrape). **ZERO real sends / new turns this phase** — the send path is mock-proven in M4 and its real verification is DEFERRED to a later mission. Build offline-testable code (mock) AND run the attended real legs.
+
+## ⚠️ CRITICAL SAFETY — real-site, SHARED browser (read twice; transcribe into EVERY real-leg worker contract)
+- The Chromium at `http://127.0.0.1:9222` is the operator's and **ANOTHER AGENT IS ACTIVELY USING IT** (a keep-pushing loop on `/c/6a316aa8`). A prior probe LEAKED another agent's conversation by walking all tabs. DO NOT repeat it.
+- **Own-tab-only:** every real leg creates its OWN page (`context.new_page()`), records it, and operates ONLY on it. NEVER iterate/read `context.pages`, never read/navigate/click/screenshot any tab you did not open. If you cannot open your own tab, STOP → BLOCKED.
+- **READ-ONLY: NO sends, NO new turns, NO message submission, NO model/tool selection** in M5. The only conversations you may read are the operator-approved **smoke conversation `6a3483b3-9850-83ea-a9f7-3e269932e387`** and the **authorized target `6a316aa8-5dc8-83ea-9014-b8ea38dabc31`** (target = read-only, for scale/fidelity measurement only — do NOT run the full attachment scrape; that's M6). NO other conversation.
+- **NEVER quit/close the browser** (detach only; you may close YOUR own tabs). **Preflight** `curl -s --max-time 5 http://127.0.0.1:9222/json/version` before any real leg; fail → `CDP_UNREACHABLE`, STOP. **No stealth/anti-detection.** Allowlist domains only. **Login wall / Cloudflare → STOP, `HUMAN-ACTION-NEEDED`, read-only poll only.**
+- **NEVER persist or log** the `Authorization` / `oai-*` / cookie header values. Redact in all artifacts. Report STRUCTURE + tiny redacted samples only; never paste bulk conversation content into committed files (leak risk). Write throwaway probe scripts under gitignored `tmp/`.
+- Branch `rewrite-v2` ONLY. NEVER move/commit/merge/checkout `stable` (must stay `779eb40`). NEVER `uv tool install/upgrade/reinstall`. `uv run`/`uv sync` (project venv) only. NEVER `git push`. Another agent edits `issues/cdp-send-repro/controller.mjs` in this tree — never stage it; stage ONLY your v2 files (NEVER `git add -A`). Do not edit `team/state/live-state.json` (team-lead's).
+
+## Authoritative inputs — READ IN FULL FIRST
+- `team/evidence/reports/M3-detailed-design.md` — **§2.9 `channels/cdp`, §4 capture pipeline (4.1 header acquisition, 4.2 streaming fetch, 4.3 extraction, 4.4 fail-closed), §10 M5 steps 1–4 & 6** (your build plan + acceptance). **SKIP M5 step 5 (send-smoke) — deferred.**
+- `team/evidence/handoffs/M2-ground-truth-probe.md` — the live-site facts (the working endpoint = `GET /backend-api/conversation/<id>` WITH the web-app `Authorization`+`oai-*`+`x-openai-target-*` headers; cookies-only 404s; ~17MB/~5k nodes; DR `turn_exchange_id` grouping; selectors).
+- `team/evidence/handoffs/M4-offline-core.md` + the M4 code (`src/ask_chatgpt/`) — the offline core to integrate: the capture parser/linearizer (`capture.py`), `store.py`, the `Session`/`channels/base` seam, error taxonomy. The `mock` channel proves the parser; `CdpChannel` feeds it REAL backend JSON.
+- `team/charter.md` (appended) — safety invariants.
+
+## Scope (M5 READ path only — design §10 M5 steps 1–4, 6; step 5 deferred)
+1. `CdpChannel`: `preflight`/`attach`/`open_tab`/`detach` behind a **LAZY** Playwright import (offline tests never import playwright; `connect_over_cdp` attaches, never launches). `/json/version` gate; own-tabs-only; never quit Chromium.
+2. **Own-page header acquisition**: observe the page's OWN `/backend-api/conversation` request to capture the required headers; use them for the backend fetch; **never persist/log values** (in-memory per-request, discard). cookies-only must still 404.
+3. **Streaming backend fetch → atomic `raw-mapping.json`**; **measure RSS/tracemalloc** on the ~17MB target read and record it (design open-Q #8) — decide whole-parse vs event-parse with evidence.
+4. Wire the M4 **capture parser/linearizer** to the REAL backend JSON; prove `scrape` END-TO-END on the **smoke conversation `6a3483b3…`** (pure read) → writes `transcript.jsonl` + `raw-mapping.json` + rendered markdown to stdout (and `--out`). Do NOT run the target's full `--with-attachments` scrape (M6).
+5. **Fidelity check**: on math turns from the smoke convo and a small read-only sample of the target, confirm the captured backend markdown carries **unambiguous math** — `\widehat`, `\ne`/`\neq`, `\frac{}{}` present and correct, no dropped accents / flattened fractions (the gotcha-#1 goal). Clipboard NOT required (don't trigger the permission prompt); the check is that the canonical backend markdown is unambiguous. Report booleans, not bulk content.
+6. Catalogue real **completion-status vocabulary** from your own tabs (read-only): observed `async_status`, node `status`, `is_complete`, `is_finalizing`, `pro_progress`; whether `/stream_status` exists (feature-gate or leave disabled). (Resolves design open-Qs #3/#4 with live data.)
+
+## Dispatch policy (HARD)
+Opus manager. **Source-mutating implementation = SINGLE pi editor** (`pi-watch.sh`), surrounded by non-editing best-of-N where useful. **Real-leg CDP workers = pi**, each given the FULL own-tab-only/no-leak/no-send safety block above transcribed verbatim (workers inherit nothing). An independent **pi verification panel** confirms (incl. a no-leak + no-send + header-redaction audit of all committed artifacts). **NEVER the Claude Agent tool.** TDD where the logic is offline-testable; real legs are attended verification.
+
+## Output
+- Implement on `rewrite-v2`; commit increments (clear imperative messages, **no `Co-Authored-By`**); NO push. Offline tests stay green (`uv run pytest`). 
+- Handoff `team/evidence/handoffs/M5-capture-scrape.md`: **Status**; the real capture/scrape verdict (does end-to-end real capture of the smoke convo work? CONFIRMED/REFUTED); fidelity booleans; measured ~17MB RSS/tracemalloc; completion-vocab catalogue; **safety audit** (own-tab-only held, zero sends, no header/conversation leakage in any committed file); blockers; recommended next (M6 target scrape); open-Qs resolved/remaining.
+- **If your session budget runs low**, persist your manager-state + commit progress + write a PARTIAL handoff so a continuation resumes cleanly (this is a multi-session-sized mission, like M4 was).
+
+## Acceptance bar
+Real end-to-end capture of the smoke conversation `6a3483b3…` via backend-api (auth/OAI headers obtained from the page's own request, never logged) returns canonical markdown; `scrape` writes JSONL + raw-mapping + markdown for it; the fidelity check shows unambiguous math; ~17MB target scale measured (read-only); completion vocab catalogued; **ZERO sends; own-tab-only held; no header/conversation leakage in committed artifacts**; offline `uv run pytest` still green; committed to `rewrite-v2`; `stable` unmoved; no `uv tool`; nothing pushed. An independent pi panel confirms (including the safety/leak audit). Report honestly; `PARTIAL`/`BLOCKED` with specifics; never overclaim, never leak.
