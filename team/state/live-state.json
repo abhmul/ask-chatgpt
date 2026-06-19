@@ -82,13 +82,23 @@
       "notes": "Opus manager. General label-driven model + tools (validated: Pro Extended, Deep Research) via Radix portal enumeration (model picker has no stable test-id). keep-pushing loop (persistent session, verify each turn). tab pool (lazy-open, idle-evict, LRU) + adaptive send-rate (backoff + politeness floor). Adversarially review any GPT-facing prompt."
     },
     {
+      "id": "M7b",
+      "title": "Close M7 real-site gaps: live model/tool selector rediscovery + fresh-chat capture-auth fix.",
+      "status": "completed",
+      "priority": 7.5,
+      "dependencies": ["M7"],
+      "node_type": "manager",
+      "run_handle": "DONE + VERIFIED 2026-06-19 (Opus MANAGER, block-and-complete in one turn). BOTH gaps CLOSED. Commits 1ea867a + 90281f3 + cc14d91 on rewrite-v2; lead/manager re-ran uv run pytest = 254 passed; stable 779eb40 unmoved; 1 real send total (PONG smoke to fresh throwaway /c/6a3591ae..., target 6a316aa8 untouched), <=4 cap respected. GAP-1 (model+tools selection): old model selector composer-footer matched 0 -> live selector 'form button[aria-haspopup=\"menu\"]:not([data-testid])' (model pill = readout); Radix menus open on POINTERDOWN not bare click (root cause of M7-T3 tools TimeoutError) -> dedicated ask_chatgpt_open_radix_trigger pointer-activation; tools menu CLOSES on select -> set_tools re-opens to read aria-checked. Real-verified live: model Pro Extended->High verified+12s-sustained+restored; tools Web search verified=True (0 sends). GAP-2 (fresh-chat capture-auth): fresh client-navigated chat never issues GET /backend-api/conversation/<id> so headers can't be harvested -> session draft branch reloads /c/<id> after id-learn+completion before capture (M6-proven mechanism). Real-verified: PONG fresh-chat captured backend_api/canonical, all_proven. Falsifiability EMPIRICALLY proven (each fix reverted -> its guard test fails); manager caught+fixed a false-green in the editor's gap-2 mock model. Independent best-of-N audit: L1 leak/safety PASS, L2 correctness/falsifiability PASS. Handoff team/evidence/handoffs/M7b-gaps.md. [prior: claude-watch.sh task bbds4321p, contract team/contracts/M7b-close-gaps.md]",
+      "notes": "DONE. Both M7 real-site gaps closed + live-verified + independently audited. M8 unblocked. Non-blocking M8 notes (from L2 audit): gap-2 offline gate uses substring /c/ (source proves ordering vs completion); live coverage = 1 model tier + 1 tool (Web search) — could exercise GPT-5.5 family submenu + Deep research; composer-chip button[aria-label=\"Search, click to remove\"] is a fallback tool-reflection signal."
+    },
+    {
       "id": "M8",
       "title": "Independent best-of-N verification + re-issue VERIFICATION.md (terminal).",
       "status": "blocked",
       "priority": 8,
-      "dependencies": ["M6", "M7"],
+      "dependencies": ["M6", "M7", "M7b"],
       "node_type": "manager",
-      "notes": "Terminal Opus manager. Diverse verification panel (correctness / edge-cases / spec-conformance / adversarial-refutation / reproduction) over authoritative outputs; falsifiability + prompt-quality lens. Re-issue VERIFICATION.md honestly (NOT green-exit). Confirm all gotcha fixes hold."
+      "notes": "READY to dispatch (deps satisfied 2026-06-19: M6 done; M7 offline done+verified and its 2 deferred real-site gaps CLOSED by M7b; M7b done). Terminal Opus manager. Diverse verification panel (correctness / edge-cases / spec-conformance / adversarial-refutation / reproduction) over authoritative outputs; falsifiability + prompt-quality lens. Re-issue VERIFICATION.md honestly (NOT green-exit). Confirm all gotcha fixes hold. Fold in M7b non-blocking notes: explicit gap-2 reload-ordering assertion; live-exercise GPT-5.5 family submenu + Deep research; composer-chip fallback selector."
     }
   ],
   "artifacts": {
@@ -119,6 +129,7 @@
     "installed_tool_isolation": "2026-06-18: git rev-parse stable=779eb40 (unmoved); HEAD(rewrite-v2)=b875521; ask-chatgpt v0.0.1 isolated. Never move stable; never uv tool install/upgrade/reinstall.",
     "M1": "2026-06-18: commit b875521 on rewrite-v2; lead re-ran `uv run pytest` => 4 passed; archive/lib-v1/{ask_chatgpt,tests} present; fresh src/ask_chatgpt/ scaffold.",
     "M2": "2026-06-18: backend-api CONFIRMED-with-adjustment (auth/OAI headers required; ~17MB/~5k nodes; faithful math); selectors observed live; clipboard grant-only; projects deferred. Findings: team/evidence/handoffs/M2-ground-truth-probe.md.",
+    "M7b": "2026-06-19: both M7 real-site gaps CLOSED + live-verified + independently audited (L1 leak/safety PASS, L2 correctness/falsifiability PASS). HEAD(rewrite-v2)=cc14d91; uv run pytest=254; stable 779eb40 unmoved; 1 real send (fresh throwaway /c/6a3591ae...; target 6a316aa8 untouched). Gap-1: live model selector form button[aria-haspopup=menu]:not([data-testid]) + Radix pointerdown-activation + tools-reopen-to-read-checked. Gap-2: draft-branch reload /c/<id> before capture so the SPA issues the authenticated backend GET. Handoff: team/evidence/handoffs/M7b-gaps.md.",
     "dispatch_policy": "2026-06-18: operator set workers->pi-watch.sh, managers->claude-watch.sh opus, never Agent tool."
   },
   "resource_state": {
