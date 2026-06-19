@@ -22,7 +22,7 @@ from urllib.request import urlopen
 from ask_chatgpt.allowlist import Allowlist
 from ask_chatgpt.capture import REQUIRED_CAPTURE_HEADERS
 from ask_chatgpt.channels.base import FetchResult, RequestSnapshot, TabLease, TurnDom, TurnDomSnapshot
-from ask_chatgpt.errors import HumanActionNeededError
+from ask_chatgpt.errors import HumanActionNeededError, SelectorNotFoundError
 from ask_chatgpt.models import JsonValue, PreflightResult, SelectorMap
 
 
@@ -137,6 +137,56 @@ JS_QUERY_TURNS = """
     composer_visible: visible(selectors.composer),
     model_labels: labels
   };
+}
+"""
+
+JS_READ_COMPOSER_TEXT = """
+(a) => {
+  const c = document.querySelector(a.selector);
+  return c ? (c.innerText || c.textContent || c.value || '') : '';
+}
+"""
+
+JS_FILL_COMPOSER = """
+(a) => {
+  const c = document.querySelector(a.selector);
+  if (!c) return {ok: false, reason: 'selector_not_found'};
+  c.scrollIntoView({block: 'center'});
+  c.focus();
+  document.execCommand('selectAll');
+  document.execCommand('delete');
+  document.execCommand('insertText', false, a.text);
+  c.dispatchEvent(new InputEvent('input', {bubbles: true, inputType: 'insertText', data: a.text}));
+  return {ok: true};
+}
+"""
+
+JS_INSERT_TEXT = """
+(a) => {
+  const c = document.querySelector(a.selector);
+  if (!c) return {ok: false, reason: 'selector_not_found'};
+  c.scrollIntoView({block: 'center'});
+  c.focus();
+  document.execCommand('insertText', false, a.text);
+  c.dispatchEvent(new InputEvent('input', {bubbles: true, inputType: 'insertText', data: a.text}));
+  return {ok: true};
+}
+"""
+
+JS_CLICK_VISIBLE_ENABLED = """
+(a) => {
+  const visible = el => {
+    if (!el) return false;
+    const style = getComputedStyle(el);
+    const rect = el.getBoundingClientRect();
+    return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+  };
+  const enabled = el => !(el.disabled || el.getAttribute('aria-disabled') === 'true' || el.hasAttribute('disabled'));
+  const matches = Array.from(document.querySelectorAll(a.selector));
+  const target = matches.filter(visible).find(enabled);
+  if (!target) return {ok: false, reason: 'no_visible_enabled_match', count: matches.length};
+  target.click();
+  return {ok: true};
 }
 """
 
@@ -502,6 +552,8 @@ class CdpChannel:
             return state.page.evaluate(JS_KATEX_ANNOTATIONS)
         if js == "ask_chatgpt_capture_dom_text":
             return state.page.evaluate(JS_DOM_TEXT)
+        if js == "ask_chatgpt_send_read_composer_text":
+            return state.page.evaluate(JS_READ_COMPOSER_TEXT, arg)
         return state.page.evaluate(js, arg)
 
     def wait_for_selector(
@@ -516,24 +568,26 @@ class CdpChannel:
         tab_state.page.wait_for_selector(selector, state=state, timeout=int(float(timeout_s) * 1000))
 
     def fill(self, tab: TabLease, selector: str, text: str) -> None:
-        del tab, selector, text
-        raise HumanActionNeededError("CDP action/send path deferred to M7; M5 is read-only")
+        state = self._validate_tab_state(tab)
+        state.page.evaluate(JS_FILL_COMPOSER, {"selector": selector, "text": text})
 
     def insert_text(self, tab: TabLease, selector: str, text: str) -> None:
-        del tab, selector, text
-        raise HumanActionNeededError("CDP action/send path deferred to M7; M5 is read-only")
+        state = self._validate_tab_state(tab)
+        state.page.evaluate(JS_INSERT_TEXT, {"selector": selector, "text": text})
 
     def click(self, tab: TabLease, selector: str) -> None:
-        del tab, selector
-        raise HumanActionNeededError("CDP action/send path deferred to M7; M5 is read-only")
+        state = self._validate_tab_state(tab)
+        result = state.page.evaluate(JS_CLICK_VISIBLE_ENABLED, {"selector": selector})
+        if not isinstance(result, Mapping) or result.get("ok") is not True:
+            raise SelectorNotFoundError("selector had no visible enabled match", details={"selector": selector})
 
     def hover(self, tab: TabLease, selector: str) -> None:
-        del tab, selector
-        raise HumanActionNeededError("CDP action/send path deferred to M7; M5 is read-only")
+        state = self._validate_tab_state(tab)
+        state.page.hover(selector)
 
     def press(self, tab: TabLease, selector: str, key: str) -> None:
-        del tab, selector, key
-        raise HumanActionNeededError("CDP action/send path deferred to M7; M5 is read-only")
+        state = self._validate_tab_state(tab)
+        state.page.press(selector, key)
 
     def query_turns(self, tab: TabLease, selectors: SelectorMap) -> TurnDomSnapshot:
         state = self._validate_tab_state(tab)
@@ -659,8 +713,8 @@ class CdpChannel:
         )
 
     def upload_files(self, tab: TabLease, selector: str, paths: Sequence[Path]) -> None:
-        del tab, selector, paths
-        raise HumanActionNeededError("CDP action/send path deferred to M7; M5 is read-only")
+        state = self._validate_tab_state(tab)
+        state.page.set_input_files(selector, [str(path) for path in paths])
 
     def _start_playwright(self) -> Any:
         if self._playwright_factory is not None:

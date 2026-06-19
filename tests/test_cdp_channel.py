@@ -45,11 +45,16 @@ class FakePage:
         self.reload_calls: list[dict[str, object]] = []
         self.load_state_calls: list[tuple[str, dict[str, object]]] = []
         self.selector_calls: list[tuple[str, dict[str, object]]] = []
+        self.hover_calls: list[str] = []
+        self.press_calls: list[tuple[str, str]] = []
+        self.set_input_files_calls: list[tuple[str, list[str]]] = []
         self.close_calls: list[dict[str, object]] = []
         self.order: list[str] = []
         self.bindings: dict[str, object] = {}
         self.closed_bindings: list[str] = []
         self.evaluate_calls: list[tuple[str, object | None]] = []
+        self.composer_text = "fake composer text"
+        self.next_click_result: dict[str, object] = {"ok": True}
         self.next_stream_chunks: list[bytes] = [b'{"ok":true}']
         self.next_stream_meta: dict[str, object] = {"status": 200, "headers": {"content-type": "application/json", "set-cookie": "CANARY_SECRET"}}
         self.next_small_result: dict[str, object] = {
@@ -86,6 +91,18 @@ class FakePage:
         self.close_calls.append(dict(kwargs))
         self.order.append("page.close")
 
+    def hover(self, selector: str) -> None:
+        self.hover_calls.append(selector)
+        self.order.append("page.hover")
+
+    def press(self, selector: str, key: str) -> None:
+        self.press_calls.append((selector, key))
+        self.order.append("page.press")
+
+    def set_input_files(self, selector: str, paths: list[str]) -> None:
+        self.set_input_files_calls.append((selector, list(paths)))
+        self.order.append("page.set_input_files")
+
     def expose_binding(self, name: str, callback: object) -> FakeBindingHandle:
         self.bindings[name] = callback
         self.order.append(f"page.expose_binding:{name}")
@@ -111,6 +128,10 @@ class FakePage:
             }
         if expression == "arg => arg":
             return arg
+        if "document.querySelector(a.selector)" in expression and "innerText || c.textContent || c.value" in expression:
+            return self.composer_text
+        if "querySelectorAll(a.selector)" in expression and "getBoundingClientRect" in expression and ".click()" in expression:
+            return dict(self.next_click_result)
         if isinstance(arg, dict) and "bindingName" in arg:
             callback = self.bindings[str(arg["bindingName"])]
             seq = 0
@@ -500,24 +521,127 @@ def test_wait_for_request_uses_cheap_predicate_projects_headers_and_cdp_fallback
     assert "CANARY_SECRET" not in repr(deficient_snapshot)
 
 
-def test_cdp_action_methods_are_read_only_deferred() -> None:
+def test_cdp_fill_uses_exec_command_with_text_arg_and_readback_js() -> None:
+    from ask_chatgpt.channels.cdp import CdpChannel
+
+    context = FakeContext()
+    browser = FakeBrowser(context)
+    playwright = FakePlaywright(browser)
+    channel = CdpChannel(playwright_factory=lambda: playwright)
+    channel.attach()
+    tab = channel.open_tab("https://chatgpt.com/c/conv_actions")
+    page = context.pages_created[0]
+    text = "INLINE_GUARD_text_arg_only"
+
+    channel.fill(tab, "#prompt-textarea", text)
+    readback = channel.evaluate(tab, "ask_chatgpt_send_read_composer_text", arg={"selector": "#prompt-textarea"})
+
+    fill_js, fill_arg = page.evaluate_calls[-2]
+    read_js, read_arg = page.evaluate_calls[-1]
+    assert "execCommand('selectAll')" in fill_js
+    assert "execCommand('delete')" in fill_js
+    assert "execCommand('insertText'" in fill_js
+    assert "new InputEvent('input'" in fill_js
+    assert fill_arg == {"selector": "#prompt-textarea", "text": text}
+    assert text not in fill_js
+    assert "document.querySelector(a.selector)" in read_js
+    assert "innerText || c.textContent || c.value" in read_js
+    assert read_arg == {"selector": "#prompt-textarea"}
+    assert readback == "fake composer text"
+
+
+def test_cdp_insert_hover_press_and_upload_delegate_to_owned_page(tmp_path) -> None:
+    from ask_chatgpt.channels.cdp import CdpChannel
+
+    context = FakeContext()
+    browser = FakeBrowser(context)
+    playwright = FakePlaywright(browser)
+    channel = CdpChannel(playwright_factory=lambda: playwright)
+    channel.attach()
+    tab = channel.open_tab("https://chatgpt.com/c/conv_actions")
+    page = context.pages_created[0]
+
+    channel.insert_text(tab, "#prompt-textarea", "append me")
+    channel.hover(tab, "button.menu")
+    channel.press(tab, "#prompt-textarea", "Enter")
+    channel.upload_files(tab, "input[type=file]", [tmp_path / "a.txt", tmp_path / "b.txt"])
+
+    insert_js, insert_arg = page.evaluate_calls[-1]
+    assert "execCommand('insertText'" in insert_js
+    assert "execCommand('selectAll')" not in insert_js
+    assert "execCommand('delete')" not in insert_js
+    assert insert_arg == {"selector": "#prompt-textarea", "text": "append me"}
+    assert page.hover_calls == ["button.menu"]
+    assert page.press_calls == [("#prompt-textarea", "Enter")]
+    assert page.set_input_files_calls == [
+        ("input[type=file]", [str(tmp_path / "a.txt"), str(tmp_path / "b.txt")])
+    ]
+
+
+def test_cdp_click_filters_visible_enabled_and_reports_missing_selector() -> None:
+    from ask_chatgpt.channels.cdp import CdpChannel
+    from ask_chatgpt.errors import SelectorNotFoundError
+
+    context = FakeContext()
+    browser = FakeBrowser(context)
+    playwright = FakePlaywright(browser)
+    channel = CdpChannel(playwright_factory=lambda: playwright)
+    channel.attach()
+    tab = channel.open_tab("https://chatgpt.com/c/conv_actions")
+    page = context.pages_created[0]
+    selector = 'button[data-testid="send-button"], #composer-submit-button'
+
+    channel.click(tab, selector)
+
+    click_js, click_arg = page.evaluate_calls[-1]
+    assert "querySelectorAll(a.selector)" in click_js
+    assert "getComputedStyle" in click_js
+    assert "getBoundingClientRect" in click_js
+    assert "aria-disabled" in click_js
+    assert "hasAttribute('disabled')" in click_js
+    assert ".click()" in click_js
+    assert click_arg == {"selector": selector}
+
+    page.next_click_result = {"ok": False, "reason": "no enabled send button"}
+    with pytest.raises(SelectorNotFoundError) as exc_info:
+        channel.click(tab, selector)
+    assert exc_info.value.details["selector"] == selector
+
+
+def test_cdp_action_methods_validate_own_open_tab_before_touching_page() -> None:
+    from ask_chatgpt.channels.cdp import CdpChannel
+
+    context = FakeContext()
+    browser = FakeBrowser(context)
+    playwright = FakePlaywright(browser)
+    channel = CdpChannel(playwright_factory=lambda: playwright)
+    channel.attach()
+    tab = channel.open_tab("https://chatgpt.com/c/conv_actions")
+    channel.close_tab(tab)
+    foreign = TabLease("foreign-tab", "https://chatgpt.com/c/foreign", CdpChannel())
+
+    actions = [
+        lambda bad: channel.fill(bad, "#prompt-textarea", "text"),
+        lambda bad: channel.insert_text(bad, "#prompt-textarea", "text"),
+        lambda bad: channel.click(bad, "button"),
+        lambda bad: channel.hover(bad, "button"),
+        lambda bad: channel.press(bad, "#prompt-textarea", "Enter"),
+        lambda bad: channel.upload_files(bad, "input[type=file]", []),
+    ]
+    for action in actions:
+        with pytest.raises(ValueError, match="different channel"):
+            action(foreign)
+        with pytest.raises(ValueError, match="unknown or closed CDP tab"):
+            action(tab)
+
+
+def test_cdp_read_clipboard_still_requires_human_permission() -> None:
     from ask_chatgpt.channels.cdp import CdpChannel
     from ask_chatgpt.errors import HumanActionNeededError
 
     channel = CdpChannel()
     tab = TabLease("missing-tab", "https://chatgpt.com/", channel)
 
-    calls = [
-        lambda: channel.fill(tab, "textarea", "secret"),
-        lambda: channel.insert_text(tab, "textarea", "secret"),
-        lambda: channel.click(tab, "button"),
-        lambda: channel.hover(tab, "button"),
-        lambda: channel.press(tab, "body", "Enter"),
-        lambda: channel.upload_files(tab, "input", []),
-    ]
-    for call in calls:
-        with pytest.raises(HumanActionNeededError, match="M5 is read-only"):
-            call()
     with pytest.raises(HumanActionNeededError) as exc_info:
         channel.read_clipboard(tab)
     assert exc_info.value.details["reason"] == "clipboard_permission"
