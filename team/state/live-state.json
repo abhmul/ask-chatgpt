@@ -1,0 +1,150 @@
+{
+  "directive": "Rewrite the ask_chatgpt library from scratch in Python: archive v1, rebuild a Web-UI-mirroring CLI per docs/REWRITE-SPEC.md (approved 2026-06-18). Standing mission: develop & maintain ask-chatgpt (programmatic interaction with chatgpt.com via CDP-attached Chromium). Most-pressing deliverable: scrape https://chatgpt.com/c/6a316aa8-5dc8-83ea-9014-b8ea38dabc31 into a faithful transcript — built on the proper capture+transcript spine, not hacked. STATUS 2026-06-20: COMPLETE — M0-M9 done; rewrite verified (uv run pytest=268; VERIFICATION.md PASS offline core); scrape delivered to cache/conversations/6a316aa8-.../ (refreshed ~515 turns + 10 attachments); PR rewrite-v2->main opened for operator merge; team in MAINTENANCE (backlog + full handoff in team/state/RESUME.md).",
+  "spec": "docs/REWRITE-SPEC.md (full) + team/charter.md 'Rework spec' (worker-facing distillation). Supersedes docs/DESIGN-SPEC.md. M2 probe (2026-06-18) confirmed the design with one adjustment recorded below; fold the full M2-informed design into the spec after M3.",
+  "dispatch_policy": "Operator policy: WORKERS -> pi via .claude/skills/manager/references/launchers/parent-claude/pi-watch.sh; MANAGERS -> Claude Opus via parent-claude/claude-watch.sh; NEVER the Claude Agent tool. Contracts live under team/contracts/; handoffs/findings under team/evidence/handoffs/.",
+  "active_branch": "rewrite-v2 (off main). main holds the spec+project baseline; rewrite integrates back via operator-reserved merge after M8. main's RESUME.md signposts this.",
+  "mission_queue": [
+    {
+      "id": "M0",
+      "title": "Intake rework requirements via grill-me; distill into spec; populate mission queue.",
+      "status": "completed",
+      "priority": 0,
+      "dependencies": [],
+      "node_type": "manager",
+      "notes": "DONE 2026-06-18. Grill-me resolved 12 design branches; spec authored (docs/REWRITE-SPEC.md + charter); queue populated."
+    },
+    {
+      "id": "M1",
+      "title": "Archive v1 library + scaffold fresh Python package.",
+      "status": "completed",
+      "priority": 1,
+      "dependencies": [],
+      "node_type": "worker",
+      "notes": "DONE + VERIFIED 2026-06-18 (pi worker). Commit b875521 on rewrite-v2: v1 lib+tests archived to archive/lib-v1/ (history preserved); fresh minimal src/ask_chatgpt/ (__init__, cli) + falsifiable tests/test_smoke.py. Lead independently re-ran `uv run pytest` => 4 passed; archive/lib-v1 present; stable=779eb40 untouched; driver.py WIP preserved at stash@{1}. Handoff: team/evidence/handoffs/M1-archive-scaffold.md. (Junk stash@{0} 'interrupted M1 worker staged renames' from the stopped Agent-tool attempt can be dropped.)"
+    },
+    {
+      "id": "M2",
+      "title": "Attended ground-truth CDP probe — de-risk the backend-api/project/selector assumptions.",
+      "status": "completed",
+      "priority": 2,
+      "dependencies": [],
+      "node_type": "worker",
+      "notes": "DONE + VERIFIED 2026-06-18 (pi worker, own-tab-only/read-only/no-sends; safety held — no tracked changes, no commit, no leak). VERDICT: backend-api capture CONFIRMED with adjustment. Findings: team/evidence/handoffs/M2-ground-truth-probe.md. KEY: GET /backend-api/conversation/<id> with cookies/accept-only -> 404; with the web-app headers (Authorization bearer + oai-client-* + oai-device-id + oai-session-id + x-openai-target-path/route) -> 200, ~17MB, ~5k mapping nodes, faithful canonical markdown incl. \\widehat/\\frac/\\ne, \\(/\\[, md tables. DR/Pro turns = large turn_exchange_id groups (hidden thoughts/code/tool nodes + final visible assistant:text report); citations in metadata.content_references/citations/search_result_groups. Attachments via metadata.attachments / content_references[type=file] / content.assets.asset_pointer / aggregate_result (ids+pointers, no literal /files/ URLs seen). Completion signals: async_status / metadata.is_complete/is_finalizing/pro_progress / node status (consider /stream_status). Clipboard feasible only with grant. Selectors: composer #prompt-textarea (contenteditable), tools_button button[data-testid=composer-plus-btn], copy_button button[data-testid=copy-turn-action-button], turns [data-message-id][data-message-author-role], model picker label-driven (no stable test-id). NOTE: scrape target was ACTIVELY UPDATING (likely another agent's keep-pushing loop)."
+    },
+    {
+      "id": "M3",
+      "title": "Best-of-N detailed design (informed by M2 findings).",
+      "status": "completed",
+      "run_handle": "Opus MANAGER via claude-watch.sh (task bhoiuk63s). DONE + lead-smoke-checked 2026-06-18: 790-line design at team/evidence/reports/M3-detailed-design.md via best-of-N (5 lenses -> synth -> 3-panel verify [V1 PASS, V2 FAIL, V3 PASS-W-NOTES] -> 2 revisions; all 6 issues landed per revision log). Honors all M2 findings + 4 gotcha fixes + safety incl. repo/install isolation. No separate handoff file (STATUS at design-doc top). 10 open questions in design §12 — lead decisions recorded in M4 notes.",
+      "priority": 3,
+      "dependencies": ["M2"],
+      "node_type": "manager",
+      "notes": "READY — unblocked (M2 done). DISPATCH NEXT as the first OPUS MANAGER via claude-watch.sh. Non-editing best-of-N: parallel design lenses (library API + module structure; persistence/schema; capture+auth-header mechanism+completion; concurrency/tab-pool/rate; CLI/loop ergonomics) via pi-worker lenses + synthesis + independent verify. MUST consume team/evidence/handoffs/M2-ground-truth-probe.md (esp. the auth/OAI-header capture requirement — cookies-only 404s) + docs/REWRITE-SPEC.md. Output the concrete module/API/schema/capture design M4/M5 implement; lead folds it back into REWRITE-SPEC."
+    },
+    {
+      "id": "M4",
+      "title": "Phase-1 offline core (TDD, mock-proven).",
+      "status": "completed",
+      "run_handle": "DONE + VERIFIED 2026-06-18: HEAD 5312911; lead re-ran `uv run pytest` = 188 passed; offline core E1-E6 + 5-lens verify panel found+fixed 3 real defects (D-A gotcha#4 --out coupling, D-B clipboard auto-read vs Q6, D-C stale-assistant fallback) + self-caught DECISION-13 datetime fabrication; all 4 gotchas hold; playwright NOT reachable offline; stable 779eb40 unmoved. Handoff team/evidence/handoffs/M4-offline-core.md (DONE); report team/evidence/reports/M4-verification.md (PASS). [prior: Opus MANAGER via claude-watch.sh task brgq4frwr; contract team/contracts/M4-offline-core.md; implements team/evidence/reports/M3-detailed-design.md §10 M4 steps 1-6 (offline core, TDD, mock-proven); single-editor pi + pi verify panel; commits increments to rewrite-v2; handoff -> team/evidence/handoffs/M4-offline-core.md. Offline (no browser). STILL RUNNING since 15:22 (tmux claude-20260618-152254-594475-18044); committed E1 (7c1cdf3) + E2 store (b6d954c), 123 tests green, building E3+ (mock/capture/send/cli) + verify panel + handoff. Re-monitor task bwm8f10ff (claude-watch --watch, 7200s). NOTE: the first claude-watch 'exit 0' at ~1h was the watch-window elapsing, NOT true completion. If the manager session ends before E6+verify+handoff complete, dispatch a CONTINUATION manager (it resumes from team/state/M4-manager-state.json). Do NOT do git ops on rewrite-v2 while this manager is live (collision risk).",
+      "priority": 4,
+      "dependencies": ["M3"],
+      "node_type": "manager",
+      "notes": "Opus manager. Single-editor pi implementation surrounded by M3 design + independent pi verification. Build: library API skeleton (create/ask/scrape/history/fetch/status), per-conversation store (JSONL + index + attachments), mock channel, completion detection, error taxonomy (+PromptNotSubmittedError), eager-write + partial-salvage, stdout+--out. Full mock acceptance via `uv run pytest`; falsifiable tests; inspect artifacts not exit codes."
+    },
+    {
+      "id": "M5",
+      "title": "Backend-api capture + scrape + verified send over cdp.",
+      "status": "completed",
+      "run_handle": "DONE + VERIFIED-SAFE 2026-06-18 (lead-closed; manager exited pre-T6). Real backend-api capture + scrape CONFIRMED end-to-end (T3 commit 09eee7f): smoke 6a3483b3 (7 turns) + target 6a316aa8 read-only (481 turns/2.0M chars/6124 nodes/20MB, math \\widehat/\\ne/\\frac intact, mem ~354MB RSS). T2 CdpChannel built (5966814; 205 offline tests). Verify: V1 safety PASS + V2 falsifiability PASS + lead independent leak audit CLEAN (no tokens/conversation-content committed, redaction canary-proven, ZERO-send, own-tab-only); V3 acceptance lens completing (corroborated by working scrape). Handoff team/evidence/handoffs/M5-capture-scrape.md. M6 = target scrape WITH attachments (needs operator --data-dir + attachment-byte-route discovery). [prior: Opus MANAGER (claude-watch.sh), READ-ONLY-CAPTURE-FIRST scope (operator-confirmed): CdpChannel READ path + backend-api capture (auth/OAI headers from own-page request, NEVER logged) + scrape capability, real-verified OWN-TAB-ONLY over CDP; ZERO sends (send-smoke DEFERRED to after M6). Operator inputs: browser UP on :9222; smoke conversation 6a3483b3-9850-83ea-a9f7-3e269932e387 (read-only pipeline validation); target 6a316aa8 read-only for scale/fidelity. Contract team/contracts/M5-capture-scrape.md. ANOTHER AGENT active on the browser -> strict own-tab-only/no-leak.",
+      "priority": 5,
+      "dependencies": ["M4", "M2"],
+      "node_type": "manager",
+      "notes": "Opus manager. Attended cdp. Capture via backend-api: FIRST obtain the web-app auth/OAI headers from the page's own /backend-api/conversation request (or intercept the app's own response), then fetch/parse; cookies-only 404s; never persist/log the token; fail-closed to copy-button/annotation. Handle ~17MB/~5k-node conversations (stream to disk). scrape command. send-via-UI with new-turn verification + idle-reload (gotcha-4). Group DR internals by turn_exchange_id; linearize current branch + retain raw mapping."
+    },
+    {
+      "id": "M6",
+      "title": "Run the scrape of /c/6a316aa8... + verify fidelity (PRESSING DELIVERABLE).",
+      "status": "completed",
+      "run_handle": "DONE + VERIFIED 2026-06-18 (HEAD 839c670; lead re-ran uv run pytest=212). DELIVERABLE SHIPPED to gitignored cache/conversations/6a316aa8-.../: transcript 501 turns (transcript.md 2.1MB, target-assistant-export.md 2.1MB, transcript.jsonl, raw-mapping.json 21.6MB) MATH FIDELITY CONFIRMED (flattened-frac sig=0, literal U+2260=0, widehat/ne/frac present) + 10 attachment files (55MB). cache = default data-dir + acts as cache (history/export browser-free). Attachment route: file id -> GET /backend-api/files/<id>/download -> follow download_url (200 alone != success). 3-lens panel ALL PASS + lead independent leak audit CLEAN (no tokens/urls/file-ids/conversation committed; only MOCK test download_urls; cache content NOT tracked; ZERO sends; own-tab-only; stable 779eb40 unmoved). 125 code_execution outputs unsupported (no byte route). Handoff team/evidence/handoffs/M6-target-scrape.md. [prior: OPERATOR DECISION: scraped conversations live in a repo-local cache folder <repo>/cache/ (GITIGNORED, acts as a cache; history/export read from it without re-scrape). M6: make cache/ the default data-dir; scrape target 6a316aa8 WITH attachments into cache/ (transcript FIRST -> deliver, then attachments via byte-route discovery); confirm math fidelity; NEVER commit cache content. Capture/scrape PROVEN in M5. Attended, own-tab-only, ZERO sends. Contract team/contracts/M6-target-scrape.md.",
+      "priority": 6,
+      "dependencies": ["M5"],
+      "node_type": "worker",
+      "notes": "ATTENDED pi worker. scrape the long math conversation --with-attachments into the operator's chosen --data-dir; deliver JSONL + markdown export. Verify no-ambiguous-math (sample incl. a DR turn + heavy-math turn). NOTE: conversation is ~17MB/~5k nodes and may be actively updating (another agent's loop) — capture a clean snapshot; flag any in-progress final turn. This is the operator's most-pressing output."
+    },
+    {
+      "id": "M7",
+      "title": "Model/tools selection + keep-pushing loop + tab-pool/rate.",
+      "status": "in_progress",
+      "run_handle": "Opus MANAGER (claude-watch.sh), dispatched 2026-06-19 (operator: continue). Build OFFLINE first (menus Radix select/verify, TabPool, AdaptiveSendBudget, loop; mock-proven). Then MINIMAL real legs (attended, own-tab, FRESH throwaway chats ONLY, NOT the target/foreign tabs): real model/tool selection (NO send, sustained-read per model-label-transient); FIRST REAL SEND = one trivial smoke 'Reply with only the word: PONG' to a fresh chat (verify new-turn gotcha-4 + completion + capture); loop-verify 2 iters. Total real sends <=4. Human-paced (other agent shares the account). Contract team/contracts/M7-model-tools-loop.md. SESSION 1 stalled after T1a (manager wrongly dispatched-and-yielded; claude -p is single-shot, no re-invocation). T1a DONE+committed (cdp 9ee0897 + budget/tabpool a0d33b5; uv run pytest=224). Orphaned T1a worker killed. CONTINUATION dispatched 2026-06-19 with BLOCK-AND-COMPLETE rule (run T1b-T4 in ONE turn, block on each worker via pi-watch --wait-seconds, never yield). Remaining: T1b menus/draft-send/loop -> T2 offline verify -> T3 real legs (model/tool select + 1 PONG send-smoke + 2-iter loop, <=4 sends, fresh chats) -> T4 verify+handoff. OUTCOME (continuation b6o60dpni): PARTIAL + verified. Offline tool DONE (menus/draft-send/loop/tabpool/budget; lead re-ran uv run pytest=247). FIRST REAL SEND PROVEN: gotcha-4 passed 3x on the live site (new user turns appeared) + safe (2 sends total, fresh throwaway chats, target 6a316aa8 untouched, no leak, stable 779eb40 unmoved). T4 audit M7-scope=PASS. 2 REAL-SITE GAPS deferred: (1) fresh-chat capture-auth BACKEND_AUTH_UNAVAILABLE (in-page backend auth/OAI headers not harvestable on a NEW chat; M6 existing-conv capture works); (2) live model/tool selectors do not match the real composer (offline impl correct+mock-proven; needs real-DOM rediscovery like M2). Handoff team/evidence/handoffs/M7-model-tools-loop.md; evidence commit 522b2b6. Escalation to lead: pre-existing v1 real-responses tracked in archive/orchestration-v1/ (committed bf208d8 at team setup; archive is read-only/historical per charter).",
+      "priority": 7,
+      "dependencies": ["M5"],
+      "node_type": "manager",
+      "notes": "Opus manager. General label-driven model + tools (validated: Pro Extended, Deep Research) via Radix portal enumeration (model picker has no stable test-id). keep-pushing loop (persistent session, verify each turn). tab pool (lazy-open, idle-evict, LRU) + adaptive send-rate (backoff + politeness floor). Adversarially review any GPT-facing prompt."
+    },
+    {
+      "id": "M7b",
+      "title": "Close M7 real-site gaps: live model/tool selector rediscovery + fresh-chat capture-auth fix.",
+      "status": "completed",
+      "priority": 7.5,
+      "dependencies": ["M7"],
+      "node_type": "manager",
+      "run_handle": "DONE + VERIFIED 2026-06-19 (Opus MANAGER, block-and-complete in one turn). BOTH gaps CLOSED. Commits 1ea867a + 90281f3 + cc14d91 on rewrite-v2; lead/manager re-ran uv run pytest = 254 passed; stable 779eb40 unmoved; 1 real send total (PONG smoke to fresh throwaway /c/6a3591ae..., target 6a316aa8 untouched), <=4 cap respected. GAP-1 (model+tools selection): old model selector composer-footer matched 0 -> live selector 'form button[aria-haspopup=\"menu\"]:not([data-testid])' (model pill = readout); Radix menus open on POINTERDOWN not bare click (root cause of M7-T3 tools TimeoutError) -> dedicated ask_chatgpt_open_radix_trigger pointer-activation; tools menu CLOSES on select -> set_tools re-opens to read aria-checked. Real-verified live: model Pro Extended->High verified+12s-sustained+restored; tools Web search verified=True (0 sends). GAP-2 (fresh-chat capture-auth): fresh client-navigated chat never issues GET /backend-api/conversation/<id> so headers can't be harvested -> session draft branch reloads /c/<id> after id-learn+completion before capture (M6-proven mechanism). Real-verified: PONG fresh-chat captured backend_api/canonical, all_proven. Falsifiability EMPIRICALLY proven (each fix reverted -> its guard test fails); manager caught+fixed a false-green in the editor's gap-2 mock model. Independent best-of-N audit: L1 leak/safety PASS, L2 correctness/falsifiability PASS. Handoff team/evidence/handoffs/M7b-gaps.md. [prior: claude-watch.sh task bbds4321p, contract team/contracts/M7b-close-gaps.md]",
+      "notes": "DONE. Both M7 real-site gaps closed + live-verified + independently audited. M8 unblocked. Non-blocking M8 notes (from L2 audit): gap-2 offline gate uses substring /c/ (source proves ordering vs completion); live coverage = 1 model tier + 1 tool (Web search) — could exercise GPT-5.5 family submenu + Deep research; composer-chip button[aria-label=\"Search, click to remove\"] is a fallback tool-reflection signal."
+    },
+    {
+      "id": "M8",
+      "title": "Independent best-of-N verification + re-issue VERIFICATION.md (terminal).",
+      "status": "in_progress",
+      "priority": 8,
+      "dependencies": ["M6", "M7", "M7b"],
+      "node_type": "manager",
+      "notes": "READY to dispatch (deps satisfied 2026-06-19: M6 done; M7 offline done+verified and its 2 deferred real-site gaps CLOSED by M7b; M7b done). Terminal Opus manager. Diverse verification panel (correctness / edge-cases / spec-conformance / adversarial-refutation / reproduction) over authoritative outputs; falsifiability + prompt-quality lens. Re-issue VERIFICATION.md honestly (NOT green-exit). Confirm all gotcha fixes hold. Fold in M7b non-blocking notes: explicit gap-2 reload-ordering assertion; live-exercise GPT-5.5 family submenu + Deep research; composer-chip fallback selector."
+    }
+  ],
+  "artifacts": {
+    "spec_full": "docs/REWRITE-SPEC.md (authoritative; created 2026-06-18)",
+    "spec_worker_facing": "team/charter.md 'Rework spec' section",
+    "design_spec_superseded": "docs/DESIGN-SPEC.md (marked SUPERSEDED)",
+    "contracts": "team/contracts/M1-archive-scaffold.md, team/contracts/M2-ground-truth-probe.md",
+    "handoffs": "team/evidence/handoffs/M1-archive-scaffold.md (M1 DONE), team/evidence/handoffs/M2-ground-truth-probe.md (M2 DONE — backend-api verdict + selectors)",
+    "reference_send_controller": "issues/cdp-send-repro/controller.mjs (real-proven CDP send+verify reference)",
+    "m1_product_commit": "b875521 on rewrite-v2 (v1 archived + v2 scaffold; uv run pytest = 4 passed)"
+  },
+  "trust_levels": {
+    "installed_tool_isolation": "verified-independently (stable=779eb40 unmoved; ask-chatgpt v0.0.1 isolated copy)",
+    "spec_resolved_with_operator": "verified-independently (grill-me, 12 branches approved)",
+    "M1_archive_scaffold": "verified-independently (lead re-ran uv run pytest = 4 passed; archive present; commit b875521)",
+    "backend_api_capture": "CONFIRMED-with-adjustment (M2 probe, verified-independently via live fetch): faithful canonical markdown incl. math, BUT requires the web-app Authorization+OAI headers, not cookies-only. Clipboard fallback feasible only with grant.",
+    "selectors_from_M2": "observed-live (M2): composer #prompt-textarea, copy-turn-action-button, composer-plus-btn, [data-message-id][data-message-author-role]; model picker label-driven (no stable test-id).",
+    "shared_resource_facts": "no message cap + human-paced confirmed; real rate ceiling still empirical."
+  },
+  "blockers": [
+    {
+      "description": "Real-site missions (M5 verify, M6 run-scrape) are operator-attended and use the shared Chromium at :9222, which ANOTHER AGENT is concurrently using (and may be running a keep-pushing loop on the scrape target /c/6a316aa8). Strict own-tab-only/no-leak discipline required; the scrape captures a snapshot of a possibly-live conversation.",
+      "required_action": "Keep the signed-in Chromium up with CDP :9222 for M5/M6 attended legs; workers operate own-tab-only. No blocker for M3/M4 (offline).",
+      "owner": "operator"
+    }
+  ],
+  "last_verified": {
+    "installed_tool_isolation": "2026-06-18: git rev-parse stable=779eb40 (unmoved); HEAD(rewrite-v2)=b875521; ask-chatgpt v0.0.1 isolated. Never move stable; never uv tool install/upgrade/reinstall.",
+    "M1": "2026-06-18: commit b875521 on rewrite-v2; lead re-ran `uv run pytest` => 4 passed; archive/lib-v1/{ask_chatgpt,tests} present; fresh src/ask_chatgpt/ scaffold.",
+    "M2": "2026-06-18: backend-api CONFIRMED-with-adjustment (auth/OAI headers required; ~17MB/~5k nodes; faithful math); selectors observed live; clipboard grant-only; projects deferred. Findings: team/evidence/handoffs/M2-ground-truth-probe.md.",
+    "M7b": "2026-06-19: both M7 real-site gaps CLOSED + live-verified + independently audited (L1 leak/safety PASS, L2 correctness/falsifiability PASS). HEAD(rewrite-v2)=cc14d91; uv run pytest=254; stable 779eb40 unmoved; 1 real send (fresh throwaway /c/6a3591ae...; target 6a316aa8 untouched). Gap-1: live model selector form button[aria-haspopup=menu]:not([data-testid]) + Radix pointerdown-activation + tools-reopen-to-read-checked. Gap-2: draft-branch reload /c/<id> before capture so the SPA issues the authenticated backend GET. Handoff: team/evidence/handoffs/M7b-gaps.md.",
+    "dispatch_policy": "2026-06-18: operator set workers->pi-watch.sh, managers->claude-watch.sh opus, never Agent tool."
+  },
+  "resource_state": {
+    "installed_tool": "frozen isolated copy from stable@779eb40; another agent may be using it; do not disturb.",
+    "cdp_browser": "UP this session (Chrome/149; CDP :9222 reachable). SHARED with another active agent (likely keep-pushing on /c/6a316aa8). Inspect only tool-opened tabs; never quit; detach only.",
+    "stashes": "stash@{0}=junk 'interrupted M1 worker staged renames' (droppable); stash@{1}=v1 M-011b driver.py WIP (preserve); stash@{2}=unrelated main WIP.",
+    "mesh": "not loaded (single team; mesh_path=null)."
+  },
+  "evidence_refs": [
+    "docs/REWRITE-SPEC.md (authoritative spec)",
+    "team/evidence/handoffs/M1-archive-scaffold.md (M1 DONE)",
+    "team/evidence/handoffs/M2-ground-truth-probe.md (M2 DONE — backend-api verdict + selectors; AUTHORITATIVE for the live-site facts)",
+    "team/contracts/ (mission contracts)",
+    "issues/ (4 filed gotchas + cdp-send-repro/ reference)",
+    "durable lessons: /home/abhmul/.claude/projects/-home-abhmul-dev-ask-chatgpt/memory/MEMORY.md"
+  ],
+  "schema_ref": ".claude/skills/team-lead-v2/references/lead-state.schema.json"
+}

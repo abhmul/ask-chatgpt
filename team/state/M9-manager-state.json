@@ -1,0 +1,35 @@
+{
+  "manager": "M9-finalize (detached Claude Opus, single-turn block-and-complete)",
+  "branch": "rewrite-v2",
+  "stable_unmoved": "779eb40b196e1a458a820248b2dbbca22411b0d3",
+  "directive": "Finalize the v2 rewrite for merge-readiness per M8 VERIFICATION.md: (1) WIRE outgoing file upload (fix the send.py:91-114 silent-no-op stub) + falsifiable test + real-verify upload smoke; (2) verify GPT-5.5 family submenu model selection live (no send); (3) verify Deep Research tool selection live (no send, never run DR).",
+  "constraints": [
+    "claude -p single-shot, block on each pi worker via pi-watch.sh --wait-seconds 3000; never dispatch-and-yield",
+    "Browser 127.0.0.1:9222 SHARED with another active agent on target 6a316aa8: own-tab-only, FRESH throwaway chats only, NEVER target/foreign tabs, never quit, preflight curl, login/Cloudflare -> STOP HUMAN-ACTION-NEEDED",
+    "redirect ask/scrape stdout to /dev/null; NEVER persist/log auth/OAI/cookie values; model-label SUSTAINED ~12s read",
+    "TOTAL real sends <= 2 (only the upload smoke), all fresh throwaway, ZERO to target/foreign; model/tool selection = NO send",
+    "Single pi editor for src (serial); pi real-leg + verify workers; NEVER the Claude Agent tool",
+    "Commit CODE to rewrite-v2 (no push, no Co-Authored-By, never cache/controller.mjs/human content); never move/commit stable; never uv tool install/upgrade/reinstall",
+    "WORKER PYTHON GOTCHA: bare python/python3 resolves to the SHARED agent-python venv (no playwright/ask_chatgpt). Project work MUST use `uv run` (repo's own venv)."
+  ],
+  "ground_truth": {
+    "acceptance_command": "uv run pytest (mock suite; real_site deselected + gated on ASK_CHATGPT_REAL=1)",
+    "baseline": "254 passed, exit 0 (team/evidence/reports/M9-pytest-baseline.txt), captured 2026-06-19 before any M9 edit",
+    "upload_stub_fact": "src/ask_chatgpt/send.py:91-114 upload_attachments does `del tab, selectors` and NEVER calls tab.channel.upload_files. CdpChannel.upload_files (cdp.py:841, set_input_files) and MockChannel.upload_files (mock.py:475, records call) ALREADY EXIST + are unit-tested (test_cdp_channel.py:567). Gap is purely the WIRE.",
+    "selector_loader_fact": "selectors/__init__.py:_validate_selector_map projects ONLY REQUIRED_SELECTOR_KEYS; a new key in real.json is DROPPED unless added to REQUIRED_SELECTOR_KEYS (and the SelectorMap TypedDict in models.py).",
+    "family_submenu_fact": "select_model (menus.py:94) family branch is MOCK-SHAPED: mock test has a 'GPT-5.5' menuitemradio INSIDE the 'GPT-5.5' submenu; M2 live shows family submenu 'GPT-5.5' contains sub-radios 5.5/5.4/5.3/4.5/o3. Likely fails-closed on a live sub-entry. Confirm empirically in W2.",
+    "tools_menu_fact": "M2 live tools menu has 'Deep research' + 'Web search' as menuitems; set_tools(['Web search']) was M7b real-verified; DR expected to work the same (verify-only).",
+    "live_menu_labels_M2": "model top-level menuitemradio: Instant/Medium/High/Extra High/Pro Extended(checked); family menuitem GPT-5.5 -> sub-radios 5.5/5.4/5.3/4.5 Leaving on June 26/o3. tools: Add photos & files Ctrl U / Recent files / Create image / Deep research / Web search / More / Projects."
+  },
+  "queue": [
+    {"id": "W1", "title": "offline upload wire + selectors + falsifiable test", "status": "dispatching", "node_type": "worker"},
+    {"id": "W2", "title": "real-leg discovery + no-send menu verify (file input/chip; family; DR)", "status": "pending", "node_type": "worker", "deps": []},
+    {"id": "W3", "title": "offline selector correction + family fix (iff W2 needs)", "status": "pending", "node_type": "worker", "deps": ["W2"]},
+    {"id": "W4", "title": "real-leg upload smoke <=2 sends + re-verify family/DR if fixed", "status": "pending", "node_type": "worker", "deps": ["W1", "W3"]},
+    {"id": "Vpanel", "title": "best-of-N offline verify (falsifiability/leak+send-count/correctness+VERIFICATION honesty)", "status": "pending", "node_type": "worker", "deps": ["W4"]},
+    {"id": "finalize", "title": "commit + update VERIFICATION.md + handoff", "status": "pending", "node_type": "manager-self", "deps": ["Vpanel"]}
+  ],
+  "artifacts_trust": [],
+  "blockers": [],
+  "handoff_path": "team/evidence/handoffs/M9-finalize.md"
+}

@@ -1,164 +1,294 @@
-"""Named, actionable exceptions raised by ask-chatgpt."""
+"""Stable redacted exception taxonomy for ask-chatgpt."""
+
+from __future__ import annotations
+
+from collections.abc import Mapping
+from types import MappingProxyType
+from typing import Any, ClassVar
+
+_SECRET_KEY_PARTS = (
+    "authorization",
+    "bearer",
+    "cookie",
+    "key",
+    "oai",
+    "password",
+    "prompt",
+    "response",
+    "secret",
+    "token",
+)
+_SECRET_VALUE_PARTS = (
+    "authorization:",
+    "bearer ",
+    "cookie:",
+    "oai-",
+    "password",
+    "secret",
+    "token",
+)
+
+
+def _looks_sensitive_key(key: object) -> bool:
+    return any(part in str(key).lower() for part in _SECRET_KEY_PARTS)
+
+
+def _looks_sensitive_value(value: str) -> bool:
+    lowered = value.lower()
+    return any(part in lowered for part in _SECRET_VALUE_PARTS)
+
+
+def _sanitize_detail_value(value: Any, *, sensitive_parent: bool = False) -> Any:
+    if sensitive_parent:
+        return "<redacted>"
+    if isinstance(value, Mapping):
+        return MappingProxyType(
+            {
+                str(key): _sanitize_detail_value(
+                    nested_value,
+                    sensitive_parent=_looks_sensitive_key(key),
+                )
+                for key, nested_value in value.items()
+            }
+        )
+    if isinstance(value, tuple):
+        return tuple(_sanitize_detail_value(item) for item in value)
+    if isinstance(value, list):
+        return tuple(_sanitize_detail_value(item) for item in value)
+    if isinstance(value, str) and _looks_sensitive_value(value):
+        return "<redacted>"
+    return value
+
+
+def _sanitize_details(details: Mapping[str, Any] | None) -> Mapping[str, Any]:
+    if not details:
+        return MappingProxyType({})
+    return MappingProxyType(
+        {
+            str(key): _sanitize_detail_value(
+                value,
+                sensitive_parent=_looks_sensitive_key(key),
+            )
+            for key, value in details.items()
+        }
+    )
 
 
 class AskChatGPTError(Exception):
-    default_message = (
-        "ask-chatgpt failed. Operator action: inspect the specific error "
-        "detail, resolve the reported condition, then retry."
-    )
+    """Base exception carrying stable machine metadata and redacted details."""
 
-    def __init__(self, detail: str | None = None):
-        self.detail = detail
-        message = self.default_message
-        if detail:
-            message = f"{message} Detail: {detail}"
+    code: str
+    exit_code: int
+    retryable: bool
+    retry_action: str
+    message: str
+    details: Mapping[str, Any]
+
+    def __init__(
+        self,
+        code: str,
+        exit_code: int,
+        retryable: bool,
+        retry_action: str,
+        message: str = "",
+        details: Mapping[str, Any] | None = None,
+    ) -> None:
         super().__init__(message)
+        self.code = code
+        self.exit_code = exit_code
+        self.retryable = retryable
+        self.retry_action = retry_action
+        self.message = message
+        self.details = _sanitize_details(details)
+
+    def __str__(self) -> str:
+        return f"{self.code}: {self.message}"
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}(code={self.code!r}, message={self.message!r})"
 
 
-class CDPUnreachableError(AskChatGPTError):
-    default_message = (
-        "CDP_UNREACHABLE: Chromium DevTools Protocol endpoint is unreachable. "
-        "Operator action: launch Chromium with chromium --profile-directory='Profile 1' "
-        "--remote-debugging-port=9222, then retry."
-    )
+class _KnownAskChatGPTError(AskChatGPTError):
+    default_code: ClassVar[str]
+    default_exit_code: ClassVar[int]
+    default_retryable: ClassVar[bool]
+    default_retry_action: ClassVar[str]
+
+    def __init__(
+        self,
+        message: str = "",
+        *,
+        details: Mapping[str, Any] | None = None,
+        retryable: bool | None = None,
+        retry_action: str | None = None,
+    ) -> None:
+        super().__init__(
+            self.default_code,
+            self.default_exit_code,
+            self.default_retryable if retryable is None else retryable,
+            self.default_retry_action if retry_action is None else retry_action,
+            message,
+            details,
+        )
 
 
-class ChallengePresentError(AskChatGPTError):
-    default_message = (
-        "CHALLENGE_PRESENT: ChatGPT is showing a Cloudflare or human-verification "
-        "challenge. Operator action: resolve it manually in the browser UI, then retry."
-    )
+class CDPUnreachableError(_KnownAskChatGPTError):
+    default_code = "CDP_UNREACHABLE"
+    default_exit_code = 20
+    default_retryable = True
+    default_retry_action = "operator_action"
 
 
-class LoginRequiredError(AskChatGPTError):
-    default_message = (
-        "ChatGPT is not logged in. Operator action: sign in through the "
-        "browser UI and retry; this tool never reads or stores credentials."
-    )
+class HumanActionNeededError(_KnownAskChatGPTError):
+    default_code = "HUMAN-ACTION-NEEDED"
+    default_exit_code = 21
+    default_retryable = True
+    default_retry_action = "human_action"
 
 
-class ProfileLockedError(AskChatGPTError):
-    default_message = (
-        "ChatGPT browser profile appears to be in use by a running browser "
-        "(profile lock held). Operator action: close the running Chromium using "
-        "this profile, then re-run; this tool never deletes lock files or kills your browser."
-    )
+class DomainNotAllowedError(_KnownAskChatGPTError):
+    default_code = "DOMAIN_NOT_ALLOWED"
+    default_exit_code = 22
+    default_retryable = False
+    default_retry_action = "fix_input_or_config"
 
 
-class SessionNotFoundError(AskChatGPTError):
-    default_message = (
-        "Stored conversation reference no longer opens a reachable ChatGPT "
-        "conversation. Operator action: delete or recreate that session "
-        "identifier, then retry."
-    )
+class ConversationNotFoundError(_KnownAskChatGPTError):
+    default_code = "CONVERSATION_NOT_FOUND"
+    default_exit_code = 23
+    default_retryable = True
+    default_retry_action = "inspect_or_retry"
 
 
-class ModelUnavailableError(AskChatGPTError):
-    default_message = (
-        "Requested model or option is not offered by the current ChatGPT UI. "
-        "Operator action: choose an available model setting and retry."
-    )
+class SelectorNotFoundError(_KnownAskChatGPTError):
+    default_code = "SELECTOR_NOT_FOUND"
+    default_exit_code = 24
+    default_retryable = True
+    default_retry_action = "update_selectors"
 
 
-class ResponseTruncatedError(AskChatGPTError):
-    default_message = (
-        "Assistant response appears incomplete: end marker missing, turn still "
-        "in progress, or payload truncated. Operator action: retry, reduce "
-        "payload size, or inspect the UI."
-    )
+class PromptNotSubmittedError(_KnownAskChatGPTError):
+    default_code = "PROMPT_NOT_SUBMITTED"
+    default_exit_code = 30
+    default_retryable = True
+    default_retry_action = "retry_send"
 
 
-class RateLimitedError(AskChatGPTError):
-    default_message = (
-        "ChatGPT reported a rate limit or backoff condition. Operator action: "
-        "wait for the indicated retry window, reduce request rate, then retry."
-    )
+class ModelSelectionNotReflectedError(_KnownAskChatGPTError):
+    default_code = "MODEL_SELECTION_NOT_REFLECTED"
+    default_exit_code = 31
+    default_retryable = True
+    default_retry_action = "retry_model_selection"
 
 
-class SelectorUnavailableError(AskChatGPTError):
-    default_message = (
-        "Required selector-map key is missing or stale. Operator action: "
-        "update the selector map and retry; fail closed and never guess or "
-        "broaden selectors."
-    )
+class ToolSelectionNotReflectedError(_KnownAskChatGPTError):
+    default_code = "TOOL_SELECTION_NOT_REFLECTED"
+    default_exit_code = 32
+    default_retryable = True
+    default_retry_action = "retry_tool_selection"
 
 
-class UploadUnsupportedError(AskChatGPTError):
-    default_message = (
-        "Upload affordance is absent or rejected by the current ChatGPT UI. "
-        "Operator action: disable upload-dependent workflow, inspect current "
-        "UI support, or retry later."
-    )
+class BackendAuthUnavailableError(_KnownAskChatGPTError):
+    default_code = "BACKEND_AUTH_UNAVAILABLE"
+    default_exit_code = 40
+    default_retryable = True
+    default_retry_action = "reauthenticate_or_retry"
 
 
-class DownloadUnsupportedError(AskChatGPTError):
-    default_message = (
-        "Download affordance is absent in the current ChatGPT UI. Operator "
-        "action: use the text-channel fallback, inspect current UI support, "
-        "or retry later."
-    )
+class BackendCaptureShapeError(_KnownAskChatGPTError):
+    default_code = "BACKEND_CAPTURE_SHAPE"
+    default_exit_code = 41
+    default_retryable = False
+    default_retry_action = "parser_update_required"
 
 
-class PatchBundleValidationError(AskChatGPTError):
-    default_message = (
-        "Patch or upload bundle validation failed. Operator action: request a "
-        "fresh changed-files-only bundle, reduce payload size, or inspect the "
-        "safe detail; no local files were changed."
-    )
+class CaptureFailedClosedError(_KnownAskChatGPTError):
+    default_code = "CAPTURE_FAIL_CLOSED"
+    default_exit_code = 42
+    default_retryable = True
+    default_retry_action = "inspect_or_retry"
 
 
-class PatchMalformedError(PatchBundleValidationError):
-    default_message = (
-        "Patch bundle is malformed or is not a changed-files-only patch. "
-        "Operator action: request a fresh patch bundle; no local files were changed."
-    )
+class CompletionTimeoutError(_KnownAskChatGPTError):
+    default_code = "COMPLETION_TIMEOUT"
+    default_exit_code = 50
+    default_retryable = True
+    default_retry_action = "inspect_or_scrape_before_resend"
 
 
-class BundleIntegrityError(PatchBundleValidationError):
-    default_message = (
-        "Bundle transfer integrity failed. Operator action: retry transfer, "
-        "use an alternate return channel, or reduce the bundle; no local files were changed."
-    )
+class MaxTotalWaitExceededError(_KnownAskChatGPTError):
+    default_code = "MAX_TOTAL_WAIT_EXCEEDED"
+    default_exit_code = 51
+    default_retryable = True
+    default_retry_action = "increase_wait_or_retry"
 
 
-class OversizedPayloadError(PatchBundleValidationError):
-    default_message = (
-        "Bundle payload exceeds a configured size/type guard. Operator action: "
-        "reduce selected files, split the patch, or raise an explicit limit; no local files were changed."
-    )
+class AttachmentNotFoundError(_KnownAskChatGPTError):
+    default_code = "ATTACHMENT_NOT_FOUND"
+    default_exit_code = 60
+    default_retryable = False
+    default_retry_action = "fix_attachment_ref"
 
 
-class PathEscapeError(PatchBundleValidationError):
-    default_message = (
-        "Bundle path is unsafe or escapes the project root. Operator action: "
-        "use repo-root-relative file paths without traversal, symlinks, or special files; no local files were changed."
-    )
+class AttachmentFetchError(_KnownAskChatGPTError):
+    default_code = "ATTACHMENT_FETCH_FAILED"
+    default_exit_code = 61
+    default_retryable = True
+    default_retry_action = "retry_fetch"
 
 
-class PatchApplyError(AskChatGPTError):
-    default_message = (
-        "Patch application failed after validation. Operator action: inspect "
-        "the local filesystem and transaction journal; local mutation may need recovery."
-    )
+class AttachmentUploadError(_KnownAskChatGPTError):
+    default_code = "ATTACHMENT_UPLOAD_FAILED"
+    default_exit_code = 63
+    default_retryable = True
+    default_retry_action = "retry_upload_or_update_selectors"
+
+
+class TabPoolExhaustedError(_KnownAskChatGPTError):
+    default_code = "TAB_POOL_EXHAUSTED"
+    default_exit_code = 62
+    default_retryable = True
+    default_retry_action = "wait_or_reduce_concurrency"
+
+
+class StoreError(_KnownAskChatGPTError):
+    default_code = "STORE_ERROR"
+    default_exit_code = 70
+    default_retryable = False
+    default_retry_action = "inspect_data_dir"
+
+
+class InternalError(_KnownAskChatGPTError):
+    default_code = "INTERNAL_ERROR"
+    default_exit_code = 99
+    default_retryable = False
+    default_retry_action = "report_bug"
+
+
+class StoreWarning(UserWarning):
+    """Warning emitted for tolerated store recovery conditions."""
 
 
 __all__ = [
     "AskChatGPTError",
+    "AttachmentFetchError",
+    "AttachmentNotFoundError",
+    "AttachmentUploadError",
+    "BackendAuthUnavailableError",
+    "BackendCaptureShapeError",
     "CDPUnreachableError",
-    "ChallengePresentError",
-    "LoginRequiredError",
-    "ProfileLockedError",
-    "SessionNotFoundError",
-    "ModelUnavailableError",
-    "ResponseTruncatedError",
-    "RateLimitedError",
-    "SelectorUnavailableError",
-    "UploadUnsupportedError",
-    "DownloadUnsupportedError",
-    "PatchBundleValidationError",
-    "PatchMalformedError",
-    "BundleIntegrityError",
-    "OversizedPayloadError",
-    "PathEscapeError",
-    "PatchApplyError",
+    "CaptureFailedClosedError",
+    "CompletionTimeoutError",
+    "ConversationNotFoundError",
+    "DomainNotAllowedError",
+    "HumanActionNeededError",
+    "InternalError",
+    "MaxTotalWaitExceededError",
+    "ModelSelectionNotReflectedError",
+    "PromptNotSubmittedError",
+    "SelectorNotFoundError",
+    "StoreError",
+    "StoreWarning",
+    "TabPoolExhaustedError",
+    "ToolSelectionNotReflectedError",
 ]

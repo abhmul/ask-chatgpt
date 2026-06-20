@@ -1,0 +1,48 @@
+{
+  "name": "ask-chatgpt-dev",
+  "status": "active",
+  "owns": [
+    "/home/abhmul/dev/ask-chatgpt (the ask-chatgpt code repo, working branch 'main' or feature branches off it)",
+    "src/ask_chatgpt/  (the library — to be ARCHIVED and REWRITTEN per operator directive)",
+    "tests/",
+    "docs/",
+    "scripts/",
+    "pyproject.toml",
+    "README.md",
+    "VERIFICATION.md",
+    "team/  (this v2 team-state home)"
+  ],
+  "role_file": "team/charter.md",
+  "mesh_path": null,
+  "peers": [],
+  "ledger": {
+    "resume": "team/state/RESUME.md",
+    "state": "team/state/live-state.json",
+    "durable_lessons": "/home/abhmul/.claude/projects/-home-abhmul-dev-ask-chatgpt/memory/MEMORY.md",
+    "evidence_log": [
+      "team/evidence/handoffs/",
+      "team/evidence/reports/"
+    ]
+  },
+  "ground_truth": {
+    "profile": "engineering",
+    "acceptance_command": "uv run pytest",
+    "acceptance_notes": "Mock suite is the default tier; real_site tests are deselected by default (pyproject addopts '-m not real_site') AND additionally gated on ASK_CHATGPT_REAL=1. Re-derive every verdict from inspected command output and produced artifact files, NEVER from exit codes or log lines alone (a wrapper script's exit 0 masked a pytest exit 1 during setup). 'uv run' uses the PROJECT venv (.venv), which is entirely separate from the uv TOOL install.",
+    "verdict_file": "VERIFICATION.md",
+    "verdict_notes": "VERIFICATION.md currently verifies the OLD library and becomes stale on rewrite; re-issue it honestly for the rewritten library, with a falsifiability + prompt-quality lens, not green-exit alone.",
+    "real_site": "operator-attended CDP runs only; not CI/cron/unattended"
+  },
+  "shared_resources": {
+    "installed_tool": {
+      "fact": "ask-chatgpt v0.0.1 is installed via 'uv tool install' as an ISOLATED COPY built from the git branch 'stable' (file:///home/abhmul/dev/ask-chatgpt?rev=stable). Entry point /home/abhmul/.local/bin/ask-chatgpt runs the tool's own frozen venv at /home/abhmul/.local/share/uv/tools/ask-chatgpt. site-packages/ask_chatgpt is a real copied dir (NOT editable, NO .pth/direct_url editable marker). 'stable' currently = 779eb40 (4 commits behind main@7483806).",
+      "verified": "2026-06-18 this session (uv-receipt.toml + site-packages inspection)",
+      "another_agent": "A separate agent is concurrently USING the installed tool. Do not disrupt it.",
+      "isolation_rule": "Editing the working tree CANNOT affect the running tool. The tool only changes if (a) the 'stable' branch is moved/committed-to, or (b) someone runs uv tool install/upgrade/reinstall. THEREFORE: NEVER commit to or move 'stable'; NEVER run 'uv tool install/upgrade/reinstall' against this repo during development. Do all rework on 'main' or feature branches."
+    },
+    "chatgpt_account": "operator-owned single account. Human-paced; NO programmatic spamming. NO hard per-run message cap (the old 'max N messages' was a retracted fiction). Real-site automation is opt-in/attended; login is NEVER automated; any Cloudflare/login challenge -> STOP, log HUMAN-ACTION-NEEDED, poll read-only.",
+    "operator_cdp_browser": "Real-site legs attach over CDP to the operator's signed-in Chromium at http://127.0.0.1:9222 (profile 'agent' = dir 'Profile 1'). Playwright-LAUNCHED browsers are Cloudflare-blocked, hence CDP attach. The operator (and/or another agent) may be using this browser concurrently: inspect ONLY tabs the tool itself opens; NEVER read/touch operator tabs (leak risk); NEVER quit the browser (detach only). Preflight curl 127.0.0.1:9222/json/version before any real leg; concurrency modest (~3-way).",
+    "agent_python_venv": "~/.local/share/agent-python/.venv is READ-ONLY shared infra for claude/pi/codex agents (see ~/Documents/vaults/agent-vault/agent-python/README). This repo's deps live in its own uv PROJECT venv, separate from both the agent venv and the uv tool install."
+  },
+  "vcs_layout": "single-team => repo-only (D12): plain checkout, NO mesh, NO worktrees, NO team-system repo. Team identity/state lives in this repo under team/. If a SECOND team is later created (operator-reserved), migrate to the bare-clone + per-team-worktree layout via team-system bootstrap.",
+  "schema_ref": ".claude/skills/team-lead-v2/references/team-config.schema.json"
+}

@@ -1,0 +1,63 @@
+{
+  "manager": "M3 Opus manager (detached) — best-of-N detailed design for the ask-chatgpt v2 rewrite",
+  "directive": "Produce the CONCRETE, implementable detailed design (team/evidence/reports/M3-detailed-design.md) that M4 (offline core) and M5 (capture/scrape/send) will follow. DESIGN ONLY — no production source changes, no real-site/browser legs, no commit. Run best-of-N per agent-rigor. Leave design doc + handoff (team/evidence/handoffs/M3-design.md) for the team lead.",
+  "contract": "team/contracts/M3-detailed-design.md",
+  "constraints": [
+    "DESIGN ONLY: no edits to src/, pyproject.toml, tests/ (production source). Writing markdown design docs under team/ is the deliverable.",
+    "No real-site/browser/CDP legs (offline design). No git commit/push. Never move/commit stable. Never uv tool install/upgrade/reinstall.",
+    "Dispatch policy (HARD): design lenses are pi WORKERS via .claude/skills/manager/references/launchers/parent-claude/pi-watch.sh pointed at contract files under team/contracts/. NEVER the Claude Agent tool. (claude-watch.sh would be for a sub-manager; not needed here.)",
+    "Workers inherit nothing: every constraint+M2 fact+gotcha fix+safety invariant is transcribed into team/contracts/M3-common-constraints.md, which every worker contract names as required reading.",
+    "Best-of-N is the default; never shrink N for resource caution (operator policy). Producer never raises trust on its own work; verification is itself best-of-N (distinct dimensions).",
+    "Honor EVERY M2 ground-truth finding (auth/OAI headers; 17MB/5k nodes; DR turn_exchange_id grouping; attachment shapes; completion signals; live selectors). Honor EVERY safety invariant."
+  ],
+  "plan": "5 parallel design lenses (pi) -> 1 synthesizer (writes M3-detailed-design.md) -> 3-dimension verification panel (pi) -> manager triage/revision -> manager handoff.",
+  "estimate_wall_clock": "ESTIMATE 2026-06-18 14:21: per-pi-worker ~12-25 min (read 4 source files + write detailed design). Lenses parallel => ~25 min if pi runs concurrent, ~2h if pi serializes (to be measured from run-dir metadata). Synth ~15-25 min. 3 verifiers parallel ~20 min. Total ~1-2.5h. ACTUAL tracked from .pi-workers/<run>/metadata.txt started_at + status mtime.",
+  "queue": [
+    {"id": "M3.0", "title": "Init manager state triple + author common constraints + lens/synth/verify contracts", "status": "in_progress", "node_type": "worker(self)"},
+    {"id": "M3.1", "title": "Lens 1 — Library API + module structure", "status": "pending", "node_type": "worker", "contract": "team/contracts/M3-lens-1-api.md", "out": "team/evidence/reports/M3-work/lens-1-api.md"},
+    {"id": "M3.2", "title": "Lens 2 — Persistence + schema", "status": "pending", "node_type": "worker", "contract": "team/contracts/M3-lens-2-persistence.md", "out": "team/evidence/reports/M3-work/lens-2-persistence.md"},
+    {"id": "M3.3", "title": "Lens 3 — Capture + auth-header mechanism + completion (LOAD-BEARING)", "status": "pending", "node_type": "worker", "contract": "team/contracts/M3-lens-3-capture.md", "out": "team/evidence/reports/M3-work/lens-3-capture.md"},
+    {"id": "M3.4", "title": "Lens 4 — Concurrency (tab pool + adaptive rate)", "status": "pending", "node_type": "worker", "contract": "team/contracts/M3-lens-4-concurrency.md", "out": "team/evidence/reports/M3-work/lens-4-concurrency.md"},
+    {"id": "M3.5", "title": "Lens 5 — CLI/loop ergonomics + error taxonomy + status", "status": "pending", "node_type": "worker", "contract": "team/contracts/M3-lens-5-cli.md", "out": "team/evidence/reports/M3-work/lens-5-cli.md"},
+    {"id": "M3.6", "title": "Synthesizer — one coherent design", "status": "pending", "node_type": "worker", "dependencies": ["M3.1","M3.2","M3.3","M3.4","M3.5"], "contract": "team/contracts/M3-synth.md", "out": "team/evidence/reports/M3-detailed-design.md"},
+    {"id": "M3.7", "title": "Verify dim 1 — M2 ground-truth fidelity", "status": "pending", "node_type": "worker", "dependencies": ["M3.6"], "contract": "team/contracts/M3-verify-1-m2fidelity.md", "out": "team/evidence/reports/M3-work/verify-1-m2fidelity.md"},
+    {"id": "M3.8", "title": "Verify dim 2 — gotcha-fix + safety-invariant coverage", "status": "pending", "node_type": "worker", "dependencies": ["M3.6"], "contract": "team/contracts/M3-verify-2-gotcha-safety.md", "out": "team/evidence/reports/M3-work/verify-2-gotcha-safety.md"},
+    {"id": "M3.9", "title": "Verify dim 3 — Occam simplicity + implementability + falsifiability", "status": "pending", "node_type": "worker", "dependencies": ["M3.6"], "contract": "team/contracts/M3-verify-3-occam-impl.md", "out": "team/evidence/reports/M3-work/verify-3-occam-impl.md"},
+    {"id": "M3.10", "title": "Manager triage + (revision if needed) + handoff", "status": "pending", "node_type": "worker(self)", "out": "team/evidence/handoffs/M3-design.md"}
+  ],
+  "child_run_handles": [
+    {"task": "M3.1 Lens1 API+modules",        "run_dir": ".pi-workers/pi-20260618-142740-549644-15413", "status": "DONE exit0 (shipped 564 lines, STATUS:DONE, terminal sections present)", "out": "team/evidence/reports/M3-work/lens-1-api.md"},
+    {"task": "M3.2 Lens2 Persistence",         "run_dir": ".pi-workers/pi-20260618-142741-549677-7565",  "status": "DONE exit0 (shipped 362 lines)", "out": "team/evidence/reports/M3-work/lens-2-persistence.md"},
+    {"task": "M3.3 Lens3 Capture (LOAD-BEAR)", "run_dir": ".pi-workers/pi-20260618-142741-549718-7998",  "status": "DONE exit0 (shipped 260 lines)", "out": "team/evidence/reports/M3-work/lens-3-capture.md"},
+    {"task": "M3.4 Lens4 Concurrency",         "run_dir": ".pi-workers/pi-20260618-142741-549760-24301", "status": "DONE exit0 (shipped 363 lines)", "out": "team/evidence/reports/M3-work/lens-4-concurrency.md"},
+    {"task": "M3.5 Lens5 CLI+errors+status",   "run_dir": ".pi-workers/pi-20260618-142741-549802-26241", "status": "DONE exit0 (shipped 427 lines)", "out": "team/evidence/reports/M3-work/lens-5-cli.md"},
+    {"task": "M3.6 Synthesizer",               "run_dir": ".pi-workers/pi-20260618-143740-558979-30953", "status": "DONE exit0 (shipped 670 lines / 66KB, all 13 required sections present, STATUS:DONE) 14:37:40->14:48:22 ~10.5min", "out": "team/evidence/reports/M3-detailed-design.md"},
+    {"task": "M3.7 Verify1 M2-fidelity",       "run_dir": ".pi-workers/pi-20260618-144847-567266-6880",  "status": "DONE exit0 -> VERDICT: PASS (all 8 fidelity checks HONORED with evidence quotes)", "out": "team/evidence/reports/M3-work/verify-1-m2fidelity.md"},
+    {"task": "M3.8 Verify2 gotcha+safety",     "run_dir": ".pi-workers/pi-20260618-144847-567294-17359", "status": "DONE exit0 -> VERDICT: FAIL (gotchas all COVERED; GAP: repo/install isolation invariant missing from safety section; WEAK: login 'poll read-only' not encoded)", "out": "team/evidence/reports/M3-work/verify-2-gotcha-safety.md"},
+    {"task": "M3.9 Verify3 occam+impl",        "run_dir": ".pi-workers/pi-20260618-144847-567329-24572", "status": "DONE exit0 -> VERDICT: PASS-WITH-NOTES (MUST-FIX: channel/tab seam not typed-implementable + undefined seam types; MUST-FIX: completion poll cost unbounded + header lifetime ambiguous; NICE: M4 accretes M7 work; NICE: model-picker prose)", "out": "team/evidence/reports/M3-work/verify-3-occam-impl.md"},
+    {"task": "M3.R1 Revision editor (G1,W1,M1,M2,N1,N2)", "run_dir": ".pi-workers/pi-20260618-145534-572315-30518", "status": "DONE exit0 (670->750 lines; all 6 fixes applied; controller.mjs NOT touched by editor)", "out": "team/evidence/reports/M3-detailed-design.md (in-place edit)"},
+    {"task": "M3.7b Verify1-r2 M2-fidelity",   "run_dir": ".pi-workers/pi-20260618-150428-579350-9847", "status": "DONE exit0 -> VERDICT: PASS (no regression)", "out": "team/evidence/reports/M3-work/verify-1-m2fidelity-r2.md"},
+    {"task": "M3.8b Verify2-r2 gotcha+safety", "run_dir": ".pi-workers/pi-20260618-150428-579378-5844", "status": "DONE exit0 -> VERDICT: PASS (gotchas 5/5, safety 11/11 COVERED; GAP+WEAK resolved)", "out": "team/evidence/reports/M3-work/verify-2-gotcha-safety-r2.md"},
+    {"task": "M3.9b Verify3-r2 occam+impl",    "run_dir": ".pi-workers/pi-20260618-150428-579414-5921", "status": "DONE exit0 -> VERDICT: PASS-WITH-NOTES (1 must-fix=header lifetime + 2 nice; all 3 then fixed in R2)", "out": "team/evidence/reports/M3-work/verify-3-occam-impl-r2.md"},
+    {"task": "M3.R2 Revision editor (final: A header-per-request, B types, C pending-stub)", "run_dir": ".pi-workers/pi-20260618-151054-584573-29686", "status": "DONE exit0 (750->790 lines; manager re-derived all 3 deltas from ground truth = correct, no regression)", "out": "team/evidence/reports/M3-detailed-design.md (in-place edit)"}
+  ],
+  "final_status": "DONE 2026-06-18 ~15:16. Design at team/evidence/reports/M3-detailed-design.md (790 lines) is verified-independently: V1 fidelity PASS, V2 gotcha+safety PASS, V3 occam+impl must-fixes ALL resolved (2 verification rounds + 2 revisions). Handoff at team/evidence/handoffs/M3-design.md. NO production source touched; NOT committed (left for team lead). 14 pi workers, ~55 min wall-clock. OPEN FOR LEAD: (1) controller.mjs ` M` is concurrent OTHER-AGENT work, not mine — keep out of M3 commit; (2) fold design into docs/REWRITE-SPEC.md; (3) M4 unblocked.",
+  "verify_phase_actual": "ACTUAL: verifiers 14:48:47 -> 14:52:42 = ~4 min, 3 concurrent. Panel: V1 PASS, V2 FAIL (1 GAP + 1 WEAK, all bounded/additive), V3 PASS-WITH-NOTES (2 must-fix + 2 nice). Decision: single-editor revision applies all 6 fixes (none touch load-bearing capture/schema), then full 3-panel re-verify on the delta.",
+  "lens_phase_actual": "ACTUAL: lens phase 14:27:41 -> 14:35:13 = ~7.5 min wall-clock for 5 concurrent workers (Lens4 done 14:32:38, Lens1 last 14:35:11). pi launches confirmed NON-serializing (5 concurrent tmux sessions).",
+  "collection_note": "5 lens pi workers launched concurrently 14:27 (tmux-detached, confirmed 5 concurrent sessions — pi launches do NOT serialize). Collect via: bash .claude/skills/manager/references/launchers/parent-claude/pi-watch.sh --watch <run_dir> --wait-seconds N, OR poll <run_dir>/status (exit code) + <run_dir>/output.log. Synth (M3.6) runs after all 5; verifiers (M3.7-9) after synth.",
+  "artifacts_trust": {},
+  "blockers": [],
+  "surfaced_findings_for_lead": [
+    {
+      "finding": "issues/cdp-send-repro/controller.mjs was MODIFIED (mtime 2026-06-18 14:34:43) during my run — added confirmViolation() sustained-model-mismatch check + changed reload/idle/main halt logic to require a persisted mismatch.",
+      "provenance": "NOT my mission. All 5 of my DESIGN-ONLY lens workers logged 0 mentions of controller.mjs (they wrote only their markdown deliverables); a markdown-design lens has no reason to edit send-controller code. Almost certainly the concurrent agent the charter/live-state warns is active (keep-pushing loop on /c/6a316aa8). I did NOT create it and did NOT revert it (per 'if you didn't create it, surface it rather than overwrite').",
+      "required_action": "Team lead: confirm whether this controller.mjs change is the other agent's intended work; do NOT let it get swept into the M3 commit. M3 itself touches no production source.",
+      "owner": "team-lead"
+    },
+    {
+      "finding": "team/state/live-state.json shows ` M` (M3 ready->in_progress + run_handle bhoiuk63s).",
+      "provenance": "Team-lead's own legitimate dispatch update when launching me. Expected; left untouched.",
+      "owner": "team-lead"
+    }
+  ]
+}

@@ -1,0 +1,41 @@
+============================= test session starts ==============================
+platform linux -- Python 3.13.5, pytest-9.0.3, pluggy-1.6.0
+rootdir: /home/abhmul/dev/ask-chatgpt
+configfile: pyproject.toml
+testpaths: tests
+collected 260 items
+
+tests/test_allowlist.py .......................                          [  8%]
+tests/test_cache_default.py ..                                           [  9%]
+tests/test_capture.py ........................                           [ 18%]
+tests/test_cdp_channel.py .......................                        [ 27%]
+tests/test_channels_base.py ...                                          [ 28%]
+tests/test_cli.py ...........                                            [ 33%]
+tests/test_errors.py .....................                               [ 41%]
+tests/test_identity.py ..............                                    [ 46%]
+tests/test_menus.py ...............                                      [ 52%]
+tests/test_mock_channel.py ........                                      [ 55%]
+tests/test_models.py ................                                    [ 61%]
+tests/test_selectors.py .....................                            [ 69%]
+tests/test_send_budget.py ........                                       [ 72%]
+tests/test_send_completion.py .......................                    [ 81%]
+tests/test_session_draft_loop.py ...........                             [ 85%]
+tests/test_session_stubs.py ..                                           [ 86%]
+tests/test_smoke.py ......                                               [ 88%]
+tests/test_store_atomic_raw.py ...                                       [ 90%]
+tests/test_store_attachment_path.py ...                                  [ 91%]
+tests/test_store_durability.py ..                                        [ 91%]
+tests/test_store_identity_resolution.py ..                               [ 92%]
+tests/test_store_index.py ..                                             [ 93%]
+tests/test_store_jsonl.py ..                                             [ 94%]
+tests/test_store_layout.py ..                                            [ 95%]
+tests/test_store_partial.py ...                                          [ 96%]
+tests/test_store_payload.py ...                                          [ 97%]
+tests/test_store_pending_send.py ..                                      [ 98%]
+tests/test_store_read_semantics.py .                                     [ 98%]
+tests/test_store_render.py .                                             [ 98%]
+tests/test_store_torn_line.py ...                                        [100%]
+
+============================= 260 passed in 0.99s ==============================
+
+PYTEST_EXIT=0

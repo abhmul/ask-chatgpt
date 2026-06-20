@@ -1,0 +1,15 @@
+{
+  "composer": "#prompt-textarea",
+  "tools_button": "button[data-testid=\"composer-plus-btn\"]",
+  "message_turn": "[data-message-id][data-message-author-role]",
+  "user_turn": "[data-message-author-role=\"user\"][data-message-id]",
+  "assistant_turn": "[data-message-author-role=\"assistant\"][data-message-id]",
+  "copy_button": "button[data-testid=\"copy-turn-action-button\"]",
+  "stop_button": "button[data-testid=\"stop-button\"], #composer-submit-button[aria-label*=\"Stop\" i]",
+  "send_button_unverified_no_input": "button[data-testid=\"send-button\"], #composer-submit-button, button[aria-label=\"Send prompt\"]",
+  "file_input": "form input[type=\"file\"]",
+  "attachment_chip": "button[aria-label*=\"Remove file\" i]",
+  "active_tool_chip": "button[aria-label*=\"click to remove\" i]",
+  "radix_portal": "[data-radix-popper-content-wrapper]",
+  "model_picker_trigger_candidates": "form button[aria-haspopup=\"menu\"]:not([data-testid])"
+}
