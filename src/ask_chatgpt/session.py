@@ -38,6 +38,8 @@ from ask_chatgpt.models import (
 from ask_chatgpt.selectors import load_selector_map
 from ask_chatgpt.send import (
     SubmittedTurn,
+    _SEND_BUTTON_ATTACHMENT_SETTLE_TIMEOUT_S,
+    _SEND_BUTTON_SETTLE_TIMEOUT_S,
     _monotonic,
     _sleep_until,
     fill_composer,
@@ -406,15 +408,25 @@ class Session:
             stub = self.store.begin_send(ref, prompt, model=model_ref, active_tools=active_tools)
         with self.send_budget.submission():
             wait_for_composer(tab, self.selector_map, timeout_s=self.composer_wait_timeout_s)
-            upload_attachments(tab, self.selector_map, _attachment_specs(attach))
+            attachment_specs = _attachment_specs(attach)
+            upload_attachments(tab, self.selector_map, attachment_specs)
             fill_composer(tab, self.selector_map, prompt)
-            submit_composer(tab, self.selector_map)
+            submit_composer(
+                tab,
+                self.selector_map,
+                settle_timeout_s=(
+                    _SEND_BUTTON_ATTACHMENT_SETTLE_TIMEOUT_S
+                    if attachment_specs
+                    else _SEND_BUTTON_SETTLE_TIMEOUT_S
+                ),
+            )
             submitted = verify_prompt_submitted(
                 tab,
                 self.selector_map,
                 baseline,
                 prompt,
                 timeout_s=self.send_verify_timeout_s,
+                has_attachments=bool(attachment_specs),
             )
         if draft:
             ref = self._learn_post_submit_ref(tab, ref)

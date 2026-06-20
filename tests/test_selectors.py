@@ -18,6 +18,9 @@ REQUIRED_KEYS = (
     "copy_button",
     "stop_button",
     "send_button_unverified_no_input",
+    "file_input",
+    "attachment_chip",
+    "active_tool_chip",
     "radix_portal",
     "model_picker_trigger_candidates",
 )
@@ -41,6 +44,9 @@ def test_packaged_real_selector_map_loads_with_exact_required_keys() -> None:
     assert selector_map["send_button_unverified_no_input"] == (
         'button[data-testid="send-button"], #composer-submit-button, button[aria-label="Send prompt"]'
     )
+    assert selector_map["file_input"] == 'form input[type="file"]'
+    assert selector_map["attachment_chip"] == 'button[aria-label*="Remove file" i]'
+    assert selector_map["active_tool_chip"] == 'button[aria-label*="click to remove" i]'
     assert selector_map["radix_portal"] == "[data-radix-popper-content-wrapper]"
     assert selector_map["model_picker_trigger_candidates"] == (
         'form button[aria-haspopup="menu"]:not([data-testid])'

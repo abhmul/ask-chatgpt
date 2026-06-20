@@ -237,6 +237,13 @@ class AttachmentFetchError(_KnownAskChatGPTError):
     default_retry_action = "retry_fetch"
 
 
+class AttachmentUploadError(_KnownAskChatGPTError):
+    default_code = "ATTACHMENT_UPLOAD_FAILED"
+    default_exit_code = 63
+    default_retryable = True
+    default_retry_action = "retry_upload_or_update_selectors"
+
+
 class TabPoolExhaustedError(_KnownAskChatGPTError):
     default_code = "TAB_POOL_EXHAUSTED"
     default_exit_code = 62
@@ -266,6 +273,7 @@ __all__ = [
     "AskChatGPTError",
     "AttachmentFetchError",
     "AttachmentNotFoundError",
+    "AttachmentUploadError",
     "BackendAuthUnavailableError",
     "BackendCaptureShapeError",
     "CDPUnreachableError",

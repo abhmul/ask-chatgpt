@@ -6,6 +6,7 @@ from ask_chatgpt.errors import (
     AskChatGPTError,
     AttachmentFetchError,
     AttachmentNotFoundError,
+    AttachmentUploadError,
     BackendAuthUnavailableError,
     BackendCaptureShapeError,
     CDPUnreachableError,
@@ -43,6 +44,7 @@ ERROR_CASES = [
     (AttachmentNotFoundError, "ATTACHMENT_NOT_FOUND", 60),
     (AttachmentFetchError, "ATTACHMENT_FETCH_FAILED", 61),
     (TabPoolExhaustedError, "TAB_POOL_EXHAUSTED", 62),
+    (AttachmentUploadError, "ATTACHMENT_UPLOAD_FAILED", 63),
     (StoreError, "STORE_ERROR", 70),
     (InternalError, "INTERNAL_ERROR", 99),
 ]

@@ -5,7 +5,13 @@ import pytest
 from ask_chatgpt.channels.base import TurnDomSnapshot
 from ask_chatgpt.channels.mock import MockChannel, MockScenario, ScriptedClock, TimedTurnSnapshot
 from ask_chatgpt.errors import ModelSelectionNotReflectedError, ToolSelectionNotReflectedError
-from ask_chatgpt.menus import enumerate_radix_options, open_radix_menu, select_model, set_tools
+from ask_chatgpt.menus import (
+    _tool_chip_selector,
+    enumerate_radix_options,
+    open_radix_menu,
+    select_model,
+    set_tools,
+)
 
 
 SELECTORS = {
@@ -17,6 +23,9 @@ SELECTORS = {
     "copy_button": "button[data-testid=\"copy-turn-action-button\"]",
     "stop_button": "button[data-testid=\"stop-button\"]",
     "send_button_unverified_no_input": "button[data-testid=\"send-button\"], #composer-submit-button, button[aria-label=\"Send prompt\"]",
+    "file_input": "input[type=\"file\"]",
+    "attachment_chip": "[data-testid=\"composer-attachment\"], div[data-testid*=\"attachment\"], button[aria-label*=\"Remove\" i]",
+    "active_tool_chip": "button[aria-label*=\"click to remove\" i]",
     "radix_portal": "[data-radix-popper-content-wrapper]",
     "model_picker_trigger_candidates": "form button[aria-haspopup=\"menu\"]:not([data-testid])",
 }
@@ -38,6 +47,27 @@ def _tab(channel: MockChannel):
 
 def _option(label: str, role: str | None = "menuitemradio", *, checked: bool | None = False, disabled: bool = False, path: tuple[str, ...] = ()) -> dict[str, object]:
     return {"label": label, "role": role, "checked": checked, "disabled": disabled, "path": list(path)}
+
+
+def _live_model_family_options() -> tuple[dict[str, object], ...]:
+    return (
+        _option("Instant"),
+        _option("Medium"),
+        _option("High"),
+        _option("Extra High"),
+        _option("Pro Extended", checked=True),
+        _option("GPT-5.5", "menuitem", checked=None),
+    )
+
+
+def _gpt55_submenu_options() -> tuple[dict[str, object], ...]:
+    return (
+        _option("GPT-5.5", checked=True),
+        _option("GPT-5.4"),
+        _option("GPT-5.3"),
+        _option("GPT-4.5 Leaving on June 26"),
+        _option("o3"),
+    )
 
 
 def test_open_radix_menu_uses_pointer_activation_evaluate_not_click() -> None:
@@ -78,10 +108,10 @@ def test_select_model_opens_family_submenu_then_radio_and_verifies_reflection() 
     channel = MockChannel(
         MockScenario(
             name="model_family_submenu",
-            turn_timeline=(TimedTurnSnapshot(0.0, _snapshot()),),
+            turn_timeline=(TimedTurnSnapshot(0.0, _snapshot(model_labels=("Pro Extended",))),),
             menu_options={
-                "model": (_option("GPT-5.5", "menuitem", checked=None),),
-                "model>GPT-5.5": (_option("GPT-5.5", "menuitemradio"),),
+                "model": _live_model_family_options(),
+                "model>GPT-5.5": _gpt55_submenu_options(),
             },
             menu_reflected_model_labels={"GPT-5.5": ("GPT-5.5",)},
         )
@@ -95,6 +125,29 @@ def test_select_model_opens_family_submenu_then_radio_and_verifies_reflection() 
         ("GPT-5.5", "open_submenu"),
         ("GPT-5.5", "select"),
     ]
+
+
+def test_select_model_finds_differently_named_gpt55_family_subradio() -> None:
+    channel = MockChannel(
+        MockScenario(
+            name="model_family_submenu_different_subradio",
+            turn_timeline=(TimedTurnSnapshot(0.0, _snapshot(model_labels=("Pro Extended",))),),
+            menu_options={
+                "model": _live_model_family_options(),
+                "model>GPT-5.5": _gpt55_submenu_options(),
+            },
+            menu_reflected_model_labels={"GPT-5.4": ("GPT-5.4",)},
+        )
+    )
+
+    result = select_model(_tab(channel), SELECTORS, "GPT-5.4")
+
+    assert result.requested == "GPT-5.4"
+    assert result.reflected == "GPT-5.4"
+    assert result.verified is True
+    click_labels_and_actions = [(click["label"], click["action"]) for click in channel.menu_clicks]
+    assert ("GPT-5.5", "open_submenu") in click_labels_and_actions
+    assert click_labels_and_actions[-1] == ("GPT-5.4", "select")
 
 
 def test_select_model_absent_label_fails_without_menu_selection_or_send() -> None:
@@ -282,11 +335,78 @@ def test_set_tools_reopens_tools_menu_after_select_when_menu_closes() -> None:
     ) == 2
 
 
+def test_set_tools_verifies_menu_unchecked_tool_by_matching_composer_chip() -> None:
+    matching_chip = _tool_chip_selector(SELECTORS["active_tool_chip"], "Deep research")
+    channel = MockChannel(
+        MockScenario(
+            name="tool_chip_reflection_menu_unchecked_matching",
+            menu_options={"tools": (_option("Deep research", "menuitemradio", checked=False),)},
+            menu_closes_on_select=True,
+            menu_labels_without_checked_reflection=("Deep research",),
+            selector_presence={matching_chip: True},
+        )
+    )
+
+    results = set_tools(_tab(channel), SELECTORS, ("Deep research",))
+
+    assert results[0].requested == "Deep research"
+    assert results[0].reflected == "Deep research"
+    assert results[0].verified is True
+    assert [click["label"] for click in channel.menu_clicks] == ["Deep research"]
+
+
+def test_set_tools_fails_closed_when_only_nonmatching_composer_chip_present() -> None:
+    matching_chip = _tool_chip_selector(SELECTORS["active_tool_chip"], "Deep research")
+    other_chip = _tool_chip_selector(SELECTORS["active_tool_chip"], "Search")
+    channel = MockChannel(
+        MockScenario(
+            name="tool_unchecked_with_nonmatching_chip",
+            menu_options={"tools": (_option("Deep research", "menuitemradio", checked=False),)},
+            menu_closes_on_select=True,
+            menu_labels_without_checked_reflection=("Deep research",),
+            selector_presence={
+                SELECTORS["active_tool_chip"]: True,
+                matching_chip: False,
+                other_chip: True,
+            },
+        )
+    )
+
+    with pytest.raises(ToolSelectionNotReflectedError) as excinfo:
+        set_tools(_tab(channel), SELECTORS, ("Deep research",))
+
+    assert excinfo.value.code == "TOOL_SELECTION_NOT_REFLECTED"
+    assert [click["label"] for click in channel.menu_clicks] == ["Deep research"]
+    assert channel.method_counts.get("fill", 0) == 0
+
+
+def test_set_tools_fails_closed_when_no_checked_state_or_composer_chip() -> None:
+    matching_chip = _tool_chip_selector(SELECTORS["active_tool_chip"], "Deep research")
+    channel = MockChannel(
+        MockScenario(
+            name="tool_unchecked_without_chip",
+            menu_options={"tools": (_option("Deep research", "menuitemradio", checked=False),)},
+            menu_closes_on_select=True,
+            menu_labels_without_checked_reflection=("Deep research",),
+            selector_presence={SELECTORS["active_tool_chip"]: False, matching_chip: False},
+        )
+    )
+
+    with pytest.raises(ToolSelectionNotReflectedError) as excinfo:
+        set_tools(_tab(channel), SELECTORS, ("Deep research",))
+
+    assert excinfo.value.code == "TOOL_SELECTION_NOT_REFLECTED"
+    assert [click["label"] for click in channel.menu_clicks] == ["Deep research"]
+    assert channel.method_counts.get("fill", 0) == 0
+
+
 def test_set_tools_clicked_tool_must_reflect_checked_state() -> None:
+    matching_chip = _tool_chip_selector(SELECTORS["active_tool_chip"], "Web search")
     channel = MockChannel(
         MockScenario(
             name="tool_clicked_but_not_checked",
             menu_options={"tools": (_option("Web search", "menuitem", checked=None),)},
+            selector_presence={SELECTORS["active_tool_chip"]: False, matching_chip: False},
         )
     )
 

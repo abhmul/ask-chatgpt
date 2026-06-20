@@ -1,0 +1,73 @@
+Status: PARTIAL
+
+# M9-W6 reverify report
+
+## CDP
+- Endpoint used: `/json/version` only.
+- Preflight ok/error: `True` / `None`
+- Browser preflight: `Chrome/149.0.7827.53`; Protocol-Version: `1.3`; websocket present: `True`
+- Browser post-detach alive: `True`; browser: `Chrome/149.0.7827.53`
+
+## Sends
+- Family sends: `0`
+- DR sends: `0`
+- Upload sends: `0`
+- Final `send_budget.successful_submissions`: `0` / cap `2`
+- Cap respected (`<=2`): `True`
+
+## C — Deep Research diagnostic (NO send; never run)
+- Deep Research present in tools menu: `True`
+- Initial menu state: `{"checked_labels": [], "deep_checked": false, "error": null, "match_count": 1, "matches": [{"checked": false, "disabled": false, "label": "Deep research", "path": [], "role": "menuitemradio"}], "opened": true, "present": true}`
+- `set_tools([Deep research])`: `{"reflected": "Deep research", "requested": "Deep research", "verified": true}`
+- `set_tools` typed fail-closed error: `null`
+- Active-tool-chip present after set: `True`; verified via chip: `True`
+- After-attempt authoritative-signal diagnostic: `{"active_tool_chip": {"candidate_count": 1, "candidates": [{"aria_label": "Deep research, click to remove", "role": null, "tag": "button", "ui_text": "<redacted>"}], "has_signal": true, "selector_used": "button[aria-label*=\"click to remove\" i]"}, "armed": true, "chip": {"candidate_count": 8, "candidates": [{"aria_label": null, "data_testid": null, "matched_by": "ui_text", "role": null, "stable_selector": null, "tag": "div", "title": null}, {"aria_label": null, "data_testid": null, "matched_by": "ui_text", "role": null, "stable_selector": null, "tag": "div", "title": null}, {"aria_label": null, "data_testid": "composer-footer-actions", "matched_by": "ui_text", "role": null, "stable_selector": "[data-testid=\"composer-footer-actions\"]", "tag": "div", "title": null}, {"aria_label": null, "data_testid": null, "matched_by": "ui_text", "role": null, "stable_selector": null, "tag": "div", "title": null}, {"aria_label": null, "data_testid": null, "matched_by": "ui_text", "role": null, "stable_selector": null, "tag": "div", "title": null}, {"aria_label": null, "data_testid": null, "matched_by": "ui_text", "role": null, "stable_selector": null, "tag": "div", "title": null}, {"aria_label": "Deep research, click to remove", "data_testid": null, "matched_by": "aria_label", "role": null, "stable_selector": "button[aria-label*=\"Deep research\" i]", "tag": "button", "title": null}, {"aria_label": null, "data_testid": null, "matched_by": "ui_text", "role": null, "stable_selector": null, "tag": "span", "title": null}], "has_signal": true}, "menu": {"checked_labels": [], "deep_checked": false, "error": null, "match_count": 1, "matches": [{"checked": false, "disabled": false, "label": "Deep research", "path": [], "role": "menuitemradio"}], "opened": true, "present": true}}`
+- Clear outcome: `{"after_reload": {"active_tool_chip": {"candidate_count": 0, "candidates": [], "has_signal": false, "selector_used": "button[aria-label*=\"click to remove\" i]"}, "armed": false, "chip": {"candidate_count": 0, "candidates": [], "has_signal": false}, "menu": {"checked_labels": [], "deep_checked": false, "error": null, "match_count": 1, "matches": [{"checked": false, "disabled": false, "label": "Deep research", "path": [], "role": "menuitemradio"}], "opened": true, "present": true}}, "after_toggle": null, "before": {"active_tool_chip": {"candidate_count": 1, "candidates": [{"aria_label": "Deep research, click to remove", "role": null, "tag": "button", "ui_text": "<redacted>"}], "has_signal": true, "selector_used": "button[aria-label*=\"click to remove\" i]"}, "armed": true, "chip": {"candidate_count": 8, "candidates": [{"aria_label": null, "data_testid": null, "matched_by": "ui_text", "role": null, "stable_selector": null, "tag": "div", "title": null}, {"aria_label": null, "data_testid": null, "matched_by": "ui_text", "role": null, "stable_selector": null, "tag": "div", "title": null}, {"aria_label": null, "data_testid": "composer-footer-actions", "matched_by": "ui_text", "role": null, "stable_selector": "[data-testid=\"composer-footer-actions\"]", "tag": "div", "title": null}, {"aria_label": null, "data_testid": null, "matched_by": "ui_text", "role": null, "stable_selector": null, "tag": "div", "title": null}, {"aria_label": null, "data_testid": null, "matched_by": "ui_text", "role": null, "stable_selector": null, "tag": "div", "title": null}, {"aria_label": null, "data_testid": null, "matched_by": "ui_text", "role": null, "stable_selector": null, "tag": "div", "title": null}, {"aria_label": "Deep research, click to remove", "data_testid": null, "matched_by": "aria_label", "role": null, "stable_selector": "button[aria-label*=\"Deep research\" i]", "tag": "button", "title": null}, {"aria_label": null, "data_testid": null, "matched_by": "ui_text", "role": null, "stable_selector": null, "tag": "span", "title": null}], "has_signal": true}, "menu": {"checked_labels": [], "deep_checked": false, "error": null, "match_count": 1, "matches": [{"checked": false, "disabled": false, "label": "Deep research", "path": [], "role": "menuitemradio"}], "opened": true, "present": true}}, "cleared": true, "method": "reload"}`
+- Cleared before upload: `True`
+- Recommendation: `cheap_wire_composer_chip_selector: button[aria-label*="click to remove" i]`
+- Zero sends: `True`; send delta: `0`
+
+## B — GPT-5.5 family re-verify (NO send)
+- Initial label: `Pro Extended`; sustained ~12s: `True`; expected `Pro Extended`: `True`
+- `select_model("GPT-5.4")`: `null`
+- `select_model` typed fail-closed error: `{"code": "MODEL_SELECTION_NOT_REFLECTED", "details": {"requested_model": "GPT-5.4", "selected_label": "GPT-5.4"}, "exit_code": 31, "message": "requested model was selected but not reflected", "retry_action": "retry_model_selection", "retryable": true, "type": "ModelSelectionNotReflectedError"}`
+- Independent ~12s target confirmation: `{"ok": false, "reason": "select_model_not_verified"}`
+- Restore original: `{"attempted": false, "error": {"reason": "select_model_not_verified", "type": "SKIPPED"}, "reflected": null, "requested": null, "verified": null}`
+- Restore confirmation: `null`
+- Zero sends: `True`; send delta: `0`
+
+## A — Upload smoke
+- Attempts: `2`
+- Upload send delta on successful attempt: `None`; upload leg sends recorded: `0`
+- Throwaway conversation: `None` — `None`
+- Conversation id/url target-safe: `None` / `None`
+- No `AttachmentUploadError` (composer chip appeared): `None`
+- User-turn attachment evidence: `{}`
+- Assistant captured: role assistant `None`, status complete `None`, content_nonempty `None`, capture_source `None`, fidelity `None`
+- Transcript metadata: `null`
+- Upload errors: `[{"attempt": 1, "error": {"code": "PROMPT_NOT_SUBMITTED", "details": {"baseline_user_count": 0, "baseline_user_id": null, "last_seen_user_count": 1, "last_seen_user_id": "<redacted-throwaway-msg-id>"}, "exit_code": 30, "message": "submit did not produce a new user turn carrying the prompt", "partial": null, "retry_action": "retry_send", "retryable": true, "type": "PromptNotSubmittedError"}}, {"attempt": 2, "error": {"code": "PROMPT_NOT_SUBMITTED", "details": {"baseline_user_count": 0, "baseline_user_id": null, "last_seen_user_count": 1, "last_seen_user_id": "<redacted-throwaway-msg-id>"}, "exit_code": 30, "message": "submit did not produce a new user turn carrying the prompt", "partial": null, "retry_action": "retry_send", "retryable": true, "type": "PromptNotSubmittedError"}}]`
+
+## Safety
+- Own-tab-only via Session/TabPool: `True`
+- No `/json/list` and no page enumeration in driver: `True`
+- Fresh throwaway chats only: `True`
+- Protected `6a316aa8` / foreign tabs untouched: `True` / `True`
+- Browser not quit; Session.detach only: `True`
+- Never ran Deep Research: `True`
+- No send while tool/DR armed: `True`
+- No auth/OAI/cookie/bearer values logged: `True`
+- No conversation content printed/reported: `True`
+- Branch start/end: `rewrite-v2` / `rewrite-v2`; HEAD start/end: `b88280c` / `b88280c`
+- `cache/` not staged: `True`; protected paths unstaged: `True`
+- Stable rev start/end same: `True`
+- Staged files at end: `[]`
+
+## Blockers
+- `UPLOAD_SMOKE_FAILED` in `upload`: Upload smoke did not produce a captured assistant turn within the allowed attempts/send cap.
+
+## Signals
+- None.
+
+## Artifacts
+- `scripts/m9_w6_reverify.py`
+- `team/evidence/reports/M9-W6-reverify.txt`

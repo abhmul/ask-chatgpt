@@ -151,8 +151,10 @@ JS_CURRENT_URL = """() => window.location.href"""
 
 JS_MENU_ENUMERATE = r"""
 (a) => {
-  const portal = document.querySelector(a.portal_selector || '[data-radix-popper-content-wrapper]');
-  if (!portal) return [];
+  a = a || {};
+  const portalSelector = a.portal_selector || '[data-radix-popper-content-wrapper]';
+  const portals = Array.from(document.querySelectorAll(portalSelector));
+  if (!portals.length) return [];
   const norm = value => (value || '').replace(/\s+/g, ' ').trim();
   const visible = el => {
     const style = getComputedStyle(el);
@@ -160,28 +162,35 @@ JS_MENU_ENUMERATE = r"""
     return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
   };
   const disabled = el => Boolean(el.disabled || el.getAttribute('aria-disabled') === 'true' || el.hasAttribute('disabled'));
-  return Array.from(portal.querySelectorAll('[role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"]'))
-    .filter(visible)
-    .map(el => {
-      const ariaChecked = el.getAttribute('aria-checked');
-      return {
-        label: norm(el.innerText || el.textContent || el.getAttribute('aria-label') || ''),
-        role: el.getAttribute('role'),
-        checked: ariaChecked === 'true' ? true : (ariaChecked === 'false' ? false : null),
-        disabled: disabled(el),
-        path: []
-      };
-    })
-    .filter(item => item.label);
+  const seen = new Set();
+  const items = [];
+  portals.forEach(portal => {
+    Array.from(portal.querySelectorAll('[role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"]'))
+      .forEach(el => {
+        if (seen.has(el) || !visible(el)) return;
+        seen.add(el);
+        const ariaChecked = el.getAttribute('aria-checked');
+        items.push({
+          label: norm(el.innerText || el.textContent || el.getAttribute('aria-label') || ''),
+          role: el.getAttribute('role'),
+          checked: ariaChecked === 'true' ? true : (ariaChecked === 'false' ? false : null),
+          disabled: disabled(el),
+          path: []
+        });
+      });
+  });
+  return items.filter(item => item.label);
 }
 """
 
 JS_MENU_CLICK_LABEL = r"""
 (a) => {
-  const portal = document.querySelector('[data-radix-popper-content-wrapper]');
-  if (!portal) return {ok: false, reason: 'portal_absent'};
+  a = a || {};
+  const portals = Array.from(document.querySelectorAll('[data-radix-popper-content-wrapper]'));
+  if (!portals.length) return {ok: false, reason: 'portal_absent'};
   const norm = value => (value || '').replace(/\s+/g, ' ').trim();
   const requested = norm(a.label);
+  const requestedPath = Array.isArray(a.path) ? a.path : [];
   const visible = el => {
     const style = getComputedStyle(el);
     const rect = el.getBoundingClientRect();
@@ -198,12 +207,26 @@ JS_MENU_CLICK_LABEL = r"""
     try { el.dispatchEvent(new PointerEvent('pointerup', {...base, pointerType: 'mouse', pointerId: 1, isPrimary: true, buttons: 0})); } catch (_) {}
     el.dispatchEvent(new MouseEvent('mouseup', {...base, buttons: 0}));
   };
-  const matches = Array.from(portal.querySelectorAll('[role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"]'))
-    .filter(el => visible(el) && enabled(el))
-    .filter(el => norm(el.innerText || el.textContent || el.getAttribute('aria-label') || '') === requested)
-    .filter(el => !a.role || el.getAttribute('role') === a.role);
-  if (matches.length !== 1) return {ok: false, reason: 'match_count', count: matches.length};
-  const target = matches[0];
+  const seen = new Set();
+  const items = [];
+  portals.forEach((portal, portalIndex) => {
+    Array.from(portal.querySelectorAll('[role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"]'))
+      .forEach(el => {
+        if (seen.has(el) || !visible(el) || !enabled(el)) return;
+        seen.add(el);
+        items.push({el, portalIndex});
+      });
+  });
+  const allMatches = items
+    .filter(item => norm(item.el.innerText || item.el.textContent || item.el.getAttribute('aria-label') || '') === requested)
+    .filter(item => !a.role || item.el.getAttribute('role') === a.role);
+  let matches = allMatches;
+  if (requestedPath.length > 0 && allMatches.length > 1) {
+    const deepestPortalIndex = Math.max(...allMatches.map(item => item.portalIndex));
+    matches = allMatches.filter(item => item.portalIndex === deepestPortalIndex);
+  }
+  if (matches.length !== 1) return {ok: false, reason: 'match_count', count: matches.length, total: allMatches.length};
+  const target = matches[0].el;
   if (a.action === 'open_submenu') {
     target.dispatchEvent(new MouseEvent('mouseover', {bubbles: true, cancelable: true, view: window}));
     target.dispatchEvent(new MouseEvent('mouseenter', {bubbles: true, cancelable: true, view: window}));

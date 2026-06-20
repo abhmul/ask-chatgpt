@@ -142,6 +142,7 @@ class MockScenario:
     menu_options: Mapping[str, Sequence[Mapping[str, JsonValue]]] = field(default_factory=dict)
     menu_trigger_keys: Mapping[str, str] = field(default_factory=dict)
     menu_closes_on_select: bool = False
+    menu_labels_without_checked_reflection: tuple[str, ...] = ()
     menu_reflected_model_labels: Mapping[str, Sequence[str]] = field(default_factory=dict)
     current_url: str | None = None
     current_url_sequence: tuple[str, ...] = ()
@@ -227,6 +228,10 @@ class MockChannel:
         self._menu_options_by_key: dict[str, list[dict[str, JsonValue]]] = {
             key: [dict(option) for option in options]
             for key, options in self.scenario.menu_options.items()
+        }
+        self._menu_labels_without_checked_reflection = {
+            _menu_norm(label)
+            for label in self.scenario.menu_labels_without_checked_reflection
         }
         self._model_labels_override: tuple[str, ...] | None = None
         self.menu_clicks: list[dict[str, JsonValue]] = []
@@ -632,7 +637,10 @@ class MockChannel:
             if submenu_key in self._menu_options_by_key:
                 self._active_menu_key = submenu_key
             return {"ok": True}
-        if isinstance(matched.get("checked"), bool):
+        if (
+            _menu_norm(label) not in self._menu_labels_without_checked_reflection
+            and isinstance(matched.get("checked"), bool)
+        ):
             matched["checked"] = True
         reflected = self.scenario.menu_reflected_model_labels.get(label)
         if reflected is not None:

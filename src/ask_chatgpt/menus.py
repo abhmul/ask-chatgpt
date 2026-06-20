@@ -7,7 +7,11 @@ from dataclasses import dataclass
 from typing import Any
 
 from ask_chatgpt.channels.base import TabLease
-from ask_chatgpt.errors import ModelSelectionNotReflectedError, SelectorNotFoundError, ToolSelectionNotReflectedError
+from ask_chatgpt.errors import (
+    ModelSelectionNotReflectedError,
+    SelectorNotFoundError,
+    ToolSelectionNotReflectedError,
+)
 from ask_chatgpt.models import JsonValue, SelectorMap
 from ask_chatgpt.send import _monotonic, _sleep_until, normalize_prompt
 
@@ -18,6 +22,7 @@ _RADIX_PORTAL_SELECTOR = "[data-radix-popper-content-wrapper]"
 _FORBIDDEN_SUBMENUS = {normalize_prompt("Recent files"), normalize_prompt("Projects")}
 _MODEL_LABEL_ATTEMPTS = 6
 _MODEL_LABEL_INTERVAL_S = 2.0
+_TOOL_CHIP_REFLECTION_TIMEOUT_S = 1.0
 
 
 @dataclass(frozen=True)
@@ -109,10 +114,7 @@ def select_model(tab: TabLease, selectors: SelectorMap, label: str) -> Selection
         elif len(family) == 1:
             selected = select_radix_label(tab, label, role="menuitemradio", submenu_path=(family[0].label,))
         else:
-            raise ModelSelectionNotReflectedError(
-                "requested model label is absent",
-                details={"requested_model": label},
-            )
+            selected = _select_model_from_family_submenus(tab, selectors, label, options)
         reflected = _reflected_model(tab, selectors, label)
         if reflected is None:
             raise ModelSelectionNotReflectedError(
@@ -129,6 +131,55 @@ def select_model(tab: TabLease, selectors: SelectorMap, label: str) -> Selection
         ) from exc
 
 
+def _select_model_from_family_submenus(
+    tab: TabLease,
+    selectors: SelectorMap,
+    label: str,
+    top_level_options: Sequence[MenuOption],
+) -> MenuOption:
+    requested = normalize_prompt(label)
+    families = [
+        option
+        for option in top_level_options
+        if option.role == "menuitem"
+        and not option.disabled
+        and normalize_prompt(option.label) not in _FORBIDDEN_SUBMENUS
+    ]
+    matches: list[tuple[MenuOption, MenuOption]] = []
+    for family in families:
+        _close_radix_menu(tab)
+        open_radix_menu(tab, selectors["model_picker_trigger_candidates"])
+        current_family = _exactly_one_enabled(
+            enumerate_radix_options(tab),
+            family.label,
+            role="menuitem",
+            error_type=ModelSelectionNotReflectedError,
+        )
+        _click_menu_label(tab, current_family, action="open_submenu", path=())
+        submenu_matches = _enabled_matches(enumerate_radix_options(tab), requested, role="menuitemradio")
+        if len(submenu_matches) > 1:
+            _close_radix_menu(tab)
+            raise ModelSelectionNotReflectedError(
+                "requested model label is ambiguous in family submenu",
+                details={"requested_model": label, "family": family.label, "match_count": len(submenu_matches)},
+            )
+        if len(submenu_matches) == 1:
+            matches.append((current_family, submenu_matches[0]))
+    _close_radix_menu(tab)
+    if len(matches) != 1:
+        reason = "absent" if not matches else "ambiguous"
+        details: dict[str, JsonValue] = {"requested_model": label}
+        if matches:
+            details["match_count"] = len(matches)
+        raise ModelSelectionNotReflectedError(
+            f"requested model label is {reason}",
+            details=details,
+        )
+    family, _submenu_option = matches[0]
+    open_radix_menu(tab, selectors["model_picker_trigger_candidates"])
+    return select_radix_label(tab, label, role="menuitemradio", submenu_path=(family.label,))
+
+
 def set_tools(
     tab: TabLease, selectors: SelectorMap, labels: Sequence[str]
 ) -> tuple[SelectionResult, ...]:
@@ -143,6 +194,8 @@ def set_tools(
                 reflected = _reflected_tool_by_reopen(tab, selectors, label)
             finally:
                 _close_radix_menu(tab)
+            if reflected is None:
+                reflected = _reflected_tool_by_chip(tab, selectors, selected.label)
             if reflected is None:
                 raise ToolSelectionNotReflectedError(
                     "requested tool was selected but not reflected",
@@ -292,6 +345,32 @@ def _sustained_model_labels(
 def _reflected_tool_by_reopen(tab: TabLease, selectors: SelectorMap, label: str) -> str | None:
     open_radix_menu(tab, selectors["tools_button"])
     return _reflected_tool(tab, label)
+
+
+def _reflected_tool_by_chip(
+    tab: TabLease, selectors: SelectorMap, reflected_label: str
+) -> str | None:
+    if not normalize_prompt(reflected_label):
+        return None
+    try:
+        tab.channel.wait_for_selector(
+            tab,
+            _tool_chip_selector(selectors["active_tool_chip"], reflected_label),
+            state="visible",
+            timeout_s=_TOOL_CHIP_REFLECTION_TIMEOUT_S,
+        )
+    except SelectorNotFoundError:
+        return None
+    return reflected_label
+
+
+def _tool_chip_selector(active_tool_chip_selector: str, reflected_label: str) -> str:
+    label = _css_attr_string(normalize_prompt(reflected_label))
+    return f":is({active_tool_chip_selector})[aria-label*={label} i]"
+
+
+def _css_attr_string(value: str) -> str:
+    return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
 def _close_radix_menu(tab: TabLease) -> None:

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 from ask_chatgpt.channels.base import RequestSnapshot, TurnDom, TurnDomSnapshot
 from ask_chatgpt.channels.mock import (
     HEADER_CANARIES,
@@ -12,7 +14,7 @@ from ask_chatgpt.channels.mock import (
 )
 import pytest
 
-from ask_chatgpt.errors import InternalError, PromptNotSubmittedError
+from ask_chatgpt.errors import AttachmentUploadError, InternalError, PromptNotSubmittedError
 from ask_chatgpt.identity import conversation_url
 from ask_chatgpt.models import TurnRecord
 from ask_chatgpt.session import Session
@@ -28,6 +30,9 @@ SELECTORS = {
     "copy_button": "button[data-testid=\"copy-turn-action-button\"]",
     "stop_button": "button[data-testid=\"stop-button\"]",
     "send_button_unverified_no_input": "button[data-testid=\"send-button\"], #composer-submit-button, button[aria-label=\"Send prompt\"]",
+    "file_input": "input[type=\"file\"]",
+    "attachment_chip": "[data-testid=\"composer-attachment\"], div[data-testid*=\"attachment\"], button[aria-label*=\"Remove\" i]",
+    "active_tool_chip": "button[aria-label*=\"click to remove\" i]",
     "radix_portal": "[data-radix-popper-content-wrapper]",
     "model_picker_trigger_candidates": "form button[aria-haspopup=\"menu\"]:not([data-testid])",
 }
@@ -93,12 +98,13 @@ def _draft_scenario(
     learned_url: str = "https://chatgpt.com/c/learned-123",
     conversation_id: str = "learned-123",
     submit_turn: bool = True,
+    submitted_user_text: str = PROMPT,
     current_url_sequence: tuple[str, ...] = (),
     requests_require_reload: bool = False,
 ) -> MockScenario:
     baseline = TurnDomSnapshot(users=(), assistants=(), stop_visible=False, composer_visible=True, model_labels=())
     submitted = TurnDomSnapshot(
-        users=(TurnDom("user-draft-1", "user", PROMPT),),
+        users=(TurnDom("user-draft-1", "user", submitted_user_text),),
         assistants=(),
         stop_visible=True,
         composer_visible=True,
@@ -161,6 +167,104 @@ def test_draft_ask_learns_server_conversation_id_and_writes_transcript_under_rea
     assert [turn.message_id for turn in transcript.turns] == ["user-draft-1", "assistant-draft-1"]
     assert all(turn.conversation_id == "learned-123" for turn in transcript.turns)
     assert (tmp_path / "conversations" / "learned-123" / "transcript.jsonl").is_file()
+
+
+def test_draft_ask_uploads_attached_file_before_submit(tmp_path) -> None:
+    attachment = tmp_path / "m9-upload.txt"
+    attachment.write_text("offline upload canary", encoding="utf-8")
+    clock = ScriptedClock()
+    channel = MockChannel(
+        replace(
+            _draft_scenario(),
+            selector_presence={SELECTORS["attachment_chip"]: True},
+        ),
+        monotonic=clock.monotonic,
+        sleeper=clock.sleep,
+    )
+    session = _session(tmp_path, channel)
+
+    answer = session.ask(None, PROMPT, attach=[attachment])
+
+    assert answer.conversation_id == "learned-123"
+    upload_calls = [call for call in channel.calls if call.method == "upload_files"]
+    assert len(upload_calls) == 1
+    assert upload_calls[0].details["selector"] == SELECTORS["file_input"]
+    assert upload_calls[0].details["file_count"] == 1
+    methods = list(channel.call_order)
+    assert methods.index("upload_files") < methods.index("fill")
+    assert methods.index("upload_files") < methods.index("click")
+
+
+def test_draft_ask_attach_verifies_user_turn_when_dom_includes_attachment_filename(tmp_path) -> None:
+    attachment = tmp_path / "m9-upload.txt"
+    attachment.write_text("offline upload canary", encoding="utf-8")
+    clock = ScriptedClock()
+    channel = MockChannel(
+        replace(
+            _draft_scenario(submitted_user_text=f"{attachment.name}\n{PROMPT}"),
+            selector_presence={SELECTORS["attachment_chip"]: True},
+        ),
+        monotonic=clock.monotonic,
+        sleeper=clock.sleep,
+    )
+    session = _session(tmp_path, channel)
+
+    answer = session.ask(None, PROMPT, attach=[attachment])
+
+    assert answer.conversation_id == "learned-123"
+    transcript = Store(data_dir=tmp_path).load_transcript("learned-123")
+    user_turns = [turn for turn in transcript.turns if turn.role == "user"]
+    assert [turn.content_markdown for turn in user_turns] == [PROMPT]
+    assert channel.method_counts.get("upload_files", 0) == 1
+
+
+def test_draft_ask_attach_waits_past_default_send_enable_settle(tmp_path) -> None:
+    attachment = tmp_path / "m9-delayed-enable.txt"
+    attachment.write_text("offline upload canary", encoding="utf-8")
+    clock = ScriptedClock()
+    send_selector = SELECTORS["send_button_unverified_no_input"]
+    channel = MockChannel(
+        replace(
+            _draft_scenario(),
+            selector_presence={SELECTORS["attachment_chip"]: True},
+            selector_enabled_sequence={send_selector: (False,) * 10 + (True,)},
+        ),
+        monotonic=clock.monotonic,
+        sleeper=clock.sleep,
+    )
+    session = _session(tmp_path, channel)
+
+    answer = session.ask(None, PROMPT, attach=[attachment])
+
+    assert answer.conversation_id == "learned-123"
+    assert channel.method_counts.get("click", 0) == 1
+    assert clock.monotonic() > 2.0
+    methods = list(channel.call_order)
+    assert methods.index("upload_files") < methods.index("fill") < methods.index("click")
+
+
+def test_draft_ask_attach_fails_closed_when_chip_never_appears(tmp_path) -> None:
+    attachment = tmp_path / "m9-missing-chip.txt"
+    attachment.write_text("offline upload canary", encoding="utf-8")
+    clock = ScriptedClock()
+    channel = MockChannel(
+        replace(
+            _draft_scenario(),
+            selector_presence={SELECTORS["attachment_chip"]: False},
+        ),
+        monotonic=clock.monotonic,
+        sleeper=clock.sleep,
+    )
+
+    with pytest.raises(AttachmentUploadError) as exc_info:
+        _session(tmp_path, channel).ask(None, PROMPT, attach=[attachment])
+
+    assert exc_info.value.code == "ATTACHMENT_UPLOAD_FAILED"
+    assert exc_info.value.details["file_count"] == 1
+    assert channel.method_counts.get("upload_files", 0) == 1
+    assert channel.method_counts.get("fill", 0) == 0
+    assert channel.method_counts.get("click", 0) == 0
+    assert clock.monotonic() >= 30.0
 
 
 def test_draft_ask_reloads_learned_chat_before_capture_when_backend_get_requires_reload(tmp_path) -> None:

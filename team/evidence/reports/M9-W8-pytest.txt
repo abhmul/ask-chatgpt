@@ -1,0 +1,40 @@
+warning: `VIRTUAL_ENV=/home/abhmul/.local/share/agent-python/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead
+============================= test session starts ==============================
+platform linux -- Python 3.13.5, pytest-9.0.3, pluggy-1.6.0
+rootdir: /home/abhmul/dev/ask-chatgpt
+configfile: pyproject.toml
+testpaths: tests
+collected 268 items
+
+tests/test_allowlist.py .......................                          [  8%]
+tests/test_cache_default.py ..                                           [  9%]
+tests/test_capture.py ........................                           [ 18%]
+tests/test_cdp_channel.py .......................                        [ 26%]
+tests/test_channels_base.py ...                                          [ 27%]
+tests/test_cli.py ...........                                            [ 32%]
+tests/test_errors.py .....................                               [ 39%]
+tests/test_identity.py ..............                                    [ 45%]
+tests/test_menus.py ..................                                   [ 51%]
+tests/test_mock_channel.py ........                                      [ 54%]
+tests/test_models.py ................                                    [ 60%]
+tests/test_selectors.py ......................                           [ 69%]
+tests/test_send_budget.py ........                                       [ 72%]
+tests/test_send_completion.py .........................                  [ 81%]
+tests/test_session_draft_loop.py .............                           [ 86%]
+tests/test_session_stubs.py ..                                           [ 86%]
+tests/test_smoke.py ......                                               [ 89%]
+tests/test_store_atomic_raw.py ...                                       [ 90%]
+tests/test_store_attachment_path.py ...                                  [ 91%]
+tests/test_store_durability.py ..                                        [ 92%]
+tests/test_store_identity_resolution.py ..                               [ 92%]
+tests/test_store_index.py ..                                             [ 93%]
+tests/test_store_jsonl.py ..                                             [ 94%]
+tests/test_store_layout.py ..                                            [ 95%]
+tests/test_store_partial.py ...                                          [ 96%]
+tests/test_store_payload.py ...                                          [ 97%]
+tests/test_store_pending_send.py ..                                      [ 98%]
+tests/test_store_read_semantics.py .                                     [ 98%]
+tests/test_store_render.py .                                             [ 98%]
+tests/test_store_torn_line.py ...                                        [100%]
+
+============================= 268 passed in 1.02s ==============================

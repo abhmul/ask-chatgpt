@@ -7,13 +7,20 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from ask_chatgpt.channels.base import TabLease, TurnDom, TurnDomSnapshot
-from ask_chatgpt.errors import PromptNotSubmittedError, SelectorNotFoundError
+from ask_chatgpt.errors import (
+    AttachmentUploadError,
+    PromptNotSubmittedError,
+    SelectorNotFoundError,
+)
 from ask_chatgpt.models import AttachmentRef, AttachmentSpec, SelectorMap, SendTimeouts
 
 _SEND_BUTTON_STATE_KEY = "ask_chatgpt_send_button_state"
 _SEND_BUTTON_SETTLE_TIMEOUT_S = 2.0
+_SEND_BUTTON_ATTACHMENT_SETTLE_TIMEOUT_S = 60.0
 _SEND_BUTTON_POLL_INTERVAL_S = 0.25
 _SEND_BUTTON_CLICK_RETRY_INTERVAL_S = 0.25
+_ATTACHMENT_CHIP_TIMEOUT_S = 30.0
+_ATTACHMENT_CHIP_POLL_INTERVAL_S = 0.25
 
 
 @dataclass(frozen=True)
@@ -91,12 +98,13 @@ def wait_for_composer(tab: TabLease, selectors: SelectorMap, *, timeout_s: float
 def upload_attachments(
     tab: TabLease, selectors: SelectorMap, files: Sequence[AttachmentSpec]
 ) -> tuple[AttachmentRef, ...]:
-    del tab, selectors
     refs: list[AttachmentRef] = []
+    paths: list[Path] = []
     for index, spec in enumerate(files):
         path = Path(spec.path).expanduser()
         if not path.is_file():
             raise FileNotFoundError(str(path))
+        paths.append(path)
         refs.append(
             AttachmentRef(
                 source_kind="user_upload",
@@ -111,7 +119,48 @@ def upload_attachments(
                 metadata={},
             )
         )
+    if paths:
+        tab.channel.upload_files(tab, selectors["file_input"], paths)
+        _wait_for_attachment_chip(
+            tab,
+            selectors["attachment_chip"],
+            file_count=len(paths),
+        )
     return tuple(refs)
+
+
+def _wait_for_attachment_chip(
+    tab: TabLease,
+    selector: str,
+    *,
+    file_count: int,
+) -> None:
+    deadline = _monotonic(tab) + _ATTACHMENT_CHIP_TIMEOUT_S
+    last_error: BaseException | None = None
+    while True:
+        remaining_s = deadline - _monotonic(tab)
+        if remaining_s <= 0:
+            break
+        try:
+            tab.channel.wait_for_selector(
+                tab,
+                selector,
+                state="visible",
+                timeout_s=min(_ATTACHMENT_CHIP_POLL_INTERVAL_S, remaining_s),
+            )
+            return
+        except Exception as exc:  # noqa: BLE001 - channel absence errors differ by backend.
+            last_error = exc
+        if _monotonic(tab) >= deadline:
+            break
+        _sleep_until(
+            tab,
+            min(deadline, _monotonic(tab) + _ATTACHMENT_CHIP_POLL_INTERVAL_S),
+        )
+    raise AttachmentUploadError(
+        "attachment upload was not confirmed (no composer attachment chip appeared)",
+        details={"file_count": file_count},
+    ) from last_error
 
 
 def fill_composer(tab: TabLease, selectors: SelectorMap, prompt: str) -> None:
@@ -126,12 +175,17 @@ def fill_composer(tab: TabLease, selectors: SelectorMap, prompt: str) -> None:
         )
 
 
-def submit_composer(tab: TabLease, selectors: SelectorMap) -> None:
+def submit_composer(
+    tab: TabLease,
+    selectors: SelectorMap,
+    *,
+    settle_timeout_s: float = _SEND_BUTTON_SETTLE_TIMEOUT_S,
+) -> None:
     selector = selectors["send_button_unverified_no_input"]
     _wait_for_enabled_send_button(
         tab,
         selector,
-        timeout_s=_SEND_BUTTON_SETTLE_TIMEOUT_S,
+        timeout_s=settle_timeout_s,
         interval_s=_SEND_BUTTON_POLL_INTERVAL_S,
     )
     try:
@@ -162,6 +216,7 @@ def verify_prompt_submitted(
     prompt: str,
     *,
     timeout_s: float,
+    has_attachments: bool = False,
 ) -> SubmittedTurn:
     normalized = normalize_prompt(prompt)
     deadline = _monotonic(tab) + timeout_s
@@ -177,7 +232,11 @@ def verify_prompt_submitted(
                 len(snapshot.users) > baseline.user_count
                 or latest_user.message_id != baseline.latest_user_id
             )
-            if newer and normalize_prompt(latest_user.text) == normalized:
+            latest_text = normalize_prompt(latest_user.text)
+            carries_prompt = (
+                normalized in latest_text if has_attachments else latest_text == normalized
+            )
+            if newer and carries_prompt:
                 return SubmittedTurn(
                     baseline=baseline,
                     user_message_id=latest_user.message_id,
@@ -220,13 +279,22 @@ def send_prompt(
     wait_for_composer(tab, selectors, timeout_s=timeouts.composer_wait_s)
     upload_attachments(tab, selectors, attach)
     fill_composer(tab, selectors, prompt)
-    submit_composer(tab, selectors)
+    submit_composer(
+        tab,
+        selectors,
+        settle_timeout_s=(
+            _SEND_BUTTON_ATTACHMENT_SETTLE_TIMEOUT_S
+            if attach
+            else _SEND_BUTTON_SETTLE_TIMEOUT_S
+        ),
+    )
     return verify_prompt_submitted(
         tab,
         selectors,
         baseline,
         prompt,
         timeout_s=timeouts.submit_verify_s,
+        has_attachments=bool(attach),
     )
 
 

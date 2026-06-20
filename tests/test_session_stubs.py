@@ -19,6 +19,9 @@ SELECTORS = {
     "copy_button": "button[data-testid=\"copy-turn-action-button\"]",
     "stop_button": "button[data-testid=\"stop-button\"]",
     "send_button_unverified_no_input": "button[data-testid=\"send-button\"], #composer-submit-button, button[aria-label=\"Send prompt\"]",
+    "file_input": "input[type=\"file\"]",
+    "attachment_chip": "[data-testid=\"composer-attachment\"], div[data-testid*=\"attachment\"], button[aria-label*=\"Remove\" i]",
+    "active_tool_chip": "button[aria-label*=\"click to remove\" i]",
     "radix_portal": "[data-radix-popper-content-wrapper]",
     "model_picker_trigger_candidates": "composer-footer button[aria-haspopup=\"menu\"]",
 }
@@ -87,7 +90,8 @@ def test_repeated_successful_mock_sends_in_one_session_have_no_hidden_message_ca
     def submit(*args, **kwargs):  # noqa: ANN001, ANN002, ANN003
         return None
 
-    def verify(tab, selectors, baseline, prompt, *, timeout_s):  # noqa: ANN001, ANN003
+    def verify(tab, selectors, baseline, prompt, *, timeout_s, has_attachments=False):  # noqa: ANN001, ANN003
+        assert has_attachments is False
         send_index["value"] += 1
         return SubmittedTurn(baseline, f"user-{send_index['value']}", 1, prompt.strip())
 

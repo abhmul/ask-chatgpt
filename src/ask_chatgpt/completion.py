@@ -253,6 +253,9 @@ def salvage_partial(
         "copy_button": "",
         "stop_button": "",
         "send_button_unverified_no_input": "",
+        "file_input": "",
+        "attachment_chip": "",
+        "active_tool_chip": "",
         "radix_portal": "",
         "model_picker_trigger_candidates": "",
     })

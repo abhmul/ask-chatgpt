@@ -210,6 +210,9 @@ class SelectorMap(TypedDict):
     copy_button: str
     stop_button: str
     send_button_unverified_no_input: str
+    file_input: str
+    attachment_chip: str
+    active_tool_chip: str
     radix_portal: str
     model_picker_trigger_candidates: str
 

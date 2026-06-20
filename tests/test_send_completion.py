@@ -52,6 +52,9 @@ SELECTORS = load_selector_map(
         "copy_button": "button[data-testid=\"copy-turn-action-button\"]",
         "stop_button": "button[data-testid=\"stop-button\"]",
         "send_button_unverified_no_input": "button[data-testid=\"send-button\"], #composer-submit-button, button[aria-label=\"Send prompt\"]",
+        "file_input": "input[type=\"file\"]",
+        "attachment_chip": "[data-testid=\"composer-attachment\"], div[data-testid*=\"attachment\"], button[aria-label*=\"Remove\" i]",
+        "active_tool_chip": "button[aria-label*=\"click to remove\" i]",
         "radix_portal": "[data-radix-popper-content-wrapper]",
         "model_picker_trigger_candidates": "composer-footer button[aria-haspopup=\"menu\"]",
     }
@@ -271,6 +274,81 @@ def test_wrong_new_user_turn_is_not_verified() -> None:
 
     assert excinfo.value.code == "PROMPT_NOT_SUBMITTED"
     assert clock.monotonic() >= 4.0
+
+
+def test_attachment_user_turn_verifies_prompt_substring_and_preserves_prompt() -> None:
+    clock = ScriptedClock()
+    baseline_snapshot = _baseline_snapshot()
+    attached_text_snapshot = TurnDomSnapshot(
+        users=(
+            *baseline_snapshot.users,
+            TurnDom("user-new-attachment", "user", "m9-upload.txt\nliteral prompt"),
+        ),
+        assistants=baseline_snapshot.assistants,
+        stop_visible=True,
+        composer_visible=True,
+        model_labels=baseline_snapshot.model_labels,
+    )
+    mock = MockChannel(
+        MockScenario(
+            name="attachment_turn_text_contains_filename",
+            turn_timeline=(
+                TimedTurnSnapshot(0.0, baseline_snapshot),
+                TimedTurnSnapshot(0.5, attached_text_snapshot),
+            ),
+        ),
+        monotonic=clock.monotonic,
+        sleeper=clock.sleep,
+    )
+    tab = _open_mock_tab(mock)
+    baseline = read_turn_baseline(tab, SELECTORS)
+
+    submitted = verify_prompt_submitted(
+        tab,
+        SELECTORS,
+        baseline,
+        "literal prompt",
+        timeout_s=2.0,
+        has_attachments=True,
+    )
+
+    assert submitted.user_message_id == "user-new-attachment"
+    assert submitted.user_count == 2
+    assert submitted.normalized_prompt == "literal prompt"
+
+
+def test_no_attachment_user_turn_still_requires_exact_prompt_match() -> None:
+    clock = ScriptedClock()
+    baseline_snapshot = _baseline_snapshot()
+    attached_text_snapshot = TurnDomSnapshot(
+        users=(
+            *baseline_snapshot.users,
+            TurnDom("user-new-attachment", "user", "m9-upload.txt\nliteral prompt"),
+        ),
+        assistants=baseline_snapshot.assistants,
+        stop_visible=True,
+        composer_visible=True,
+        model_labels=baseline_snapshot.model_labels,
+    )
+    mock = MockChannel(
+        MockScenario(
+            name="no_attachment_exact_match_guard",
+            turn_timeline=(
+                TimedTurnSnapshot(0.0, baseline_snapshot),
+                TimedTurnSnapshot(0.5, attached_text_snapshot),
+            ),
+        ),
+        monotonic=clock.monotonic,
+        sleeper=clock.sleep,
+    )
+    tab = _open_mock_tab(mock)
+    baseline = read_turn_baseline(tab, SELECTORS)
+
+    with pytest.raises(PromptNotSubmittedError) as excinfo:
+        verify_prompt_submitted(tab, SELECTORS, baseline, "literal prompt", timeout_s=2.0)
+
+    assert excinfo.value.code == "PROMPT_NOT_SUBMITTED"
+    assert clock.monotonic() >= 2.0
 
 
 def test_composer_transient_fill_normalization_and_safe_click() -> None:
