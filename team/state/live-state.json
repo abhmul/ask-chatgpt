@@ -1,5 +1,5 @@
 {
-  "directive": "Rewrite the ask_chatgpt library from scratch in Python: archive v1, rebuild a Web-UI-mirroring CLI per docs/REWRITE-SPEC.md (approved 2026-06-18). Standing mission: develop & maintain ask-chatgpt (programmatic interaction with chatgpt.com via CDP-attached Chromium). Most-pressing deliverable: scrape https://chatgpt.com/c/6a316aa8-5dc8-83ea-9014-b8ea38dabc31 into a faithful transcript — built on the proper capture+transcript spine, not hacked.",
+  "directive": "Rewrite the ask_chatgpt library from scratch in Python: archive v1, rebuild a Web-UI-mirroring CLI per docs/REWRITE-SPEC.md (approved 2026-06-18). Standing mission: develop & maintain ask-chatgpt (programmatic interaction with chatgpt.com via CDP-attached Chromium). Most-pressing deliverable: scrape https://chatgpt.com/c/6a316aa8-5dc8-83ea-9014-b8ea38dabc31 into a faithful transcript — built on the proper capture+transcript spine, not hacked. STATUS 2026-06-20: COMPLETE — M0-M9 done; rewrite verified (uv run pytest=268; VERIFICATION.md PASS offline core); scrape delivered to cache/conversations/6a316aa8-.../ (refreshed ~515 turns + 10 attachments); PR rewrite-v2->main opened for operator merge; team in MAINTENANCE (backlog + full handoff in team/state/RESUME.md).",
   "spec": "docs/REWRITE-SPEC.md (full) + team/charter.md 'Rework spec' (worker-facing distillation). Supersedes docs/DESIGN-SPEC.md. M2 probe (2026-06-18) confirmed the design with one adjustment recorded below; fold the full M2-informed design into the spec after M3.",
   "dispatch_policy": "Operator policy: WORKERS -> pi via .claude/skills/manager/references/launchers/parent-claude/pi-watch.sh; MANAGERS -> Claude Opus via parent-claude/claude-watch.sh; NEVER the Claude Agent tool. Contracts live under team/contracts/; handoffs/findings under team/evidence/handoffs/.",
   "active_branch": "rewrite-v2 (off main). main holds the spec+project baseline; rewrite integrates back via operator-reserved merge after M8. main's RESUME.md signposts this.",
@@ -94,7 +94,7 @@
     {
       "id": "M8",
       "title": "Independent best-of-N verification + re-issue VERIFICATION.md (terminal).",
-      "status": "blocked",
+      "status": "in_progress",
       "priority": 8,
       "dependencies": ["M6", "M7", "M7b"],
       "node_type": "manager",
