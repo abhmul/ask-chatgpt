@@ -761,6 +761,7 @@ class CdpChannel:
         state = self._validate_tab_state(tab)
         deadline = self._clock() + max(0.0, float(timeout_s))
         best: RequestSnapshot | None = None
+        pending: list[tuple[_ObservedRequest, dict[str, str]]] = []
         while True:
             buffer = self._request_buffers.get(tab.tab_id, [])
             index = self._request_cursors.get(tab.tab_id, 0)
@@ -777,15 +778,17 @@ class CdpChannel:
                 if not missing:
                     return snapshot
                 best = snapshot
-                while self._clock() < deadline:
-                    selected = self._headers_for_observed_request(tab.tab_id, observed, base=selected)
-                    snapshot = RequestSnapshot(observed.url, observed.method, _RedactedHeaders(selected))
-                    missing = set(REQUIRED_CAPTURE_HEADERS) - set(snapshot.headers)
-                    if not missing:
-                        return snapshot
-                    best = snapshot
-                    self._pump_page_events(state.page, deadline)
-                return best
+                pending.append((observed, selected))
+            refreshed: list[tuple[_ObservedRequest, dict[str, str]]] = []
+            for observed, selected in pending:
+                selected = self._headers_for_observed_request(tab.tab_id, observed, base=selected)
+                snapshot = RequestSnapshot(observed.url, observed.method, _RedactedHeaders(selected))
+                missing = set(REQUIRED_CAPTURE_HEADERS) - set(snapshot.headers)
+                if not missing:
+                    return snapshot
+                best = snapshot
+                refreshed.append((observed, selected))
+            pending = refreshed
             if self._clock() >= deadline:
                 if best is not None:
                     return best

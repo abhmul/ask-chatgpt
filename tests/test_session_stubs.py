@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from types import SimpleNamespace
 
 from ask_chatgpt.channels.mock import MockChannel, ScriptedClock
 from ask_chatgpt.completion import CompletionState
 from ask_chatgpt.identity import ConversationRef, conversation_url
-from ask_chatgpt.models import Transcript, TurnRecord
+from ask_chatgpt.models import AttachmentRef, Transcript, TurnRecord
 from ask_chatgpt.send import SubmittedTurn, TurnBaseline
 from ask_chatgpt.session import Session
 
@@ -51,6 +52,77 @@ def _assistant(ref: ConversationRef, index: int, user_id: str) -> TurnRecord:
         fidelity="canonical",
         error=None,
     )
+
+
+def test_light_and_render_pool_keys_do_not_collide(tmp_path) -> None:
+    channel = MockChannel()
+    session = Session(data_dir=tmp_path, channel=channel, selector_map=SELECTORS)
+
+    light_tab = session.tab_pool.acquire(CONV, render=False)
+    session.tab_pool.release(light_tab)
+    render_tab = session.tab_pool.acquire(CONV, render=True)
+
+    try:
+        assert light_tab is not render_tab
+        assert light_tab.url == "https://chatgpt.com/"
+        assert render_tab.url == "https://chatgpt.com/c/conv_repeated_123"
+        assert session.tab_pool.snapshot()["managed_tabs"] == 2
+        assert [call.details["url"] for call in channel.calls if call.method == "open_tab"] == [
+            "https://chatgpt.com/",
+            "https://chatgpt.com/c/conv_repeated_123",
+        ]
+    finally:
+        session.tab_pool.release(render_tab)
+
+
+def test_history_and_fetch_remain_tab_free_local_reads(tmp_path) -> None:
+    class NoOpenTabChannel(MockChannel):
+        def open_tab(self, url: str):  # noqa: ANN201
+            raise AssertionError(f"tab-free read unexpectedly opened {url}")
+
+    session = Session(data_dir=tmp_path, channel=NoOpenTabChannel(), selector_map=SELECTORS)
+    paths = session.store.ensure_conversation(CONV)
+    attachment_path = paths.root / "attachments" / "cached.txt"
+    attachment_path.parent.mkdir(parents=True, exist_ok=True)
+    attachment_path.write_text("cached bytes", encoding="utf-8")
+    attachment = AttachmentRef(
+        source_kind="user_upload",
+        source_ref="file_mock_cached",
+        raw_path="/mapping/assistant/message/metadata/attachments/0",
+        filename="cached.txt",
+        mime="text/plain",
+        bytes=12,
+        sha256=None,
+        local_path="attachments/cached.txt",
+        download_state="downloaded",
+        metadata={},
+    )
+    session.store.upsert_turn(replace(_assistant(CONV, 1, "user-1"), attachments=(attachment,)))
+
+    transcript = session.history(CONV)
+    fetched = session.fetch(CONV, "file_mock_cached")
+
+    assert [turn.message_id for turn in transcript.turns] == ["assistant-1"]
+    assert fetched == attachment_path.resolve()
+
+
+def test_ask_and_loop_keep_render_conversation_tabs(tmp_path, monkeypatch) -> None:
+    def fake_run_send_turn(self, tab, ref, prompt, **kwargs):  # noqa: ANN001, ANN003
+        del self, prompt, kwargs
+        assert tab.url == conversation_url(ref)
+        return _assistant(ref, 1, "user-1"), ref
+
+    monkeypatch.setattr(Session, "_run_send_turn", fake_run_send_turn)
+    ask_channel = MockChannel()
+    ask_session = Session(data_dir=tmp_path / "ask", channel=ask_channel, selector_map=SELECTORS)
+    loop_channel = MockChannel()
+    loop_session = Session(data_dir=tmp_path / "loop", channel=loop_channel, selector_map=SELECTORS)
+
+    ask_session.ask(CONV, "prompt")
+    list(loop_session.loop(CONV, max_iterations=1))
+
+    assert [call.details["url"] for call in ask_channel.calls if call.method == "open_tab"] == [conversation_url(CONV)]
+    assert [call.details["url"] for call in loop_channel.calls if call.method == "open_tab"] == [conversation_url(CONV)]
 
 
 def test_session_status_no_browser_probe_never_calls_channel_preflight(tmp_path) -> None:

@@ -46,6 +46,7 @@ REQUIRED_CAPTURE_HEADERS: tuple[str, ...] = (
     "x-openai-target-path",
     "x-openai-target-route",
 )
+HeaderHarvestMode = Literal["conversation", "ambient_backend"]
 
 _KATEX_EVAL_KEY = "ask_chatgpt_capture_katex_annotations"
 _DOM_TEXT_EVAL_KEY = "ask_chatgpt_capture_dom_text"
@@ -59,14 +60,15 @@ class HeaderBundle:
     _headers: Mapping[str, str]
     _used: bool = field(default=False, init=False, repr=False, compare=False)
 
-    def for_single_fetch(self) -> Mapping[str, str]:
+    def for_single_fetch(self, *, fetch_path: str | None = None) -> Mapping[str, str]:
         if self._used:
             raise BackendAuthUnavailableError(
                 "backend headers already consumed",
                 details={"conversation_id": self.conversation_id, "header_names": tuple(sorted(self._headers))},
             )
         object.__setattr__(self, "_used", True)
-        return dict(self._headers)
+        headers = dict(self._headers)
+        return retarget_headers(headers, fetch_path) if fetch_path is not None else headers
 
     def redacted(self) -> Mapping[str, JsonValue]:
         return {
@@ -75,6 +77,18 @@ class HeaderBundle:
             "acquired_at_monotonic": self.acquired_at_monotonic,
             "header_names": list(sorted(self._headers)),
         }
+
+
+def retarget_headers(headers: Mapping[str, str], fetch_path: str) -> dict[str, str]:
+    """Return fetch headers retargeted to the backend path being fetched."""
+
+    retargeted = {str(key): str(value) for key, value in headers.items()}
+    for key in tuple(retargeted):
+        if key.lower() == "x-openai-target-path":
+            del retargeted[key]
+    retargeted["x-openai-target-path"] = fetch_path
+    # TODO(M10-T4): verify the live x-openai-target-route template rule before retargeting it; keep the harvested route value verbatim for now.
+    return retargeted
 
 
 @dataclass(frozen=True)
@@ -137,45 +151,60 @@ class _GroupFacts:
         return _GroupFacts(**values)
 
 
-def acquire_backend_headers(tab: TabLease, conv: ConversationRef, *, timeout_s: float = 30.0) -> HeaderBundle:
+def acquire_backend_headers(
+    tab: TabLease,
+    conv: ConversationRef,
+    *,
+    timeout_s: float = 30.0,
+    mode: HeaderHarvestMode = "conversation",
+) -> HeaderBundle:
     conversation_id = _require_conversation_id(conv)
-    target_path = urlsplit(backend_conversation_url(conversation_id)).path
+    target_path = _backend_conversation_fetch_path(conversation_id)
+    if mode == "conversation":
+        matches = _conversation_header_request_matcher(target_path)
+    elif mode == "ambient_backend":
+        matches = _ambient_backend_header_request_matcher(tab.url)
+    else:
+        raise ValueError(f"unknown backend header harvest mode: {mode!r}")
 
-    def matches(request: RequestSnapshot) -> bool:
-        path = urlsplit(request.url).path if not request.url.startswith("/") else request.url
-        return request.method.upper() == "GET" and path == target_path
-
-    try:
-        snapshot = tab.channel.wait_for_request(tab, matches, timeout_s=timeout_s)
-    except Exception as exc:  # noqa: BLE001 - public error boundary must redact details.
-        raise BackendAuthUnavailableError(
-            "required backend request headers were not observed",
-            details={"conversation_id": conversation_id, "required_headers": REQUIRED_CAPTURE_HEADERS},
-        ) from exc
-    headers = _lower_headers(snapshot.headers)
-    missing = tuple(name for name in REQUIRED_CAPTURE_HEADERS if name not in headers)
-    if missing:
-        raise BackendAuthUnavailableError(
-            "required backend request headers were missing",
-            details={"conversation_id": conversation_id, "missing_headers": missing},
-        )
-    required = {name: headers[name] for name in REQUIRED_CAPTURE_HEADERS}
-    return HeaderBundle(
-        conversation_id=conversation_id,
-        source="web_app_request",
-        acquired_at_monotonic=_channel_monotonic(tab),
-        _headers=required,
-    )
+    deadline = _channel_monotonic(tab) + max(0.0, float(timeout_s))
+    last_missing: tuple[str, ...] = ()
+    while True:
+        remaining = max(0.0, deadline - _channel_monotonic(tab))
+        try:
+            snapshot = tab.channel.wait_for_request(tab, matches, timeout_s=remaining)
+        except Exception as exc:  # noqa: BLE001 - public error boundary must redact details.
+            raise BackendAuthUnavailableError(
+                "required backend request headers were not observed",
+                details={"conversation_id": conversation_id, "mode": mode, "required_headers": REQUIRED_CAPTURE_HEADERS},
+            ) from exc
+        headers = _lower_headers(snapshot.headers)
+        missing = tuple(name for name in REQUIRED_CAPTURE_HEADERS if name not in headers)
+        if not missing:
+            required = {name: headers[name] for name in REQUIRED_CAPTURE_HEADERS}
+            return HeaderBundle(
+                conversation_id=conversation_id,
+                source="web_app_request",
+                acquired_at_monotonic=_channel_monotonic(tab),
+                _headers=required,
+            )
+        last_missing = missing
+        if mode == "conversation" or _channel_monotonic(tab) >= deadline:
+            raise BackendAuthUnavailableError(
+                "required backend request headers were missing",
+                details={"conversation_id": conversation_id, "mode": mode, "missing_headers": last_missing},
+            )
 
 
 def stream_backend_conversation(tab: TabLease, conv: ConversationRef, headers: HeaderBundle | Mapping[str, str], *, raw_tmp: Path) -> BackendFetchMeta:
     conversation_id = _require_conversation_id(conv)
+    fetch_path = _backend_conversation_fetch_path(conversation_id)
     started = _channel_monotonic(tab)
-    backend_headers = headers.for_single_fetch() if isinstance(headers, HeaderBundle) else dict(headers)
+    backend_headers = headers.for_single_fetch(fetch_path=fetch_path) if isinstance(headers, HeaderBundle) else retarget_headers(headers, fetch_path)
     fetch_headers = {"accept": "application/json", **backend_headers}
     result = tab.channel.fetch_in_page(
         tab,
-        f"/backend-api/conversation/{conversation_id}",
+        fetch_path,
         method="GET",
         headers=fetch_headers,
         stream_to=raw_tmp,
@@ -297,13 +326,21 @@ def iter_current_branch_records(raw_path: Path, conv: ConversationRef, *, send_c
         turn_index += 1
 
 
-def capture_conversation(tab: TabLease, conv: ConversationRef, store: Store, *, with_attachments: bool = False, send_context: SendContext | None = None) -> CaptureResult:
+def capture_conversation(
+    tab: TabLease,
+    conv: ConversationRef,
+    store: Store,
+    *,
+    with_attachments: bool = False,
+    send_context: SendContext | None = None,
+    header_mode: HeaderHarvestMode = "conversation",
+) -> CaptureResult:
     conversation_id = _require_conversation_id(conv)
     tmp_dir = store.ensure_conversation(conv).root
     raw_tmp = tmp_dir / f"raw-mapping.json.tmp.{os.getpid()}.{id(tab)}"
     try:
-        headers = acquire_backend_headers(tab, conv)
-        backend_headers = headers.for_single_fetch()
+        headers = acquire_backend_headers(tab, conv, mode=header_mode)
+        backend_headers = headers.for_single_fetch(fetch_path=_backend_conversation_fetch_path(conversation_id))
         meta = stream_backend_conversation(tab, conv, backend_headers, raw_tmp=raw_tmp)
         _validate_fetch_meta(meta)
         top = validate_backend_shape(raw_tmp, conversation_id)
@@ -901,6 +938,43 @@ def _validate_fetch_meta(meta: BackendFetchMeta) -> None:
         raise BackendCaptureShapeError("backend fetch returned non-2xx status", details={"status": meta.status, "content_type": meta.content_type})
     if meta.content_type is None or "application/json" not in meta.content_type.lower():
         raise BackendCaptureShapeError("backend fetch did not return JSON", details={"status": meta.status, "content_type": meta.content_type})
+
+
+def _conversation_header_request_matcher(target_path: str):
+    def matches(request: RequestSnapshot) -> bool:
+        return request.method.upper() == "GET" and _request_path(request.url) == target_path
+
+    return matches
+
+
+def _ambient_backend_header_request_matcher(tab_url: str):
+    def matches(request: RequestSnapshot) -> bool:
+        if request.method.upper() != "GET":
+            return False
+        if not _same_origin_request(tab_url, request.url):
+            return False
+        if not _request_path(request.url).startswith("/backend-api/"):
+            return False
+        headers = _lower_headers(request.headers)
+        return not headers or all(name in headers for name in REQUIRED_CAPTURE_HEADERS)
+
+    return matches
+
+
+def _backend_conversation_fetch_path(conversation_id: str) -> str:
+    return urlsplit(backend_conversation_url(conversation_id)).path
+
+
+def _request_path(url: str) -> str:
+    return urlsplit(url).path if url else ""
+
+
+def _same_origin_request(tab_url: str, request_url: str) -> bool:
+    if request_url.startswith("/") and not request_url.startswith("//"):
+        return True
+    tab_parts = urlsplit(tab_url)
+    request_parts = urlsplit(request_url)
+    return request_parts.scheme == tab_parts.scheme and request_parts.netloc == tab_parts.netloc
 
 
 def _content_type(result: FetchResult) -> str | None:

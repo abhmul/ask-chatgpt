@@ -54,12 +54,14 @@ from ask_chatgpt.store import Store
 
 
 _POST_SUBMIT_URL_POLL_INTERVAL_S = 0.5
+_LIGHT_READ_URL = "https://chatgpt.com/"
 
 
 @dataclass
 class _ManagedTab:
     tab: TabLease
     url: str
+    key: tuple[str, str]
     leased: bool = False
     last_used: int = 0
 
@@ -79,11 +81,13 @@ class TabPool:
         self._tick = 0
         self._monotonic = monotonic or time.monotonic
 
-    def acquire(self, ref: ConversationRef) -> TabLease:
-        url = conversation_url(ref)
+    def acquire(self, ref: ConversationRef, *, render: bool = True) -> TabLease:
+        mode = "render" if render else "light"
+        url = conversation_url(ref) if render else _LIGHT_READ_URL
+        key = (mode, url)
         self._session.attach()
         for entry in self._entries:
-            if entry.url == url and not entry.leased:
+            if entry.key == key and not entry.leased:
                 entry.leased = True
                 self._tick += 1
                 entry.last_used = self._tick
@@ -93,7 +97,7 @@ class TabPool:
         channel = self._session._channel()
         tab = channel.open_tab(url)
         self._tick += 1
-        self._entries.append(_ManagedTab(tab=tab, url=url, leased=True, last_used=self._tick))
+        self._entries.append(_ManagedTab(tab=tab, url=url, key=key, leased=True, last_used=self._tick))
         return tab
 
     def release(self, tab: TabLease) -> None:
@@ -518,9 +522,9 @@ class Session:
     ) -> Transcript:
         ref = self.store.resolve_conversation(conv_or_url) if not isinstance(conv_or_url, ConversationRef) else conv_or_url
         self.store.put_conversation_ref(ref)
-        tab = self.tab_pool.acquire(ref)
+        tab = self.tab_pool.acquire(ref, render=False)
         try:
-            captured = capture_conversation(tab, ref, self.store, with_attachments=with_attachments)
+            captured = capture_conversation(tab, ref, self.store, with_attachments=with_attachments, header_mode="ambient_backend")
             del out
             transcript = self.store.load_transcript(ref)
             return transcript if transcript.turns else captured.transcript
