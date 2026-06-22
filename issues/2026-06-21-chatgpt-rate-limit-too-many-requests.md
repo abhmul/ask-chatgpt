@@ -34,3 +34,20 @@ The weak-simplex perpetual driver had run for HOURS at its steady cadence (~1 re
 
 ## Related
 Memory `chatgpt-rate-limit-guidance` (inferred operating discipline). Same incident produced the send-commit-confirm fix in `driver.sh` and the false-positive-sent note in memory `ask-chatgpt-v020-driving`.
+
+## Tool-side implementation sketch (added 2026-06-22 — verified ABSENT in 0.2.0)
+A verification pass (M12, handoff `team/evidence/handoffs/M12-verify-rate-limit.md`) confirmed all three tool-side fixes are **absent** from `src/ask_chatgpt/` as of 0.2.0: no 429/modal detection, no `RateLimited*` error class (a rate-limited fetch surfaces as `BackendCaptureShapeError`/exit 41, or falls through `cli.py:106-108` to exit **99 `INTERNAL_ERROR`** — the "looks like a crash" symptom), no `Retry-After`/backoff, and no cross-process governor. `AdaptiveSendBudget` (`session.py:139`) is in-memory, **send-only** pacing and is not 429-aware; notably `AdaptiveSendBudget.record_soft_signal()` (`session.py:194-198`) already exists to halve the rate but is **never wired** to any HTTP/modal signal. Suggested implementations (smallest-first):
+
+### 1. Detect the limit + distinct exit code
+- Add `class RateLimitedError(_KnownAskChatGPTError)` in `errors.py` with a new `default_n` (e.g. **52**, after `MaxTotalWaitExceeded=51`; existing codes 20–51, 60–63, 70, 99).
+- Detect at the single fetch chokepoint: in `capture.py:937-938` and `completion.py:54-57` branch on `status == 429` **before** the generic non-2xx `BackendCaptureShapeError`, and raise `RateLimitedError` (stash any `Retry-After` in `details`). On the send/UI path, also detect the DOM modal text ("Too many requests" / "temporarily limited") with a selector check after submit and raise the same error. Result: callers get a stable, distinct exit code instead of 99.
+
+### 2. Honor Retry-After / back off
+- The in-page fetch already returns response headers (`cdp.py:79`). Parse `Retry-After` (delta-seconds or HTTP-date) from the 429 and sleep it (with a sane cap) for a bounded retry count; otherwise jittered exponential backoff.
+- On the send path, route the 429/modal into the existing `AdaptiveSendBudget.record_soft_signal("rate_limited")` so the adaptive send rate halves (`session.py:194-198`) — i.e. finally wire that dormant method.
+
+### 3. Optional global rate governor (cross-process)
+- Each CLI call is a separate process, so the per-`Session` in-memory `AdaptiveSendBudget` cannot coordinate across invocations. Persist a minimal pacing record under `data_dir` (a last-request timestamp / token-bucket file, guarded like the existing transcript flock at `store.py:387-390`) and have every read/send honor a shared min-interval.
+- Per the shared-resource-ceiling principle: one owner allocates `sum(consumer rates) + reserve ≤ ceiling`; backoff is the safety net, not the primary control. The real ceiling is unpublished and burst+volume-sensitive (see "Inferred behavior" above) — make the governor's rate configurable and conservative by default.
+
+> Operating discipline (already in place) remains the first line of defense — diagnose from local artifacts, avoid request bursts, pause ~30 min on the modal (memory `chatgpt-rate-limit-guidance`). These tool-side fixes harden the tool so a rate-limit becomes *legible* (distinct exit code) and *self-throttling* (backoff/governor) instead of masquerading as a crash. **Building them is a separate operator-approved mission — not yet implemented.**
