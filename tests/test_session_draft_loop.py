@@ -292,6 +292,60 @@ def test_draft_ask_reloads_learned_chat_before_capture_when_backend_get_requires
     assert reload_index < fetch_index
 
 
+def test_draft_send_capture_uses_exact_conversation_header_harvest_not_ambient(tmp_path) -> None:
+    conversation_id = "learned-exact-harvest"
+    generic_path = "/backend-api/accounts/check"
+    exact_path = f"/backend-api/conversation/{conversation_id}"
+    generic_auth = "Bearer MOCK_GENERIC_SEND_CAPTURE_AUTH"
+    exact_auth = "Bearer MOCK_EXACT_SEND_CAPTURE_AUTH"
+
+    def request_snapshot(path: str, auth: str) -> RequestSnapshot:
+        headers = dict(HEADER_CANARIES)
+        headers["authorization"] = auth
+        headers["x-openai-target-path"] = path
+        return RequestSnapshot(url=f"https://chatgpt.com{path}", method="GET", headers=headers)
+
+    class RecordingChannel(MockChannel):
+        def __init__(self, scenario: MockScenario, *, monotonic, sleeper) -> None:  # noqa: ANN001
+            super().__init__(scenario, monotonic=monotonic, sleeper=sleeper)
+            self.streamed_conversation_auths: list[str | None] = []
+
+        def fetch_in_page(self, tab, url, *, method="GET", headers=None, body=None, stream_to=None, timeout_s=None):  # noqa: ANN001, ANN201
+            if url == exact_path and stream_to is not None:
+                lower_headers = {str(key).lower(): str(value) for key, value in dict(headers or {}).items()}
+                self.streamed_conversation_auths.append(lower_headers.get("authorization"))
+            return super().fetch_in_page(
+                tab,
+                url,
+                method=method,
+                headers=headers,
+                body=body,
+                stream_to=stream_to,
+                timeout_s=timeout_s,
+            )
+
+    scenario = replace(
+        _draft_scenario(
+            learned_url=f"https://chatgpt.com/c/{conversation_id}",
+            conversation_id=conversation_id,
+            requests_require_reload=True,
+        ),
+        request_snapshots=(
+            request_snapshot(generic_path, generic_auth),
+            request_snapshot(exact_path, exact_auth),
+        ),
+    )
+    clock = ScriptedClock()
+    channel = RecordingChannel(scenario, monotonic=clock.monotonic, sleeper=clock.sleep)
+    session = _session(tmp_path, channel)
+
+    answer = session.ask(None, PROMPT)
+
+    assert answer.conversation_id == conversation_id
+    assert answer.capture_source == "backend_api"
+    assert channel.streamed_conversation_auths == [exact_auth]
+
+
 def test_draft_url_poll_tolerates_spa_navigation_latency(tmp_path) -> None:
     clock = ScriptedClock()
     channel = MockChannel(
