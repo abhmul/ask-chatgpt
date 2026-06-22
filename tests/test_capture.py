@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from ask_chatgpt.capture import (
+    REQUIRED_CAPTURE_HEADERS,
     acquire_backend_headers,
     capture_conversation,
     fallback_capture_ui,
@@ -302,6 +303,110 @@ def test_conversation_fetch_retargets_harvested_target_path(tmp_path) -> None:
     fetch_headers = channel.full_conversation_headers[0]
     assert fetch_headers["x-openai-target-path"] == f"/backend-api/conversation/{conversation_id}"
     assert fetch_headers["x-openai-target-route"] == harvested_route
+
+
+def test_attachment_descriptor_fetch_reuses_conversation_retargeted_headers(tmp_path) -> None:
+    conversation_id = "conv_mock_descriptor_header_path"
+    conversation_path = f"/backend-api/conversation/{conversation_id}"
+    harvested_path = "/backend-api/accounts/check"
+    harvested_route = "MOCK_DESCRIPTOR_HEADER_ROUTE"
+    attachment_id = "file_" + "descriptor_header_probe"
+    descriptor_path = f"/backend-api/files/{attachment_id}/download"
+    payload = b"mock descriptor header bytes"
+    download_url = "https://chatgpt.com/backend-api/mock-downloads/descriptor-header-probe"
+
+    class RecordingChannel(MockChannel):
+        def __init__(self, scenario: MockScenario) -> None:
+            super().__init__(scenario)
+            self.descriptor_requests: list[tuple[str, str, dict[str, str]]] = []
+
+        def fetch_in_page(self, tab, url, *, method="GET", headers=None, body=None, stream_to=None, timeout_s=None):  # noqa: ANN001, ANN201
+            if url == descriptor_path:
+                self.descriptor_requests.append(
+                    (
+                        method,
+                        url,
+                        {str(key).lower(): str(value) for key, value in dict(headers or {}).items()},
+                    )
+                )
+            return super().fetch_in_page(
+                tab,
+                url,
+                method=method,
+                headers=headers,
+                body=body,
+                stream_to=stream_to,
+                timeout_s=timeout_s,
+            )
+
+    raw = _attachment_download_raw(
+        conversation_id,
+        user_metadata={
+            "attachments": [
+                {
+                    "id": attachment_id,
+                    "name": "descriptor-header.txt",
+                    "mime_type": "text/plain",
+                    "size": len(payload),
+                }
+            ]
+        },
+    )
+    scenario = MockScenario(
+        name="attachment_descriptor_header_path",
+        backend_conversations={conversation_id: raw},
+        request_snapshots=(
+            _backend_request_snapshot(
+                harvested_path,
+                headers=_headers_for_path(
+                    harvested_path,
+                    **{"x-openai-target-route": harvested_route},
+                ),
+            ),
+        ),
+        file_downloads={
+            attachment_id: MockBackendResponse(
+                200,
+                {
+                    "download_url": download_url,
+                    "file_size_bytes": len(payload),
+                    "mime_type": "text/plain",
+                    "status": "success",
+                },
+            )
+        },
+        download_responses={
+            download_url: MockBackendResponse(200, payload, headers={"content-type": "text/plain"})
+        },
+    )
+    channel = RecordingChannel(scenario)
+    tab = channel.open_tab("https://chatgpt.com/")
+    conv = ConversationRef(conversation_id, f"https://chatgpt.com/c/{conversation_id}")
+
+    result = capture_conversation(
+        tab,
+        conv,
+        Store(data_dir=tmp_path),
+        with_attachments=True,
+        header_mode="ambient_backend",
+    )
+
+    assert result.transcript.turns[0].attachments[0].download_state == "downloaded"
+    assert channel.method_counts["attachment_descriptor_fetches"] == 1
+    assert channel.method_counts["attachment_byte_fetches"] == 1
+
+    # ASSERTION: descriptor request identity.
+    assert len(channel.descriptor_requests) == 1
+    method, url, descriptor_headers = channel.descriptor_requests[0]
+    assert method == "GET"
+    assert url == descriptor_path
+
+    # ASSERTION: descriptor request carries all required backend auth/OAI header names.
+    assert set(REQUIRED_CAPTURE_HEADERS) <= set(descriptor_headers)
+
+    # ASSERTION: current M10 design keeps descriptor x-openai-target-path on the conversation fetch path.
+    assert descriptor_headers["x-openai-target-path"] == conversation_path
+    assert descriptor_headers["x-openai-target-route"] == harvested_route
 
 
 def test_mock_request_snapshots_can_require_reload_before_header_capture() -> None:

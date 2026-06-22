@@ -17,3 +17,11 @@ One attended, own-tab-only, ZERO-send `scrape --with-attachments` of a small att
 
 ## Related
 `issues/2026-06-22-read-ops-render-full-conversation-page.md` (M10 — resolved; this is its one deferred sub-check). M10 evidence: `team/evidence/handoffs/M10-*`.
+
+## Resolution (2026-06-22) — VERIFIED, no code change needed
+Resolved by M13 (3-lens offline analysis + an attended real leg):
+- **Live-confirmed:** an attended, own-tab-only `scrape --with-attachments` of a fresh throwaway conversation (one user-uploaded attachment; non-Pro "Instant" model; **1 send**) returned exit 0 over the M10 light path. The descriptor request `GET /backend-api/files/<id>/download` carried all 8 `REQUIRED_CAPTURE_HEADERS` names with the **conversation-path** `x-openai-target-path` **tolerated** on the light origin (the open question); the byte download (no explicit auth headers — rides same-origin cookies) returned 2xx and the file landed in the cache with `download_state="downloaded"`.
+- **Offline:** M6 had already downloaded 10 files reusing the conversation-path header, and a new falsifiable mock test (`tests/test_capture.py::test_attachment_descriptor_fetch_reuses_conversation_retargeted_headers`) now pins the descriptor request's path + 8 header names + `x-openai-target-path`, closing the assertion gap M10-T3-V3 flagged.
+- The Lens-A descriptor `x-openai-target-path` retarget is **optional hardening only**, not a correctness fix — not shipped.
+
+This leg also closes the M9 backlog item "`ask --attach` end-to-end capture never re-run live." Evidence: `team/evidence/handoffs/M13-analyze-attachments-lightpath.md` + `team/evidence/handoffs/M13-complete.md`.
