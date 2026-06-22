@@ -188,19 +188,22 @@ def _new_session(args: argparse.Namespace) -> Session:
 def _handle_ask(args: argparse.Namespace) -> int:
     conv, prompt = _split_ask_positionals(args.args)
     session = _new_session(args)
-    answer = session.ask(
-        conv,
-        prompt,
-        model=args.model,
-        tools=tuple(args.tool),
-        attach=tuple(args.attach),
-        timeout=args.timeout,
-        max_total_wait=args.max_total_wait,
-        out=args.out,
-    )
-    content = answer.content_markdown if isinstance(answer, TurnRecord) else str(answer)
-    _emit_payload(_ask_payload(content), args.out, args.data_dir, session)
-    return 0
+    try:
+        answer = session.ask(
+            conv,
+            prompt,
+            model=args.model,
+            tools=tuple(args.tool),
+            attach=tuple(args.attach),
+            timeout=args.timeout,
+            max_total_wait=args.max_total_wait,
+            out=args.out,
+        )
+        content = answer.content_markdown if isinstance(answer, TurnRecord) else str(answer)
+        _emit_payload(_ask_payload(content), args.out, args.data_dir, session)
+        return 0
+    finally:
+        session.detach()
 
 
 def _handle_create(args: argparse.Namespace) -> int:
@@ -223,9 +226,12 @@ def _handle_create(args: argparse.Namespace) -> int:
 
 def _handle_scrape(args: argparse.Namespace) -> int:
     session = _new_session(args)
-    transcript = session.scrape(args.conv, with_attachments=args.with_attachments, out=args.out)
-    _emit_payload(_render_transcript(session, transcript), args.out, args.data_dir, session)
-    return 0
+    try:
+        transcript = session.scrape(args.conv, with_attachments=args.with_attachments, out=args.out)
+        _emit_payload(_render_transcript(session, transcript), args.out, args.data_dir, session)
+        return 0
+    finally:
+        session.detach()
 
 
 def _handle_history(args: argparse.Namespace) -> int:
@@ -260,33 +266,36 @@ def _handle_loop(args: argparse.Namespace) -> int:
     if args.max_iterations < 0:
         raise ValueError("--max-iterations must be non-negative")
     session = _new_session(args)
-    iteration = 0
-    last_emitted: TurnRecord | None = None
     try:
-        for iteration, turn in enumerate(
-            session.loop(
-                args.conv,
-                message=args.message,
-                model=args.model,
-                tools=tuple(args.tool),
-                attach=tuple(args.attach),
-                timeout=args.timeout,
-                max_total_wait=args.max_total_wait,
-                max_iterations=args.max_iterations,
-                out_dir=args.out_dir,
-            ),
-            start=1,
-        ):
-            _write_jsonl_stdout(_loop_envelope(iteration, turn))
-            last_emitted = turn
-    except KeyboardInterrupt as exc:
-        partial = getattr(exc, "partial", None)
-        if isinstance(partial, TurnRecord) and (
-            last_emitted is None or last_emitted.message_id != partial.message_id
-        ):
-            _write_jsonl_stdout(_loop_envelope(iteration + 1, partial))
-        return 130
-    return 0
+        iteration = 0
+        last_emitted: TurnRecord | None = None
+        try:
+            for iteration, turn in enumerate(
+                session.loop(
+                    args.conv,
+                    message=args.message,
+                    model=args.model,
+                    tools=tuple(args.tool),
+                    attach=tuple(args.attach),
+                    timeout=args.timeout,
+                    max_total_wait=args.max_total_wait,
+                    max_iterations=args.max_iterations,
+                    out_dir=args.out_dir,
+                ),
+                start=1,
+            ):
+                _write_jsonl_stdout(_loop_envelope(iteration, turn))
+                last_emitted = turn
+        except KeyboardInterrupt as exc:
+            partial = getattr(exc, "partial", None)
+            if isinstance(partial, TurnRecord) and (
+                last_emitted is None or last_emitted.message_id != partial.message_id
+            ):
+                _write_jsonl_stdout(_loop_envelope(iteration + 1, partial))
+            return 130
+        return 0
+    finally:
+        session.detach()
 
 
 def _split_ask_positionals(values: Sequence[str]) -> tuple[str | None, str]:

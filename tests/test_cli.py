@@ -167,6 +167,9 @@ class RecordingSession:
         for index in range(1, iterations + 1):
             yield _loop_turn(str(conv), index)
 
+    def detach(self, *, close_managed_tabs: bool = True):
+        self.calls.append(("detach", (), {"close_managed_tabs": close_managed_tabs}))
+
 
 def _patch_session(monkeypatch):
     import ask_chatgpt.cli as cli
@@ -175,6 +178,215 @@ def _patch_session(monkeypatch):
     RecordingSession.raise_from = None
     monkeypatch.setattr(cli, "Session", RecordingSession)
     return cli
+
+
+_CLI_SELECTORS = {
+    "composer": "#prompt-textarea",
+    "tools_button": "button[data-testid=\"composer-plus-btn\"]",
+    "message_turn": "[data-message-id][data-message-author-role]",
+    "user_turn": "[data-message-author-role=\"user\"][data-message-id]",
+    "assistant_turn": "[data-message-author-role=\"assistant\"][data-message-id]",
+    "copy_button": "button[data-testid=\"copy-turn-action-button\"]",
+    "stop_button": "button[data-testid=\"stop-button\"]",
+    "send_button_unverified_no_input": "button[data-testid=\"send-button\"], #composer-submit-button, button[aria-label=\"Send prompt\"]",
+    "file_input": "input[type=\"file\"]",
+    "attachment_chip": "[data-testid=\"composer-attachment\"], div[data-testid*=\"attachment\"], button[aria-label*=\"Remove\" i]",
+    "active_tool_chip": "button[aria-label*=\"click to remove\" i]",
+    "radix_portal": "[data-radix-popper-content-wrapper]",
+    "model_picker_trigger_candidates": "composer-footer button[aria-haspopup=\"menu\"]",
+}
+
+
+def _backend_raw(conversation_id: str, *, user_id: str, assistant_id: str, prompt: str, answer_text: str) -> dict[str, object]:
+    return {
+        "conversation_id": conversation_id,
+        "async_status": "complete",
+        "mapping": {
+            "root": {"id": "root", "parent": None, "children": ["user"], "message": None},
+            "user": {
+                "id": "user",
+                "parent": "root",
+                "children": ["assistant"],
+                "message": {
+                    "id": user_id,
+                    "author": {"role": "user"},
+                    "create_time": 1_700_000_000.0,
+                    "content": {"content_type": "text", "parts": [prompt]},
+                    "metadata": {"is_complete": True},
+                    "status": "finished_successfully",
+                },
+            },
+            "assistant": {
+                "id": "assistant",
+                "parent": "user",
+                "children": [],
+                "message": {
+                    "id": assistant_id,
+                    "author": {"role": "assistant"},
+                    "create_time": 1_700_000_001.0,
+                    "content": {"content_type": "text", "parts": [answer_text]},
+                    "metadata": {"is_complete": True},
+                    "status": "finished_successfully",
+                },
+            },
+        },
+        "current_node": "assistant",
+        "default_model_slug": "mock-model",
+    }
+
+
+def _backend_request_snapshots(conversation_id: str, count: int = 6):
+    from ask_chatgpt.channels.base import RequestSnapshot
+    from ask_chatgpt.channels.mock import HEADER_CANARIES
+
+    return tuple(
+        RequestSnapshot(
+            url=f"https://chatgpt.com/backend-api/conversation/{conversation_id}",
+            method="GET",
+            headers={name: f"{value}_{index}" for name, value in HEADER_CANARIES.items()},
+        )
+        for index in range(count)
+    )
+
+
+def _ask_scenario(conversation_id: str, *, prompt: str, answer_text: str):
+    from ask_chatgpt.channels.base import TurnDom, TurnDomSnapshot
+    from ask_chatgpt.channels.mock import MockBackendResponse, MockScenario, TimedBackendResponse, TimedTurnSnapshot
+
+    baseline = TurnDomSnapshot(
+        users=(TurnDom("baseline-user-1", "user", "baseline prompt"),),
+        assistants=(TurnDom("baseline-assistant-1", "assistant", "baseline answer"),),
+        stop_visible=False,
+        composer_visible=True,
+        model_labels=(),
+    )
+    submitted = TurnDomSnapshot(
+        users=(*baseline.users, TurnDom("user-new-2", "user", prompt)),
+        assistants=baseline.assistants,
+        stop_visible=True,
+        composer_visible=True,
+        model_labels=(),
+    )
+    complete = TurnDomSnapshot(
+        users=submitted.users,
+        assistants=(*baseline.assistants, TurnDom("assistant-new-2", "assistant", answer_text)),
+        stop_visible=False,
+        composer_visible=True,
+        model_labels=(),
+    )
+    return MockScenario(
+        name=f"cli_ask_lifecycle_{conversation_id}",
+        turn_timeline=(
+            TimedTurnSnapshot(0.0, baseline),
+            TimedTurnSnapshot(0.5, submitted),
+            TimedTurnSnapshot(1.0, complete),
+        ),
+        backend_timeline=(
+            TimedBackendResponse(
+                0.0,
+                MockBackendResponse(
+                    200,
+                    _backend_raw(
+                        conversation_id,
+                        user_id="user-new-2",
+                        assistant_id="assistant-new-2",
+                        prompt=prompt,
+                        answer_text=answer_text,
+                    ),
+                ),
+            ),
+        ),
+        request_snapshots=_backend_request_snapshots(conversation_id),
+    )
+
+
+def _scrape_scenario(conversation_id: str, *, answer_text: str):
+    from ask_chatgpt.channels.mock import MockScenario
+
+    return MockScenario(
+        name=f"cli_scrape_lifecycle_{conversation_id}",
+        backend_conversations={
+            conversation_id: _backend_raw(
+                conversation_id,
+                user_id="user-scrape-1",
+                assistant_id="assistant-scrape-1",
+                prompt="stored scrape prompt",
+                answer_text=answer_text,
+            )
+        },
+        request_snapshots=_backend_request_snapshots(conversation_id),
+    )
+
+
+def _loop_scenario(conversation_id: str, *, message: str, answer_text: str):
+    from ask_chatgpt.channels.base import TurnDom, TurnDomSnapshot
+    from ask_chatgpt.channels.mock import MockBackendResponse, MockScenario, TimedBackendResponse, TimedTurnSnapshot
+
+    baseline = TurnDomSnapshot(users=(), assistants=(), stop_visible=False, composer_visible=True, model_labels=())
+    submitted = TurnDomSnapshot(
+        users=(TurnDom("user-loop-1", "user", message),),
+        assistants=(),
+        stop_visible=True,
+        composer_visible=True,
+        model_labels=(),
+    )
+    complete = TurnDomSnapshot(
+        users=submitted.users,
+        assistants=(TurnDom("assistant-loop-1", "assistant", answer_text),),
+        stop_visible=False,
+        composer_visible=True,
+        model_labels=(),
+    )
+    return MockScenario(
+        name=f"cli_loop_lifecycle_{conversation_id}",
+        turn_timeline=(
+            TimedTurnSnapshot(0.0, baseline),
+            TimedTurnSnapshot(0.5, submitted),
+            TimedTurnSnapshot(1.0, complete),
+        ),
+        backend_timeline=(
+            TimedBackendResponse(
+                0.0,
+                MockBackendResponse(
+                    200,
+                    _backend_raw(
+                        conversation_id,
+                        user_id="user-loop-1",
+                        assistant_id="assistant-loop-1",
+                        prompt=message,
+                        answer_text=answer_text,
+                    ),
+                ),
+            ),
+        ),
+        request_snapshots=_backend_request_snapshots(conversation_id),
+    )
+
+
+def _real_session_factory(mock):
+    from ask_chatgpt.session import Session as RealSession
+
+    def session_factory(*, cdp_endpoint, data_dir, channel):  # noqa: ANN001
+        del cdp_endpoint, channel
+        return RealSession(
+            data_dir=data_dir,
+            channel=mock,
+            selector_map=_CLI_SELECTORS,
+            send_verify_timeout_s=2.0,
+            composer_wait_timeout_s=1.0,
+            progress_poll_interval_s=0.5,
+            backend_check_interval_s=0.5,
+            activity_timeout_s=5.0,
+        )
+
+    return session_factory
+
+
+def _assert_opened_and_closed_once(mock) -> None:
+    assert mock.method_counts.get("open_tab", 0) == 1
+    assert mock.method_counts.get("close_tab", 0) == 1
+    order = list(mock.call_order)
+    assert order.index("open_tab") < order.index("close_tab")
 
 
 def test_cli_ask_forwards_flags_and_stdout_and_out_are_identical(tmp_path, capsys, monkeypatch) -> None:
@@ -226,8 +438,151 @@ def test_cli_ask_forwards_flags_and_stdout_and_out_are_identical(tmp_path, capsy
                 "max_total_wait": 123.0,
                 "out": out,
             },
-        )
+        ),
+        ("detach", (), {"close_managed_tabs": True}),
     ]
+
+
+def test_cli_ask_closes_tab_on_success(tmp_path, capsys, monkeypatch) -> None:
+    import ask_chatgpt.cli as cli
+    from ask_chatgpt.channels.mock import MockChannel, ScriptedClock
+
+    conversation_id = "conv_cli_ask_close_success"
+    answer_text = "REAL SESSION ASK CLOSE SUCCESS"
+    clock = ScriptedClock()
+    mock = MockChannel(
+        _ask_scenario(conversation_id, prompt="literal prompt", answer_text=answer_text),
+        monotonic=clock.monotonic,
+        sleeper=clock.sleep,
+    )
+    monkeypatch.setattr(cli, "Session", _real_session_factory(mock))
+
+    code = cli.main([
+        "ask",
+        f"https://chatgpt.com/c/{conversation_id}",
+        "literal prompt",
+        "--selector-channel",
+        "mock",
+        "--data-dir",
+        str(tmp_path / "data"),
+    ])
+
+    captured = capsys.readouterr()
+    assert code == 0
+    assert captured.out == f"{answer_text}\n"
+    assert captured.err == ""
+    _assert_opened_and_closed_once(mock)
+
+
+def test_cli_ask_closes_tab_on_error_after_acquire(tmp_path, capsys, monkeypatch) -> None:
+    import ask_chatgpt.cli as cli
+    from ask_chatgpt.channels.mock import MockChannel, ScriptedClock
+    from ask_chatgpt.errors import StoreError
+
+    conversation_id = "conv_cli_ask_close_error"
+    answer_text = "REAL SESSION ASK CLOSE ERROR"
+    clock = ScriptedClock()
+    mock = MockChannel(
+        _ask_scenario(conversation_id, prompt="literal prompt", answer_text=answer_text),
+        monotonic=clock.monotonic,
+        sleeper=clock.sleep,
+    )
+
+    def fail_atomic_write(self, out, content):  # noqa: ANN001
+        del self, out, content
+        raise StoreError("injected out write failure")
+
+    monkeypatch.setattr(cli, "Session", _real_session_factory(mock))
+    monkeypatch.setattr(Store, "atomic_write_payload", fail_atomic_write)
+
+    code = cli.main([
+        "ask",
+        f"https://chatgpt.com/c/{conversation_id}",
+        "literal prompt",
+        "--selector-channel",
+        "mock",
+        "--data-dir",
+        str(tmp_path / "data"),
+        "--out",
+        str(tmp_path / "answer.md"),
+    ])
+
+    captured = capsys.readouterr()
+    assert code == 70
+    assert captured.out == f"{answer_text}\n"
+    assert captured.err.splitlines() == ["ERROR STORE_ERROR: injected out write failure"]
+    _assert_opened_and_closed_once(mock)
+
+
+def test_cli_scrape_closes_tab_on_success(tmp_path, capsys, monkeypatch) -> None:
+    import ask_chatgpt.cli as cli
+    from ask_chatgpt.channels.mock import MockChannel, ScriptedClock
+
+    conversation_id = "conv_cli_scrape_close_success"
+    answer_text = "REAL SESSION SCRAPE CLOSE SUCCESS"
+    clock = ScriptedClock()
+    mock = MockChannel(
+        _scrape_scenario(conversation_id, answer_text=answer_text),
+        monotonic=clock.monotonic,
+        sleeper=clock.sleep,
+    )
+    monkeypatch.setattr(cli, "Session", _real_session_factory(mock))
+
+    code = cli.main([
+        "scrape",
+        f"https://chatgpt.com/c/{conversation_id}",
+        "--selector-channel",
+        "mock",
+        "--data-dir",
+        str(tmp_path / "data"),
+    ])
+
+    captured = capsys.readouterr()
+    assert code == 0
+    assert answer_text in captured.out
+    assert captured.err == ""
+    _assert_opened_and_closed_once(mock)
+
+
+def test_cli_loop_closes_tab_on_keyboard_interrupt(tmp_path, capsys, monkeypatch) -> None:
+    import ask_chatgpt.cli as cli
+    from ask_chatgpt.channels.mock import MockChannel, ScriptedClock
+
+    conversation_id = "conv_cli_loop_close_sigint"
+    message = "REAL SESSION LOOP CLOSE PROMPT"
+    answer_text = "REAL SESSION LOOP CLOSE ANSWER"
+    clock = ScriptedClock()
+    mock = MockChannel(
+        _loop_scenario(conversation_id, message=message, answer_text=answer_text),
+        monotonic=clock.monotonic,
+        sleeper=clock.sleep,
+    )
+
+    def interrupt_on_write(payload):  # noqa: ANN001
+        del payload
+        raise KeyboardInterrupt()
+
+    monkeypatch.setattr(cli, "Session", _real_session_factory(mock))
+    monkeypatch.setattr(cli, "_write_jsonl_stdout", interrupt_on_write)
+
+    code = cli.main([
+        "loop",
+        conversation_id,
+        "--message",
+        message,
+        "--selector-channel",
+        "mock",
+        "--data-dir",
+        str(tmp_path / "data"),
+        "--max-iterations",
+        "1",
+    ])
+
+    captured = capsys.readouterr()
+    assert code == 130
+    assert captured.out == ""
+    assert captured.err == ""
+    _assert_opened_and_closed_once(mock)
 
 
 def test_cli_real_session_ask_out_write_failure_keeps_stdout_first(tmp_path, capsys, monkeypatch) -> None:
@@ -401,14 +756,16 @@ def test_cli_scrape_and_fetch_dispatch_documented_methods(tmp_path, capsys, monk
     assert scraped.out == "## User\n\nstored prompt\n\n## Assistant\n\nscraped answer\n"
     assert out.read_bytes() == scraped.out.encode("utf-8")
     assert RecordingSession.instances[-1].calls == [
-        ("scrape", ("conv_cli",), {"with_attachments": True, "out": out})
+        ("scrape", ("conv_cli",), {"with_attachments": True, "out": out}),
+        ("detach", (), {"close_managed_tabs": True}),
     ]
 
     assert cli.main(["fetch", "conv_cli", "att-1", "--selector-channel", "mock", "--json"]) == 0
     fetched = json.loads(capsys.readouterr().out)
     assert fetched == {"path": "/tmp/cached-attachment.txt"}
     assert RecordingSession.instances[-2].calls == [
-        ("scrape", ("conv_cli",), {"with_attachments": True, "out": out})
+        ("scrape", ("conv_cli",), {"with_attachments": True, "out": out}),
+        ("detach", (), {"close_managed_tabs": True}),
     ]
     assert RecordingSession.instances[-1].calls == [("fetch", ("conv_cli", "att-1"), {})]
 
