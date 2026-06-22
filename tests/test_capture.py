@@ -121,6 +121,21 @@ def _attachment_request_snapshot(conversation_id: str) -> RequestSnapshot:
     )
 
 
+def _backend_request_snapshot(path: str, *, headers: dict[str, str] | None = None) -> RequestSnapshot:
+    return RequestSnapshot(
+        url=f"https://chatgpt.com{path}",
+        method="GET",
+        headers=dict(headers or HEADER_CANARIES),
+    )
+
+
+def _headers_for_path(path: str, **overrides: str) -> dict[str, str]:
+    headers = dict(HEADER_CANARIES)
+    headers["x-openai-target-path"] = path
+    headers.update(overrides)
+    return headers
+
+
 def _attachment_download_raw(
     conversation_id: str,
     *,
@@ -169,6 +184,124 @@ def _scrape_attachment_fixture(tmp_path: Path, scenario: MockScenario, conversat
     session = Session(data_dir=tmp_path, channel=channel)
     transcript = session.scrape(ConversationRef(conversation_id, f"https://chatgpt.com/c/{conversation_id}"), with_attachments=True)
     return channel, transcript
+
+
+def test_scrape_uses_light_root_and_generic_backend_header_harvest(tmp_path) -> None:
+    conversation_id = "conv_mock_light_scrape"
+    scenario = MockScenario(
+        name="light_scrape_generic_backend_harvest",
+        backend_conversations={conversation_id: _attachment_download_raw(conversation_id)},
+        request_snapshots=(
+            _backend_request_snapshot(
+                "/backend-api/accounts/check",
+                headers=_headers_for_path("/backend-api/accounts/check"),
+            ),
+        ),
+    )
+    channel = MockChannel(scenario)
+    session = Session(data_dir=tmp_path, channel=channel)
+
+    transcript = session.scrape(ConversationRef(conversation_id, f"https://chatgpt.com/c/{conversation_id}"))
+
+    open_urls = [call.details["url"] for call in channel.calls if call.method == "open_tab"]
+    fetch_urls = [call.details["url"] for call in channel.calls if call.method == "fetch_in_page"]
+    assert open_urls == ["https://chatgpt.com/"]
+    assert all(f"/c/{conversation_id}" not in str(url) for url in open_urls)
+    assert fetch_urls == [f"/backend-api/conversation/{conversation_id}"]
+    assert [turn.role for turn in transcript.turns] == ["user", "assistant"]
+    assert {turn.capture_source for turn in transcript.turns} == {"backend_api"}
+
+
+def test_ambient_backend_header_harvest_skips_deficient_requests() -> None:
+    conversation_id = "conv_mock_ambient_skip"
+    deficient = _headers_for_path("/backend-api/accounts/check")
+    deficient.pop("authorization")
+    complete = _headers_for_path("/backend-api/models", authorization="Bearer MOCK_COMPLETE_REQUEST")
+    scenario = MockScenario(
+        name="ambient_skip_deficient",
+        request_snapshots=(
+            _backend_request_snapshot("/backend-api/accounts/check", headers=deficient),
+            _backend_request_snapshot("/backend-api/models", headers=complete),
+        ),
+    )
+    channel = MockChannel(scenario)
+    tab = channel.open_tab("https://chatgpt.com/")
+    conv = ConversationRef(conversation_id, f"https://chatgpt.com/c/{conversation_id}")
+
+    bundle = acquire_backend_headers(tab, conv, mode="ambient_backend", timeout_s=0.0)
+
+    headers = bundle.for_single_fetch()
+    assert headers["authorization"] == "Bearer MOCK_COMPLETE_REQUEST"
+    assert headers["x-openai-target-path"] == "/backend-api/models"
+    assert channel.method_counts["header_acquisitions"] == 1
+
+
+def test_conversation_harvest_default_ignores_generic_backend_requests() -> None:
+    conversation_id = "conv_mock_exact_default"
+    generic = _headers_for_path("/backend-api/accounts/check", authorization="Bearer MOCK_GENERIC_REQUEST")
+    exact = _headers_for_path(
+        f"/backend-api/conversation/{conversation_id}",
+        authorization="Bearer MOCK_EXACT_CONVERSATION_REQUEST",
+    )
+    scenario = MockScenario(
+        name="exact_default_ignores_generic",
+        request_snapshots=(
+            _backend_request_snapshot("/backend-api/accounts/check", headers=generic),
+            _backend_request_snapshot(f"/backend-api/conversation/{conversation_id}", headers=exact),
+        ),
+    )
+    channel = MockChannel(scenario)
+    tab = channel.open_tab(f"https://chatgpt.com/c/{conversation_id}")
+    conv = ConversationRef(conversation_id, f"https://chatgpt.com/c/{conversation_id}")
+
+    bundle = acquire_backend_headers(tab, conv, timeout_s=0.0)
+
+    assert bundle.for_single_fetch()["authorization"] == "Bearer MOCK_EXACT_CONVERSATION_REQUEST"
+
+
+def test_conversation_fetch_retargets_harvested_target_path(tmp_path) -> None:
+    conversation_id = "conv_mock_retarget_path"
+    harvested_path = "/backend-api/accounts/check"
+    harvested_route = "MOCK_HARVESTED_ROUTE_KEEP_VERBATIM"
+
+    class RecordingChannel(MockChannel):
+        def __init__(self, scenario: MockScenario) -> None:
+            super().__init__(scenario)
+            self.full_conversation_headers: list[dict[str, str]] = []
+
+        def fetch_in_page(self, tab, url, *, method="GET", headers=None, body=None, stream_to=None, timeout_s=None):  # noqa: ANN001, ANN201
+            if url == f"/backend-api/conversation/{conversation_id}":
+                self.full_conversation_headers.append(dict(headers or {}))
+            return super().fetch_in_page(
+                tab,
+                url,
+                method=method,
+                headers=headers,
+                body=body,
+                stream_to=stream_to,
+                timeout_s=timeout_s,
+            )
+
+    scenario = MockScenario(
+        name="retarget_conversation_fetch_headers",
+        backend_conversations={conversation_id: _attachment_download_raw(conversation_id)},
+        request_snapshots=(
+            _backend_request_snapshot(
+                harvested_path,
+                headers=_headers_for_path(harvested_path, **{"x-openai-target-route": harvested_route}),
+            ),
+        ),
+    )
+    channel = RecordingChannel(scenario)
+    tab = channel.open_tab("https://chatgpt.com/")
+    conv = ConversationRef(conversation_id, f"https://chatgpt.com/c/{conversation_id}")
+
+    capture_conversation(tab, conv, Store(data_dir=tmp_path), header_mode="ambient_backend")
+
+    assert channel.full_conversation_headers
+    fetch_headers = channel.full_conversation_headers[0]
+    assert fetch_headers["x-openai-target-path"] == f"/backend-api/conversation/{conversation_id}"
+    assert fetch_headers["x-openai-target-route"] == harvested_route
 
 
 def test_mock_request_snapshots_can_require_reload_before_header_capture() -> None:
