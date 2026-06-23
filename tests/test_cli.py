@@ -478,7 +478,7 @@ def test_cli_ask_closes_tab_on_success(tmp_path, capsys, monkeypatch) -> None:
     _assert_opened_and_closed_once(mock)
 
 
-def test_cli_rate_limited_429_returns_52_without_stdout_out_or_clipboard_salvage(tmp_path, capsys, monkeypatch) -> None:
+def test_cli_capture_429_returns_52_without_stdout_out_or_clipboard_salvage(tmp_path, capsys, monkeypatch) -> None:
     import ask_chatgpt.cli as cli
     from ask_chatgpt.channels.base import TurnDom, TurnDomSnapshot
     from ask_chatgpt.channels.mock import MockBackendResponse, MockChannel, MockScenario, ScriptedClock, TimedBackendResponse, TimedTurnSnapshot
@@ -507,7 +507,7 @@ def test_cli_rate_limited_429_returns_52_without_stdout_out_or_clipboard_salvage
         model_labels=(),
     )
     scenario = MockScenario(
-        name="cli_completion_429_rate_limited",
+        name="cli_capture_429_rate_limited",
         turn_timeline=(
             TimedTurnSnapshot(0.0, baseline),
             TimedTurnSnapshot(0.5, submitted),
@@ -515,19 +515,6 @@ def test_cli_rate_limited_429_returns_52_without_stdout_out_or_clipboard_salvage
         ),
         backend_timeline=(
             TimedBackendResponse(0.0, MockBackendResponse(429, {"detail": "too many requests"}, headers={"retry-after": "45"})),
-            TimedBackendResponse(
-                1.0,
-                MockBackendResponse(
-                    200,
-                    _backend_raw(
-                        conversation_id,
-                        user_id="user-new-2",
-                        assistant_id="assistant-new-2",
-                        prompt=prompt,
-                        answer_text="answer after old swallow",
-                    ),
-                ),
-            ),
         ),
         request_snapshots=_backend_request_snapshots(conversation_id, count=6),
         clipboard_permission="granted",

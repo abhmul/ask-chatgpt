@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from typing import Any, Literal
 
 from ask_chatgpt.capture import acquire_backend_headers
-from ask_chatgpt.channels.base import TabLease, TurnDom
+from ask_chatgpt.channels.base import TabLease, TurnDom, WebSocketIdleObserver
 from ask_chatgpt.errors import (
     BackendAuthUnavailableError,
     BackendCaptureShapeError,
@@ -23,6 +23,9 @@ from ask_chatgpt.models import SelectorMap, TurnRecord
 from ask_chatgpt.send import TurnBaseline
 
 
+DEFAULT_WEBSOCKET_IDLE_TIMEOUT_S = 8.0
+
+
 @dataclass(frozen=True)
 class CompletionState:
     complete: bool
@@ -31,7 +34,7 @@ class CompletionState:
     node_status: str | None
     activity_token: str
     partial_markdown: str
-    source: Literal["backend", "dom"]
+    source: Literal["backend", "dom", "ws_idle"]
     last_progress_monotonic: float
 
 
@@ -139,12 +142,14 @@ def wait_for_completion(
     max_total_wait_s: float | None,
     progress_poll_interval_s: float = 2.0,
     backend_check_interval_s: float | None = None,
+    websocket_idle_timeout_s: float = DEFAULT_WEBSOCKET_IDLE_TIMEOUT_S,
+    websocket_idle_observer: WebSocketIdleObserver | None = None,
     governor: Governor | None = None,
 ) -> CompletionState:
     start = _monotonic(tab)
     last_progress = start
-    backend_interval = _backend_interval(progress_poll_interval_s, backend_check_interval_s)
-    last_backend_check = start - backend_interval
+    backend_rescue_at = start + float(backend_check_interval_s) if backend_check_interval_s is not None else None
+    backend_rescue_done = backend_check_interval_s is None
     seen_tokens: dict[str, str] = {}
     latest_backend_partial: CompletionState | None = None
     latest_dom_partial: CompletionState | None = None
@@ -162,8 +167,8 @@ def wait_for_completion(
             _attach_partials(error, latest_backend_partial, latest_dom_partial)
             raise error
 
-        if now - last_backend_check >= backend_interval - 1e-9:
-            last_backend_check = now
+        if not backend_rescue_done and backend_rescue_at is not None and now >= backend_rescue_at - 1e-9:
+            backend_rescue_done = True
             try:
                 backend_state = poll_backend_completion(tab, conv, baseline, governor=governor)
             except (BackendAuthUnavailableError, BackendCaptureShapeError):
@@ -181,25 +186,50 @@ def wait_for_completion(
             latest_dom_partial = dom_state
         if _remember_progress(seen_tokens, "dom", dom_state.activity_token):
             last_progress = now
+
+        dom_stable_ready = False
         if _dom_state_can_complete(dom_state):
             key = _text_stability_key(dom_state)
             if key != dom_stable_key:
                 dom_stable_key = key
                 dom_stable_since = now
             elif dom_stable_since is not None and now - dom_stable_since >= stable_window_s:
-                return CompletionState(
-                    complete=True,
-                    assistant_message_id=dom_state.assistant_message_id,
-                    async_status=None,
-                    node_status=dom_state.node_status,
-                    activity_token=dom_state.activity_token,
-                    partial_markdown=dom_state.partial_markdown,
-                    source="dom",
-                    last_progress_monotonic=now,
-                )
+                dom_stable_ready = True
         else:
             dom_stable_key = None
             dom_stable_since = None
+
+        ws_idle_ready = False
+        if websocket_idle_observer is not None:
+            ws_snapshot = websocket_idle_observer.snapshot(
+                now_s=now,
+                idle_after_s=websocket_idle_timeout_s,
+            )
+            ws_token = _activity_token(
+                {
+                    "source": "ws_idle",
+                    "armed_monotonic_s": ws_snapshot.armed_monotonic_s,
+                    "last_frame_monotonic_s": ws_snapshot.last_frame_monotonic_s,
+                    "frame_count": ws_snapshot.frame_count,
+                    "sent_count": ws_snapshot.sent_count,
+                    "received_count": ws_snapshot.received_count,
+                }
+            )
+            if _remember_progress(seen_tokens, "ws_idle", ws_token):
+                last_progress = now
+            ws_idle_ready = ws_snapshot.idle
+
+        if dom_stable_ready and (websocket_idle_observer is None or ws_idle_ready):
+            return CompletionState(
+                complete=True,
+                assistant_message_id=dom_state.assistant_message_id,
+                async_status=None,
+                node_status=dom_state.node_status,
+                activity_token=dom_state.activity_token,
+                partial_markdown=dom_state.partial_markdown,
+                source="dom" if websocket_idle_observer is None else "ws_idle",
+                last_progress_monotonic=now,
+            )
 
         now = _monotonic(tab)
         if now - last_progress >= activity_timeout_s:
@@ -473,12 +503,6 @@ def _attach_partials(
     setattr(error, "dom_partial", dom_partial)
 
 
-def _backend_interval(progress_poll_interval_s: float, backend_check_interval_s: float | None) -> float:
-    if backend_check_interval_s is not None:
-        return float(backend_check_interval_s)
-    return max(float(progress_poll_interval_s) * 2.0, 30.0)
-
-
 def _activity_token(parts: Mapping[str, Any]) -> str:
     payload = json.dumps(parts, sort_keys=True, default=str, separators=(",", ":"))
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
@@ -512,6 +536,7 @@ def _sleep(tab: TabLease, seconds: float) -> None:
 
 
 __all__ = [
+    "DEFAULT_WEBSOCKET_IDLE_TIMEOUT_S",
     "CompletionState",
     "poll_backend_completion",
     "poll_dom_completion",

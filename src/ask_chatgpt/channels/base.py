@@ -48,6 +48,22 @@ class FetchResult:
     body_bytes: bytes | None
 
 
+@dataclass(frozen=True)
+class WebSocketIdleSnapshot:
+    armed_monotonic_s: float
+    last_frame_monotonic_s: float
+    frame_count: int
+    sent_count: int
+    received_count: int
+    idle_for_s: float
+    idle: bool
+
+
+class WebSocketIdleObserver(Protocol):
+    def snapshot(self, *, now_s: float, idle_after_s: float) -> WebSocketIdleSnapshot: ...
+    def close(self) -> None: ...
+
+
 class BrowserChannel(Protocol):
     def preflight(self, *, timeout_s: float = 5.0) -> PreflightResult: ...
     def attach(self) -> None: ...
@@ -85,6 +101,7 @@ class BrowserChannel(Protocol):
         *,
         timeout_s: float,
     ) -> RequestSnapshot: ...
+    def arm_websocket_idle_observer(self, tab: TabLease) -> WebSocketIdleObserver | None: ...
     def fetch_in_page(
         self,
         tab: TabLease,
@@ -107,4 +124,6 @@ __all__ = [
     "TabLease",
     "TurnDom",
     "TurnDomSnapshot",
+    "WebSocketIdleObserver",
+    "WebSocketIdleSnapshot",
 ]
