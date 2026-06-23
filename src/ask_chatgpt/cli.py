@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from ask_chatgpt import __version__
-from ask_chatgpt.errors import AskChatGPTError, CompletionTimeoutError
+from ask_chatgpt.errors import AskChatGPTError, CompletionTimeoutError, MaxTotalWaitExceededError
 from ask_chatgpt.models import StatusReport, Transcript, TurnRecord
 from ask_chatgpt.session import Session
 from ask_chatgpt.store import Store
@@ -89,7 +89,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     json_mode = bool(getattr(args, "json", False))
     try:
         return int(args.handler(args))
-    except CompletionTimeoutError as exc:
+    except (CompletionTimeoutError, MaxTotalWaitExceededError) as exc:
         if getattr(args, "command", None) == "ask":
             partial = _partial_markdown_from_error(exc)
             if partial:
