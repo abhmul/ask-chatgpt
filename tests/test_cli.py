@@ -478,13 +478,14 @@ def test_cli_ask_closes_tab_on_success(tmp_path, capsys, monkeypatch) -> None:
     _assert_opened_and_closed_once(mock)
 
 
-def test_cli_capture_429_returns_52_without_stdout_out_or_clipboard_salvage(tmp_path, capsys, monkeypatch) -> None:
+def test_cli_completion_rescue_429_before_later_200_returns_52_without_stdout_out_or_clipboard_salvage(tmp_path, capsys, monkeypatch) -> None:
     import ask_chatgpt.cli as cli
     from ask_chatgpt.channels.base import TurnDom, TurnDomSnapshot
     from ask_chatgpt.channels.mock import MockBackendResponse, MockChannel, MockScenario, ScriptedClock, TimedBackendResponse, TimedTurnSnapshot
 
-    conversation_id = "conv_cli_rate_limited"
+    conversation_id = "conv_cli_rescue_rate_limited"
     prompt = "literal prompt"
+    answer_after_old_swallow = "answer after old swallow"
     baseline = TurnDomSnapshot(
         users=(TurnDom("baseline-user-1", "user", "baseline prompt"),),
         assistants=(TurnDom("baseline-assistant-1", "assistant", "baseline answer"),),
@@ -501,13 +502,13 @@ def test_cli_capture_429_returns_52_without_stdout_out_or_clipboard_salvage(tmp_
     )
     complete = TurnDomSnapshot(
         users=submitted.users,
-        assistants=(*baseline.assistants, TurnDom("assistant-new-2", "assistant", "answer after old swallow")),
+        assistants=(*baseline.assistants, TurnDom("assistant-new-2", "assistant", answer_after_old_swallow)),
         stop_visible=False,
         composer_visible=True,
         model_labels=(),
     )
     scenario = MockScenario(
-        name="cli_capture_429_rate_limited",
+        name="cli_completion_rescue_429_before_later_200_rate_limited",
         turn_timeline=(
             TimedTurnSnapshot(0.0, baseline),
             TimedTurnSnapshot(0.5, submitted),
@@ -515,6 +516,19 @@ def test_cli_capture_429_returns_52_without_stdout_out_or_clipboard_salvage(tmp_
         ),
         backend_timeline=(
             TimedBackendResponse(0.0, MockBackendResponse(429, {"detail": "too many requests"}, headers={"retry-after": "45"})),
+            TimedBackendResponse(
+                1.5,
+                MockBackendResponse(
+                    200,
+                    _backend_raw(
+                        conversation_id,
+                        user_id="user-new-2",
+                        assistant_id="assistant-new-2",
+                        prompt=prompt,
+                        answer_text=answer_after_old_swallow,
+                    ),
+                ),
+            ),
         ),
         request_snapshots=_backend_request_snapshots(conversation_id, count=6),
         clipboard_permission="granted",
@@ -540,9 +554,14 @@ def test_cli_capture_429_returns_52_without_stdout_out_or_clipboard_salvage(tmp_
     captured = capsys.readouterr()
     assert code == 52
     assert captured.out == ""
+    assert answer_after_old_swallow not in captured.out
+    if out.exists():
+        assert answer_after_old_swallow not in out.read_text(encoding="utf-8")
     assert not out.exists()
     assert captured.err.splitlines() == ["ERROR RATE_LIMITED: rate limited"]
     assert mock.method_counts.get("read_clipboard", 0) == 0
+    fetch_calls = [call for call in mock.calls if call.method == "fetch_in_page"]
+    assert [call.details["streamed"] for call in fetch_calls] == [False]
 
 
 def test_cli_ask_closes_tab_on_error_after_acquire(tmp_path, capsys, monkeypatch) -> None:
