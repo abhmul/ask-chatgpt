@@ -223,6 +223,13 @@ class MaxTotalWaitExceededError(_KnownAskChatGPTError):
     default_retry_action = "increase_wait_or_retry"
 
 
+class RateLimitedError(_KnownAskChatGPTError):
+    default_code = "RATE_LIMITED"
+    default_exit_code = 52
+    default_retryable = True
+    default_retry_action = "back_off"
+
+
 class AttachmentNotFoundError(_KnownAskChatGPTError):
     default_code = "ATTACHMENT_NOT_FOUND"
     default_exit_code = 60
@@ -286,6 +293,7 @@ __all__ = [
     "MaxTotalWaitExceededError",
     "ModelSelectionNotReflectedError",
     "PromptNotSubmittedError",
+    "RateLimitedError",
     "SelectorNotFoundError",
     "StoreError",
     "StoreWarning",

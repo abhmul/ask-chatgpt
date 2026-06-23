@@ -22,6 +22,29 @@ def test_send_budget_spaces_successive_submissions_with_fake_sleep() -> None:
     assert budget.successful_submissions == 2
 
 
+def test_send_budget_one_sided_jitter_adds_to_required_spacing_with_injected_rng() -> None:
+    clock = ScriptedClock()
+    budget = AdaptiveSendBudget(
+        politeness_floor_s=0.0,
+        initial_rate_per_min=60.0,
+        max_rate_per_min=60.0,
+        additive_increase_per_min=0.0,
+        jitter_max_s=4.0,
+        jitter_rng=lambda: 0.25,
+        monotonic=clock.monotonic,
+        sleeper=clock.sleep,
+    )
+
+    with budget.submission():
+        pass
+    base_spacing = budget._required_spacing_s()
+    with budget.submission():
+        pass
+
+    assert clock.sleeps[-1] == pytest.approx(base_spacing + 1.0)
+    assert clock.sleeps[-1] >= base_spacing
+
+
 def test_send_budget_politeness_floor_remains_hard_at_high_rate() -> None:
     clock = ScriptedClock()
     budget = AdaptiveSendBudget(

@@ -17,6 +17,7 @@ from ask_chatgpt.errors import (
     HumanActionNeededError,
     MaxTotalWaitExceededError,
 )
+from ask_chatgpt.governor import DEFAULT_TOKEN_WEIGHTS, Governor, raise_for_rate_limit
 from ask_chatgpt.identity import ConversationRef, conversation_url
 from ask_chatgpt.models import SelectorMap, TurnRecord
 from ask_chatgpt.send import TurnBaseline
@@ -40,10 +41,13 @@ def poll_backend_completion(
     baseline: TurnBaseline,
     *,
     prefer_lightweight: bool = False,
+    governor: Governor | None = None,
 ) -> CompletionState:
     conversation_id = _require_conversation_id(conv)
     headers = acquire_backend_headers(tab, conv)
     path = f"/backend-api/conversation/{conversation_id}/stream_status" if prefer_lightweight else f"/backend-api/conversation/{conversation_id}"
+    if governor is not None:
+        governor.acquire(DEFAULT_TOKEN_WEIGHTS["backend_fetch"], action="backend_fetch", path_kind="completion")
     result = tab.channel.fetch_in_page(
         tab,
         path,
@@ -51,6 +55,7 @@ def poll_backend_completion(
         headers={"accept": "application/json", **headers.for_single_fetch()},
         timeout_s=None,
     )
+    raise_for_rate_limit(result)
     if result.status != 200:
         raise BackendCaptureShapeError(
             "backend completion check did not return JSON success",
@@ -134,6 +139,7 @@ def wait_for_completion(
     max_total_wait_s: float | None,
     progress_poll_interval_s: float = 2.0,
     backend_check_interval_s: float | None = None,
+    governor: Governor | None = None,
 ) -> CompletionState:
     start = _monotonic(tab)
     last_progress = start
@@ -159,7 +165,7 @@ def wait_for_completion(
         if now - last_backend_check >= backend_interval - 1e-9:
             last_backend_check = now
             try:
-                backend_state = poll_backend_completion(tab, conv, baseline)
+                backend_state = poll_backend_completion(tab, conv, baseline, governor=governor)
             except (BackendAuthUnavailableError, BackendCaptureShapeError):
                 backend_state = None
             if backend_state is not None:
