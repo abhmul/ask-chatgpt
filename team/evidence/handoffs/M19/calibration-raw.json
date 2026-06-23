@@ -1,0 +1,871 @@
+{
+  "n_recommended": 9,
+  "margin": 3,
+  "max_mid_answer_gap": 5.05,
+  "max_mid_answer_gap_all": 5.05,
+  "m18_prior_gap": 5.04,
+  "verdict": "FAIL",
+  "send_count": 4,
+  "prompts": [
+    {
+      "label": "instant",
+      "sent": true,
+      "baseline_count": 0,
+      "cap_hit": false,
+      "seg_start": -0.18,
+      "seg_end": 30.241,
+      "t_firstgrowth": 0.678,
+      "t_lastgrowth": 9.847,
+      "t_copybtn": null,
+      "t_domdone": 12.89,
+      "t_stopgone": 9.847,
+      "ticks": [
+        {
+          "ts": 0.678,
+          "len": 12,
+          "stop": true
+        },
+        {
+          "ts": 2.698,
+          "len": 0,
+          "stop": true
+        },
+        {
+          "ts": 9.847,
+          "len": 4,
+          "stop": false
+        },
+        {
+          "ts": 30.241,
+          "len": 4,
+          "stop": false
+        }
+      ],
+      "frames": [
+        {
+          "dir": "sent",
+          "ts": 0.222,
+          "opcode": 1,
+          "len": 298
+        },
+        {
+          "dir": "recv",
+          "ts": 0.383,
+          "opcode": 1,
+          "len": 371
+        },
+        {
+          "dir": "sent",
+          "ts": 3.049,
+          "opcode": 1,
+          "len": 122
+        },
+        {
+          "dir": "recv",
+          "ts": 3.135,
+          "opcode": 1,
+          "len": 14682
+        },
+        {
+          "dir": "recv",
+          "ts": 4.029,
+          "opcode": 1,
+          "len": 1758
+        },
+        {
+          "dir": "recv",
+          "ts": 4.148,
+          "opcode": 1,
+          "len": 1104
+        },
+        {
+          "dir": "recv",
+          "ts": 4.237,
+          "opcode": 1,
+          "len": 174
+        },
+        {
+          "dir": "recv",
+          "ts": 4.238,
+          "opcode": 1,
+          "len": 180
+        },
+        {
+          "dir": "recv",
+          "ts": 9.112,
+          "opcode": 1,
+          "len": 350
+        },
+        {
+          "dir": "recv",
+          "ts": 9.287,
+          "opcode": 1,
+          "len": 2045
+        },
+        {
+          "dir": "recv",
+          "ts": 9.358,
+          "opcode": 1,
+          "len": 1331
+        },
+        {
+          "dir": "recv",
+          "ts": 9.409,
+          "opcode": 1,
+          "len": 1799
+        },
+        {
+          "dir": "recv",
+          "ts": 9.486,
+          "opcode": 1,
+          "len": 2113
+        },
+        {
+          "dir": "recv",
+          "ts": 9.787,
+          "opcode": 1,
+          "len": 567
+        },
+        {
+          "dir": "recv",
+          "ts": 9.845,
+          "opcode": 1,
+          "len": 309
+        },
+        {
+          "dir": "sent",
+          "ts": 9.845,
+          "opcode": 1,
+          "len": 111
+        },
+        {
+          "dir": "recv",
+          "ts": 9.903,
+          "opcode": 1,
+          "len": 124
+        }
+      ],
+      "frame_count": 17,
+      "frames_post_send_count": 17,
+      "data_frame_count": 14,
+      "frame_counts_by_dir_opcode": {
+        "recv/opcode1": 14,
+        "sent/opcode1": 3
+      },
+      "pre_first_frame_latency": 0.383,
+      "gaps_recv_data": [
+        4.874,
+        2.752,
+        0.894,
+        0.301,
+        0.175,
+        0.119,
+        0.089,
+        0.077,
+        0.071,
+        0.058,
+        0.051,
+        0.001
+      ],
+      "max_mid_gap_recv_data": 4.874,
+      "gaps_all": [
+        4.874,
+        2.666,
+        0.894,
+        0.301,
+        0.175,
+        0.161,
+        0.119,
+        0.089,
+        0.086,
+        0.077,
+        0.071,
+        0.058,
+        0.051,
+        0.001,
+        0.0
+      ],
+      "max_mid_gap_all": 4.874,
+      "t_lastframe_answer": 9.845,
+      "t_first_tail_frame": 9.903,
+      "tail_data_frames_after_lastgrowth": 1,
+      "longest_quiet_after_lastgrowth": 20.338,
+      "produced_answer": true,
+      "rule_validation": {
+        "no_clip": true,
+        "no_false_early": true,
+        "idle_reachable": false,
+        "pass": false,
+        "t_fire": 19.0,
+        "completion_latency": 9.153
+      }
+    },
+    {
+      "label": "prose",
+      "sent": true,
+      "baseline_count": 0,
+      "cap_hit": false,
+      "seg_start": -0.215,
+      "seg_end": 36.819,
+      "t_firstgrowth": 1.136,
+      "t_lastgrowth": 16.471,
+      "t_copybtn": null,
+      "t_domdone": 19.57,
+      "t_stopgone": 16.98,
+      "ticks": [
+        {
+          "ts": 0.621,
+          "len": 0,
+          "stop": true
+        },
+        {
+          "ts": 1.136,
+          "len": 12,
+          "stop": true
+        },
+        {
+          "ts": 1.642,
+          "len": 0,
+          "stop": true
+        },
+        {
+          "ts": 16.471,
+          "len": 115,
+          "stop": true
+        },
+        {
+          "ts": 16.98,
+          "len": 115,
+          "stop": false
+        },
+        {
+          "ts": 36.819,
+          "len": 115,
+          "stop": false
+        }
+      ],
+      "frames": [
+        {
+          "dir": "sent",
+          "ts": 0.297,
+          "opcode": 1,
+          "len": 298
+        },
+        {
+          "dir": "recv",
+          "ts": 0.416,
+          "opcode": 1,
+          "len": 371
+        },
+        {
+          "dir": "sent",
+          "ts": 1.669,
+          "opcode": 1,
+          "len": 122
+        },
+        {
+          "dir": "recv",
+          "ts": 1.764,
+          "opcode": 1,
+          "len": 14701
+        },
+        {
+          "dir": "recv",
+          "ts": 2.581,
+          "opcode": 1,
+          "len": 1758
+        },
+        {
+          "dir": "recv",
+          "ts": 2.708,
+          "opcode": 1,
+          "len": 1104
+        },
+        {
+          "dir": "recv",
+          "ts": 2.819,
+          "opcode": 1,
+          "len": 180
+        },
+        {
+          "dir": "recv",
+          "ts": 2.826,
+          "opcode": 1,
+          "len": 174
+        },
+        {
+          "dir": "recv",
+          "ts": 7.63,
+          "opcode": 1,
+          "len": 350
+        },
+        {
+          "dir": "recv",
+          "ts": 7.73,
+          "opcode": 1,
+          "len": 2011
+        },
+        {
+          "dir": "recv",
+          "ts": 12.778,
+          "opcode": 1,
+          "len": 350
+        },
+        {
+          "dir": "recv",
+          "ts": 12.914,
+          "opcode": 1,
+          "len": 2011
+        },
+        {
+          "dir": "recv",
+          "ts": 16.016,
+          "opcode": 1,
+          "len": 2045
+        },
+        {
+          "dir": "recv",
+          "ts": 16.075,
+          "opcode": 1,
+          "len": 1332
+        },
+        {
+          "dir": "recv",
+          "ts": 16.121,
+          "opcode": 1,
+          "len": 1928
+        },
+        {
+          "dir": "recv",
+          "ts": 16.469,
+          "opcode": 1,
+          "len": 567
+        },
+        {
+          "dir": "recv",
+          "ts": 16.531,
+          "opcode": 1,
+          "len": 309
+        },
+        {
+          "dir": "sent",
+          "ts": 16.531,
+          "opcode": 1,
+          "len": 111
+        },
+        {
+          "dir": "recv",
+          "ts": 16.605,
+          "opcode": 1,
+          "len": 124
+        }
+      ],
+      "frame_count": 19,
+      "frames_post_send_count": 19,
+      "data_frame_count": 16,
+      "frame_counts_by_dir_opcode": {
+        "recv/opcode1": 16,
+        "sent/opcode1": 3
+      },
+      "pre_first_frame_latency": 0.416,
+      "gaps_recv_data": [
+        5.048,
+        4.804,
+        3.102,
+        1.348,
+        0.817,
+        0.348,
+        0.136,
+        0.127,
+        0.111,
+        0.1,
+        0.059,
+        0.046,
+        0.007
+      ],
+      "max_mid_gap_recv_data": 5.048,
+      "gaps_all": [
+        5.048,
+        4.804,
+        3.102,
+        1.253,
+        0.817,
+        0.348,
+        0.136,
+        0.127,
+        0.119,
+        0.111,
+        0.1,
+        0.095,
+        0.059,
+        0.046,
+        0.007
+      ],
+      "max_mid_gap_all": 5.048,
+      "t_lastframe_answer": 16.469,
+      "t_first_tail_frame": 16.531,
+      "tail_data_frames_after_lastgrowth": 2,
+      "longest_quiet_after_lastgrowth": 20.214,
+      "produced_answer": true,
+      "rule_validation": {
+        "no_clip": true,
+        "no_false_early": true,
+        "idle_reachable": false,
+        "pass": false,
+        "t_fire": 25.7,
+        "completion_latency": 9.229
+      }
+    },
+    {
+      "label": "list",
+      "sent": true,
+      "baseline_count": 0,
+      "cap_hit": false,
+      "seg_start": -0.219,
+      "seg_end": 29.799,
+      "t_firstgrowth": 1.102,
+      "t_lastgrowth": 9.334,
+      "t_copybtn": null,
+      "t_domdone": 12.386,
+      "t_stopgone": 9.334,
+      "ticks": [
+        {
+          "ts": 0.596,
+          "len": 0,
+          "stop": true
+        },
+        {
+          "ts": 1.102,
+          "len": 12,
+          "stop": true
+        },
+        {
+          "ts": 1.647,
+          "len": 0,
+          "stop": true
+        },
+        {
+          "ts": 9.334,
+          "len": 50,
+          "stop": false
+        },
+        {
+          "ts": 29.799,
+          "len": 50,
+          "stop": false
+        }
+      ],
+      "frames": [
+        {
+          "dir": "sent",
+          "ts": 0.363,
+          "opcode": 1,
+          "len": 298
+        },
+        {
+          "dir": "recv",
+          "ts": 0.475,
+          "opcode": 1,
+          "len": 371
+        },
+        {
+          "dir": "sent",
+          "ts": 2.005,
+          "opcode": 1,
+          "len": 122
+        },
+        {
+          "dir": "recv",
+          "ts": 2.115,
+          "opcode": 1,
+          "len": 14713
+        },
+        {
+          "dir": "recv",
+          "ts": 3.007,
+          "opcode": 1,
+          "len": 1758
+        },
+        {
+          "dir": "recv",
+          "ts": 3.113,
+          "opcode": 1,
+          "len": 1104
+        },
+        {
+          "dir": "recv",
+          "ts": 3.197,
+          "opcode": 1,
+          "len": 180
+        },
+        {
+          "dir": "recv",
+          "ts": 3.201,
+          "opcode": 1,
+          "len": 174
+        },
+        {
+          "dir": "recv",
+          "ts": 8.233,
+          "opcode": 1,
+          "len": 350
+        },
+        {
+          "dir": "recv",
+          "ts": 8.727,
+          "opcode": 1,
+          "len": 2045
+        },
+        {
+          "dir": "recv",
+          "ts": 8.809,
+          "opcode": 1,
+          "len": 1329
+        },
+        {
+          "dir": "recv",
+          "ts": 8.854,
+          "opcode": 1,
+          "len": 1882
+        },
+        {
+          "dir": "recv",
+          "ts": 9.007,
+          "opcode": 1,
+          "len": 2113
+        },
+        {
+          "dir": "recv",
+          "ts": 9.268,
+          "opcode": 1,
+          "len": 567
+        },
+        {
+          "dir": "recv",
+          "ts": 9.327,
+          "opcode": 1,
+          "len": 309
+        },
+        {
+          "dir": "sent",
+          "ts": 9.327,
+          "opcode": 1,
+          "len": 111
+        },
+        {
+          "dir": "recv",
+          "ts": 9.403,
+          "opcode": 1,
+          "len": 124
+        }
+      ],
+      "frame_count": 17,
+      "frames_post_send_count": 17,
+      "data_frame_count": 14,
+      "frame_counts_by_dir_opcode": {
+        "recv/opcode1": 14,
+        "sent/opcode1": 3
+      },
+      "pre_first_frame_latency": 0.475,
+      "gaps_recv_data": [
+        5.032,
+        1.64,
+        0.892,
+        0.494,
+        0.261,
+        0.153,
+        0.106,
+        0.084,
+        0.082,
+        0.059,
+        0.045,
+        0.004
+      ],
+      "max_mid_gap_recv_data": 5.032,
+      "gaps_all": [
+        5.032,
+        1.53,
+        0.892,
+        0.494,
+        0.261,
+        0.153,
+        0.112,
+        0.11,
+        0.106,
+        0.084,
+        0.082,
+        0.059,
+        0.045,
+        0.004,
+        0.0
+      ],
+      "max_mid_gap_all": 5.032,
+      "t_lastframe_answer": 9.327,
+      "t_first_tail_frame": 9.403,
+      "tail_data_frames_after_lastgrowth": 1,
+      "longest_quiet_after_lastgrowth": 20.396,
+      "produced_answer": true,
+      "rule_validation": {
+        "no_clip": true,
+        "no_false_early": true,
+        "idle_reachable": false,
+        "pass": false,
+        "t_fire": 18.5,
+        "completion_latency": 9.166
+      }
+    },
+    {
+      "label": "code",
+      "sent": true,
+      "baseline_count": 0,
+      "cap_hit": false,
+      "seg_start": -0.247,
+      "seg_end": 48.315,
+      "t_firstgrowth": 1.125,
+      "t_lastgrowth": 28.18,
+      "t_copybtn": 28.18,
+      "t_domdone": 31.245,
+      "t_stopgone": 28.18,
+      "ticks": [
+        {
+          "ts": 0.62,
+          "len": 0,
+          "stop": true
+        },
+        {
+          "ts": 1.125,
+          "len": 12,
+          "stop": true
+        },
+        {
+          "ts": 1.631,
+          "len": 0,
+          "stop": true
+        },
+        {
+          "ts": 27.67,
+          "len": 164,
+          "stop": true
+        },
+        {
+          "ts": 28.18,
+          "len": 174,
+          "stop": false
+        },
+        {
+          "ts": 48.315,
+          "len": 174,
+          "stop": false
+        }
+      ],
+      "frames": [
+        {
+          "dir": "sent",
+          "ts": 0.281,
+          "opcode": 1,
+          "len": 298
+        },
+        {
+          "dir": "recv",
+          "ts": 0.384,
+          "opcode": 1,
+          "len": 371
+        },
+        {
+          "dir": "sent",
+          "ts": 1.834,
+          "opcode": 1,
+          "len": 122
+        },
+        {
+          "dir": "recv",
+          "ts": 1.916,
+          "opcode": 1,
+          "len": 14764
+        },
+        {
+          "dir": "recv",
+          "ts": 2.776,
+          "opcode": 1,
+          "len": 1758
+        },
+        {
+          "dir": "recv",
+          "ts": 2.878,
+          "opcode": 1,
+          "len": 1104
+        },
+        {
+          "dir": "recv",
+          "ts": 3.181,
+          "opcode": 1,
+          "len": 174
+        },
+        {
+          "dir": "recv",
+          "ts": 3.183,
+          "opcode": 1,
+          "len": 180
+        },
+        {
+          "dir": "recv",
+          "ts": 7.98,
+          "opcode": 1,
+          "len": 350
+        },
+        {
+          "dir": "recv",
+          "ts": 8.087,
+          "opcode": 1,
+          "len": 2011
+        },
+        {
+          "dir": "recv",
+          "ts": 13.134,
+          "opcode": 1,
+          "len": 350
+        },
+        {
+          "dir": "recv",
+          "ts": 13.232,
+          "opcode": 1,
+          "len": 2011
+        },
+        {
+          "dir": "recv",
+          "ts": 18.282,
+          "opcode": 1,
+          "len": 350
+        },
+        {
+          "dir": "recv",
+          "ts": 18.385,
+          "opcode": 1,
+          "len": 2011
+        },
+        {
+          "dir": "recv",
+          "ts": 23.433,
+          "opcode": 1,
+          "len": 350
+        },
+        {
+          "dir": "recv",
+          "ts": 23.529,
+          "opcode": 1,
+          "len": 2011
+        },
+        {
+          "dir": "recv",
+          "ts": 27.387,
+          "opcode": 1,
+          "len": 2045
+        },
+        {
+          "dir": "recv",
+          "ts": 27.481,
+          "opcode": 1,
+          "len": 1333
+        },
+        {
+          "dir": "recv",
+          "ts": 27.517,
+          "opcode": 1,
+          "len": 2002
+        },
+        {
+          "dir": "recv",
+          "ts": 27.849,
+          "opcode": 1,
+          "len": 567
+        },
+        {
+          "dir": "recv",
+          "ts": 27.917,
+          "opcode": 1,
+          "len": 309
+        },
+        {
+          "dir": "sent",
+          "ts": 27.917,
+          "opcode": 1,
+          "len": 111
+        },
+        {
+          "dir": "recv",
+          "ts": 27.972,
+          "opcode": 1,
+          "len": 124
+        }
+      ],
+      "frame_count": 23,
+      "frames_post_send_count": 23,
+      "data_frame_count": 20,
+      "frame_counts_by_dir_opcode": {
+        "recv/opcode1": 20,
+        "sent/opcode1": 3
+      },
+      "pre_first_frame_latency": 0.384,
+      "gaps_recv_data": [
+        5.05,
+        5.048,
+        5.047,
+        4.797,
+        3.858,
+        1.532,
+        0.86,
+        0.332,
+        0.303,
+        0.107,
+        0.103,
+        0.102,
+        0.098,
+        0.096,
+        0.094,
+        0.068,
+        0.055,
+        0.036,
+        0.002
+      ],
+      "max_mid_gap_recv_data": 5.05,
+      "gaps_all": [
+        5.05,
+        5.048,
+        5.047,
+        4.797,
+        3.858,
+        1.45,
+        0.86,
+        0.332,
+        0.303,
+        0.107,
+        0.103,
+        0.103,
+        0.102,
+        0.098,
+        0.096,
+        0.094,
+        0.082,
+        0.068,
+        0.055,
+        0.036,
+        0.002,
+        0.0
+      ],
+      "max_mid_gap_all": 5.05,
+      "t_lastframe_answer": 27.972,
+      "t_first_tail_frame": null,
+      "tail_data_frames_after_lastgrowth": 0,
+      "longest_quiet_after_lastgrowth": 20.135,
+      "produced_answer": true,
+      "rule_validation": {
+        "no_clip": true,
+        "no_false_early": true,
+        "idle_reachable": true,
+        "pass": true,
+        "t_fire": 37.0,
+        "completion_latency": 8.82
+      }
+    }
+  ]
+}

@@ -1,0 +1,1009 @@
+diff --git a/src/ask_chatgpt/channels/base.py b/src/ask_chatgpt/channels/base.py
+index 7a37721..ae33607 100644
+--- a/src/ask_chatgpt/channels/base.py
++++ b/src/ask_chatgpt/channels/base.py
+@@ -48,6 +48,22 @@ class FetchResult:
+     body_bytes: bytes | None
+ 
+ 
++@dataclass(frozen=True)
++class WebSocketIdleSnapshot:
++    armed_monotonic_s: float
++    last_frame_monotonic_s: float
++    frame_count: int
++    sent_count: int
++    received_count: int
++    idle_for_s: float
++    idle: bool
++
++
++class WebSocketIdleObserver(Protocol):
++    def snapshot(self, *, now_s: float, idle_after_s: float) -> WebSocketIdleSnapshot: ...
++    def close(self) -> None: ...
++
++
+ class BrowserChannel(Protocol):
+     def preflight(self, *, timeout_s: float = 5.0) -> PreflightResult: ...
+     def attach(self) -> None: ...
+@@ -85,6 +101,7 @@ class BrowserChannel(Protocol):
+         *,
+         timeout_s: float,
+     ) -> RequestSnapshot: ...
++    def arm_websocket_idle_observer(self, tab: TabLease) -> WebSocketIdleObserver | None: ...
+     def fetch_in_page(
+         self,
+         tab: TabLease,
+@@ -107,4 +124,6 @@ __all__ = [
+     "TabLease",
+     "TurnDom",
+     "TurnDomSnapshot",
++    "WebSocketIdleObserver",
++    "WebSocketIdleSnapshot",
+ ]
+diff --git a/src/ask_chatgpt/channels/cdp.py b/src/ask_chatgpt/channels/cdp.py
+index 364307d..10c7e21 100644
+--- a/src/ask_chatgpt/channels/cdp.py
++++ b/src/ask_chatgpt/channels/cdp.py
+@@ -21,7 +21,7 @@ from urllib.request import urlopen
+ 
+ from ask_chatgpt.allowlist import Allowlist
+ from ask_chatgpt.capture import REQUIRED_CAPTURE_HEADERS
+-from ask_chatgpt.channels.base import FetchResult, RequestSnapshot, TabLease, TurnDom, TurnDomSnapshot
++from ask_chatgpt.channels.base import FetchResult, RequestSnapshot, TabLease, TurnDom, TurnDomSnapshot, WebSocketIdleSnapshot
+ from ask_chatgpt.errors import HumanActionNeededError, SelectorNotFoundError
+ from ask_chatgpt.models import JsonValue, PreflightResult, SelectorMap
+ 
+@@ -475,6 +475,29 @@ class _CdpRequestInfo:
+     headers: dict[str, str] | None = None
+ 
+ 
++@dataclass
++class _CdpWebSocketIdleState:
++    armed_monotonic_s: float
++    last_frame_monotonic_s: float | None = None
++    frame_count: int = 0
++    sent_count: int = 0
++    received_count: int = 0
++    closed: bool = False
++
++
++class _CdpWebSocketIdleObserver:
++    def __init__(self, channel: CdpChannel, tab_id: str, state: _CdpWebSocketIdleState) -> None:
++        self._channel = channel
++        self._tab_id = tab_id
++        self._state = state
++
++    def snapshot(self, *, now_s: float, idle_after_s: float) -> WebSocketIdleSnapshot:
++        return self._channel._websocket_idle_snapshot(self._tab_id, self._state, now_s=now_s, idle_after_s=idle_after_s)
++
++    def close(self) -> None:
++        self._channel._close_websocket_idle_observer(self._tab_id, self._state)
++
++
+ def decode_stream_chunk_base64(chunk: str) -> bytes:
+     try:
+         return base64.b64decode(chunk.encode("ascii"), validate=True)
+@@ -548,6 +571,7 @@ class CdpChannel:
+         self._request_buffers: dict[str, list[_ObservedRequest]] = {}
+         self._request_cursors: dict[str, int] = {}
+         self._cdp_requests: dict[str, dict[str, _CdpRequestInfo]] = {}
++        self._websocket_idle_states: dict[str, _CdpWebSocketIdleState] = {}
+ 
+     def preflight(self, *, timeout_s: float = 5.0) -> PreflightResult:
+         url = f"{self.cdp_endpoint}/json/version"
+@@ -795,6 +819,14 @@ class CdpChannel:
+                 raise TimeoutError("CDP request predicate did not match")
+             self._pump_page_events(state.page, deadline)
+ 
++    def arm_websocket_idle_observer(self, tab: TabLease) -> _CdpWebSocketIdleObserver | None:
++        state = self._validate_tab_state(tab)
++        if state.cdp_session is None:
++            return None
++        idle_state = _CdpWebSocketIdleState(armed_monotonic_s=self.monotonic())
++        self._websocket_idle_states[tab.tab_id] = idle_state
++        return _CdpWebSocketIdleObserver(self, tab.tab_id, idle_state)
++
+     def fetch_in_page(
+         self,
+         tab: TabLease,
+@@ -897,8 +929,16 @@ class CdpChannel:
+         def on_request_extra_info(event: Mapping[str, Any]) -> None:
+             self._record_cdp_extra_info(tab_id, event)
+ 
++        def on_websocket_frame_received(_event: Mapping[str, Any]) -> None:
++            self._record_websocket_frame_timestamp(tab_id, "received")
++
++        def on_websocket_frame_sent(_event: Mapping[str, Any]) -> None:
++            self._record_websocket_frame_timestamp(tab_id, "sent")
++
+         cdp_session.on("Network.requestWillBeSent", on_request_will_be_sent)
+         cdp_session.on("Network.requestWillBeSentExtraInfo", on_request_extra_info)
++        cdp_session.on("Network.webSocketFrameReceived", on_websocket_frame_received)
++        cdp_session.on("Network.webSocketFrameSent", on_websocket_frame_sent)
+         cdp_session.send("Network.enable")
+         return cdp_session
+ 
+@@ -938,6 +978,44 @@ class CdpChannel:
+         info = self._cdp_requests.setdefault(tab_id, {}).setdefault(request_id, _CdpRequestInfo())
+         info.headers = _project_required_headers(headers)
+ 
++    def _record_websocket_frame_timestamp(self, tab_id: str, direction: Literal["sent", "received"]) -> None:
++        state = self._websocket_idle_states.get(tab_id)
++        if state is None or state.closed:
++            return
++        state.last_frame_monotonic_s = self.monotonic()
++        state.frame_count += 1
++        if direction == "sent":
++            state.sent_count += 1
++        else:
++            state.received_count += 1
++
++    def _websocket_idle_snapshot(
++        self,
++        tab_id: str,
++        state: _CdpWebSocketIdleState,
++        *,
++        now_s: float,
++        idle_after_s: float,
++    ) -> WebSocketIdleSnapshot:
++        current = self._websocket_idle_states.get(tab_id)
++        closed = current is not state or state.closed
++        last_frame = state.last_frame_monotonic_s if state.last_frame_monotonic_s is not None else state.armed_monotonic_s
++        idle_for = max(0.0, float(now_s) - last_frame)
++        return WebSocketIdleSnapshot(
++            armed_monotonic_s=state.armed_monotonic_s,
++            last_frame_monotonic_s=last_frame,
++            frame_count=state.frame_count,
++            sent_count=state.sent_count,
++            received_count=state.received_count,
++            idle_for_s=idle_for,
++            idle=(not closed) and idle_for >= float(idle_after_s),
++        )
++
++    def _close_websocket_idle_observer(self, tab_id: str, state: _CdpWebSocketIdleState) -> None:
++        state.closed = True
++        if self._websocket_idle_states.get(tab_id) is state:
++            self._websocket_idle_states.pop(tab_id, None)
++
+     def _headers_for_observed_request(
+         self,
+         tab_id: str,
+@@ -988,6 +1066,9 @@ class CdpChannel:
+         self._request_buffers.pop(tab_id, None)
+         self._request_cursors.pop(tab_id, None)
+         self._cdp_requests.pop(tab_id, None)
++        state = self._websocket_idle_states.pop(tab_id, None)
++        if state is not None:
++            state.closed = True
+         self._tab_states.pop(tab_id, None)
+ 
+ 
+diff --git a/src/ask_chatgpt/channels/mock.py b/src/ask_chatgpt/channels/mock.py
+index 169d86d..c990719 100644
+--- a/src/ask_chatgpt/channels/mock.py
++++ b/src/ask_chatgpt/channels/mock.py
+@@ -23,6 +23,7 @@ from ask_chatgpt.channels.base import (
+     RequestSnapshot,
+     TabLease,
+     TurnDomSnapshot,
++    WebSocketIdleSnapshot,
+ )
+ from ask_chatgpt.errors import HumanActionNeededError, SelectorNotFoundError
+ from ask_chatgpt.models import JsonValue, PreflightResult, SelectorMap
+@@ -101,6 +102,12 @@ class TimedBackendResponse:
+     response: MockBackendResponse
+ 
+ 
++@dataclass(frozen=True)
++class TimedWebSocketFrame:
++    at_s: float
++    direction: Literal["sent", "received"] = "received"
++
++
+ @dataclass(frozen=True)
+ class TimedSelectorPresence:
+     at_s: float
+@@ -118,6 +125,8 @@ class MockScenario:
+     download_responses: Mapping[str, MockBackendResponse] = field(default_factory=dict)
+     backend_timeline: tuple[TimedBackendResponse, ...] = ()
+     turn_timeline: tuple[TimedTurnSnapshot, ...] = ()
++    websocket_frames: tuple[TimedWebSocketFrame, ...] = ()
++    websocket_observer_available: bool = False
+     model_label_sequence: tuple[Sequence[str], ...] = ()
+     request_snapshots: tuple[RequestSnapshot, ...] = ()
+     requests_require_reload: bool = False
+@@ -193,6 +202,30 @@ class _MockContext:
+         raise AttributeError(f"MockChannel exposes no context.{attr} browser internals")
+ 
+ 
++@dataclass
++class _MockWebSocketIdleState:
++    tab_id: str
++    armed_monotonic_s: float
++    last_frame_monotonic_s: float | None = None
++    frame_count: int = 0
++    sent_count: int = 0
++    received_count: int = 0
++    next_frame_index: int = 0
++    closed: bool = False
++
++
++class _MockWebSocketIdleObserver:
++    def __init__(self, channel: MockChannel, state: _MockWebSocketIdleState) -> None:
++        self._channel = channel
++        self._state = state
++
++    def snapshot(self, *, now_s: float, idle_after_s: float) -> WebSocketIdleSnapshot:
++        return self._channel._websocket_idle_snapshot(self._state, now_s=now_s, idle_after_s=idle_after_s)
++
++    def close(self) -> None:
++        self._state.closed = True
++
++
+ class MockChannel:
+     """Scripted offline implementation of the ``BrowserChannel`` Protocol."""
+ 
+@@ -225,6 +258,7 @@ class MockChannel:
+         self._current_url_sequence_index = 0
+         self._selector_enabled_indexes: Counter[str] = Counter()
+         self._selector_enabled_last: dict[str, bool] = {}
++        self._websocket_idle_states: list[_MockWebSocketIdleState] = []
+         self._menu_options_by_key: dict[str, list[dict[str, JsonValue]]] = {
+             key: [dict(option) for option in options]
+             for key, options in self.scenario.menu_options.items()
+@@ -297,6 +331,9 @@ class MockChannel:
+         self._validate_tab(tab)
+         self._tabs.pop(tab.tab_id, None)
+         self._composer_text.pop(tab.tab_id, None)
++        for state in self._websocket_idle_states:
++            if state.tab_id == tab.tab_id:
++                state.closed = True
+         self._record("close_tab", tab=tab)
+ 
+     def reload(self, tab: TabLease) -> None:
+@@ -435,6 +472,15 @@ class MockChannel:
+                 return request
+         raise TimeoutError("mock wait_for_request predicate did not match")
+ 
++    def arm_websocket_idle_observer(self, tab: TabLease) -> _MockWebSocketIdleObserver | None:
++        self._validate_tab(tab)
++        self._record("arm_websocket_idle_observer", tab=tab)
++        if not self.scenario.websocket_observer_available and not self.scenario.websocket_frames:
++            return None
++        state = _MockWebSocketIdleState(tab_id=tab.tab_id, armed_monotonic_s=self.monotonic())
++        self._websocket_idle_states.append(state)
++        return _MockWebSocketIdleObserver(self, state)
++
+     def fetch_in_page(
+         self,
+         tab: TabLease,
+@@ -749,6 +795,52 @@ class MockChannel:
+                 break
+         return selected
+ 
++    def _websocket_idle_snapshot(
++        self,
++        state: _MockWebSocketIdleState,
++        *,
++        now_s: float,
++        idle_after_s: float,
++    ) -> WebSocketIdleSnapshot:
++        self._record("websocket_idle_snapshot", tab=TabLease(state.tab_id, self._tabs.get(state.tab_id, ""), self))
++        if state.closed:
++            last_frame = state.last_frame_monotonic_s if state.last_frame_monotonic_s is not None else state.armed_monotonic_s
++            return WebSocketIdleSnapshot(
++                armed_monotonic_s=state.armed_monotonic_s,
++                last_frame_monotonic_s=last_frame,
++                frame_count=state.frame_count,
++                sent_count=state.sent_count,
++                received_count=state.received_count,
++                idle_for_s=max(0.0, float(now_s) - last_frame),
++                idle=False,
++            )
++        frames = sorted(self.scenario.websocket_frames, key=lambda item: item.at_s)
++        while state.next_frame_index < len(frames):
++            frame = frames[state.next_frame_index]
++            if frame.at_s < state.armed_monotonic_s:
++                state.next_frame_index += 1
++                continue
++            if frame.at_s > now_s:
++                break
++            state.last_frame_monotonic_s = float(frame.at_s)
++            state.frame_count += 1
++            if frame.direction == "sent":
++                state.sent_count += 1
++            else:
++                state.received_count += 1
++            state.next_frame_index += 1
++        last_frame = state.last_frame_monotonic_s if state.last_frame_monotonic_s is not None else state.armed_monotonic_s
++        idle_for = max(0.0, float(now_s) - last_frame)
++        return WebSocketIdleSnapshot(
++            armed_monotonic_s=state.armed_monotonic_s,
++            last_frame_monotonic_s=last_frame,
++            frame_count=state.frame_count,
++            sent_count=state.sent_count,
++            received_count=state.received_count,
++            idle_for_s=idle_for,
++            idle=idle_for >= float(idle_after_s),
++        )
++
+     @staticmethod
+     def _lower_headers(headers: Mapping[str, str]) -> dict[str, str]:
+         return {str(key).lower(): str(value) for key, value in headers.items()}
+@@ -781,4 +873,5 @@ __all__ = [
+     "TimedBackendResponse",
+     "TimedSelectorPresence",
+     "TimedTurnSnapshot",
++    "TimedWebSocketFrame",
+ ]
+diff --git a/src/ask_chatgpt/completion.py b/src/ask_chatgpt/completion.py
+index c63d2f1..dfb9c95 100644
+--- a/src/ask_chatgpt/completion.py
++++ b/src/ask_chatgpt/completion.py
+@@ -9,7 +9,7 @@ from dataclasses import dataclass
+ from typing import Any, Literal
+ 
+ from ask_chatgpt.capture import acquire_backend_headers
+-from ask_chatgpt.channels.base import TabLease, TurnDom
++from ask_chatgpt.channels.base import TabLease, TurnDom, WebSocketIdleObserver
+ from ask_chatgpt.errors import (
+     BackendAuthUnavailableError,
+     BackendCaptureShapeError,
+@@ -23,6 +23,9 @@ from ask_chatgpt.models import SelectorMap, TurnRecord
+ from ask_chatgpt.send import TurnBaseline
+ 
+ 
++DEFAULT_WEBSOCKET_IDLE_TIMEOUT_S = 8.0
++
++
+ @dataclass(frozen=True)
+ class CompletionState:
+     complete: bool
+@@ -31,7 +34,7 @@ class CompletionState:
+     node_status: str | None
+     activity_token: str
+     partial_markdown: str
+-    source: Literal["backend", "dom"]
++    source: Literal["backend", "dom", "ws_idle"]
+     last_progress_monotonic: float
+ 
+ 
+@@ -139,12 +142,14 @@ def wait_for_completion(
+     max_total_wait_s: float | None,
+     progress_poll_interval_s: float = 2.0,
+     backend_check_interval_s: float | None = None,
++    websocket_idle_timeout_s: float = DEFAULT_WEBSOCKET_IDLE_TIMEOUT_S,
++    websocket_idle_observer: WebSocketIdleObserver | None = None,
+     governor: Governor | None = None,
+ ) -> CompletionState:
+     start = _monotonic(tab)
+     last_progress = start
+-    backend_interval = _backend_interval(progress_poll_interval_s, backend_check_interval_s)
+-    last_backend_check = start - backend_interval
++    backend_rescue_at = start + float(backend_check_interval_s) if backend_check_interval_s is not None else None
++    backend_rescue_done = backend_check_interval_s is None
+     seen_tokens: dict[str, str] = {}
+     latest_backend_partial: CompletionState | None = None
+     latest_dom_partial: CompletionState | None = None
+@@ -162,8 +167,8 @@ def wait_for_completion(
+             _attach_partials(error, latest_backend_partial, latest_dom_partial)
+             raise error
+ 
+-        if now - last_backend_check >= backend_interval - 1e-9:
+-            last_backend_check = now
++        if not backend_rescue_done and backend_rescue_at is not None and now >= backend_rescue_at - 1e-9:
++            backend_rescue_done = True
+             try:
+                 backend_state = poll_backend_completion(tab, conv, baseline, governor=governor)
+             except (BackendAuthUnavailableError, BackendCaptureShapeError):
+@@ -181,26 +186,51 @@ def wait_for_completion(
+             latest_dom_partial = dom_state
+         if _remember_progress(seen_tokens, "dom", dom_state.activity_token):
+             last_progress = now
++
++        dom_stable_ready = False
+         if _dom_state_can_complete(dom_state):
+             key = _text_stability_key(dom_state)
+             if key != dom_stable_key:
+                 dom_stable_key = key
+                 dom_stable_since = now
+             elif dom_stable_since is not None and now - dom_stable_since >= stable_window_s:
+-                return CompletionState(
+-                    complete=True,
+-                    assistant_message_id=dom_state.assistant_message_id,
+-                    async_status=None,
+-                    node_status=dom_state.node_status,
+-                    activity_token=dom_state.activity_token,
+-                    partial_markdown=dom_state.partial_markdown,
+-                    source="dom",
+-                    last_progress_monotonic=now,
+-                )
++                dom_stable_ready = True
+         else:
+             dom_stable_key = None
+             dom_stable_since = None
+ 
++        ws_idle_ready = False
++        if websocket_idle_observer is not None:
++            ws_snapshot = websocket_idle_observer.snapshot(
++                now_s=now,
++                idle_after_s=websocket_idle_timeout_s,
++            )
++            ws_token = _activity_token(
++                {
++                    "source": "ws_idle",
++                    "armed_monotonic_s": ws_snapshot.armed_monotonic_s,
++                    "last_frame_monotonic_s": ws_snapshot.last_frame_monotonic_s,
++                    "frame_count": ws_snapshot.frame_count,
++                    "sent_count": ws_snapshot.sent_count,
++                    "received_count": ws_snapshot.received_count,
++                }
++            )
++            if _remember_progress(seen_tokens, "ws_idle", ws_token):
++                last_progress = now
++            ws_idle_ready = ws_snapshot.idle
++
++        if dom_stable_ready and (websocket_idle_observer is None or ws_idle_ready):
++            return CompletionState(
++                complete=True,
++                assistant_message_id=dom_state.assistant_message_id,
++                async_status=None,
++                node_status=dom_state.node_status,
++                activity_token=dom_state.activity_token,
++                partial_markdown=dom_state.partial_markdown,
++                source="dom" if websocket_idle_observer is None else "ws_idle",
++                last_progress_monotonic=now,
++            )
++
+         now = _monotonic(tab)
+         if now - last_progress >= activity_timeout_s:
+             error = CompletionTimeoutError(
+@@ -473,12 +503,6 @@ def _attach_partials(
+     setattr(error, "dom_partial", dom_partial)
+ 
+ 
+-def _backend_interval(progress_poll_interval_s: float, backend_check_interval_s: float | None) -> float:
+-    if backend_check_interval_s is not None:
+-        return float(backend_check_interval_s)
+-    return max(float(progress_poll_interval_s) * 2.0, 30.0)
+-
+-
+ def _activity_token(parts: Mapping[str, Any]) -> str:
+     payload = json.dumps(parts, sort_keys=True, default=str, separators=(",", ":"))
+     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+@@ -512,6 +536,7 @@ def _sleep(tab: TabLease, seconds: float) -> None:
+ 
+ 
+ __all__ = [
++    "DEFAULT_WEBSOCKET_IDLE_TIMEOUT_S",
+     "CompletionState",
+     "poll_backend_completion",
+     "poll_dom_completion",
+diff --git a/src/ask_chatgpt/session.py b/src/ask_chatgpt/session.py
+index e6fd29c..0814dbc 100644
+--- a/src/ask_chatgpt/session.py
++++ b/src/ask_chatgpt/session.py
+@@ -11,8 +11,8 @@ from pathlib import Path
+ from typing import Any, Literal
+ 
+ from ask_chatgpt.capture import SendContext, capture_conversation
+-from ask_chatgpt.channels.base import BrowserChannel, TabLease
+-from ask_chatgpt.completion import salvage_partial, wait_for_completion
++from ask_chatgpt.channels.base import BrowserChannel, TabLease, WebSocketIdleObserver
++from ask_chatgpt.completion import DEFAULT_WEBSOCKET_IDLE_TIMEOUT_S, salvage_partial, wait_for_completion
+ from ask_chatgpt.errors import (
+     AskChatGPTError,
+     AttachmentFetchError,
+@@ -311,6 +311,19 @@ def _governed_reload_tab(tab: TabLease, governor: Governor, *, path_kind: str) -
+     return TabLease(tab_id=tab.tab_id, url=tab.url, channel=_GovernedReloadChannel(tab, governor, path_kind))
+ 
+ 
++def _arm_websocket_idle_observer(tab: TabLease) -> WebSocketIdleObserver | None:
++    arm = getattr(tab.channel, "arm_websocket_idle_observer", None)
++    if not callable(arm):
++        return None
++    return arm(tab)
++
++
++def _close_websocket_idle_observer(observer: WebSocketIdleObserver | None) -> None:
++    if observer is None:
++        return
++    observer.close()
++
++
+ class Session:
+     def __init__(
+         self,
+@@ -327,6 +340,7 @@ class Session:
+         composer_wait_timeout_s: float = 20.0,
+         progress_poll_interval_s: float = 2.0,
+         backend_check_interval_s: float | None = None,
++        websocket_idle_timeout_s: float = DEFAULT_WEBSOCKET_IDLE_TIMEOUT_S,
+         draft_url_learn_timeout_s: float = 15.0,
+         strict_selectors: bool = True,
+     ) -> None:
+@@ -344,6 +358,7 @@ class Session:
+         self.composer_wait_timeout_s = composer_wait_timeout_s
+         self.progress_poll_interval_s = progress_poll_interval_s
+         self.backend_check_interval_s = backend_check_interval_s
++        self.websocket_idle_timeout_s = websocket_idle_timeout_s
+         self.draft_url_learn_timeout_s = draft_url_learn_timeout_s
+         self.strict_selectors = strict_selectors
+         monotonic, sleeper = _channel_timing(self._browser_channel)
+@@ -448,6 +463,7 @@ class Session:
+     ) -> tuple[TurnRecord, ConversationRef]:
+         stub: TurnRecord | None = None
+         submitted: SubmittedTurn | None = None
++        ws_idle_observer: WebSocketIdleObserver | None = None
+         model_ref = ModelRef(None, model) if model is not None else None
+         active_tools = tuple(tools)
+         draft = ref.conversation_id is None or ref.is_draft
+@@ -471,6 +487,7 @@ class Session:
+                 self.governor.acquire(DEFAULT_TOKEN_WEIGHTS["upload"], action="upload", path_kind="attachment")
+             upload_attachments(tab, self.selector_map, attachment_specs)
+             fill_composer(tab, self.selector_map, prompt)
++            ws_idle_observer = _arm_websocket_idle_observer(tab)
+             self.governor.acquire(DEFAULT_TOKEN_WEIGHTS["send"], action="send", path_kind="composer_submit")
+             submit_composer(
+                 tab,
+@@ -498,17 +515,22 @@ class Session:
+         canonical_user = _canonical_user_record(ref, submitted, stub, model_ref, active_tools)
+         self.store.commit_send(stub.client_send_id or "", canonical_user)
+         try:
+-            completion_state = wait_for_completion(
+-                tab,
+-                ref,
+-                self.selector_map,
+-                baseline,
+-                activity_timeout_s=timeout if timeout is not None else self.activity_timeout_s,
+-                max_total_wait_s=max_total_wait if max_total_wait is not None else self.max_total_wait_s,
+-                progress_poll_interval_s=self.progress_poll_interval_s,
+-                backend_check_interval_s=self.backend_check_interval_s,
+-                governor=self.governor,
+-            )
++            try:
++                completion_state = wait_for_completion(
++                    tab,
++                    ref,
++                    self.selector_map,
++                    baseline,
++                    activity_timeout_s=timeout if timeout is not None else self.activity_timeout_s,
++                    max_total_wait_s=max_total_wait if max_total_wait is not None else self.max_total_wait_s,
++                    progress_poll_interval_s=self.progress_poll_interval_s,
++                    backend_check_interval_s=self.backend_check_interval_s,
++                    websocket_idle_timeout_s=self.websocket_idle_timeout_s,
++                    websocket_idle_observer=ws_idle_observer,
++                    governor=self.governor,
++                )
++            finally:
++                _close_websocket_idle_observer(ws_idle_observer)
+             if draft:
+                 self.governor.acquire(DEFAULT_TOKEN_WEIGHTS["reload"], action="reload", path_kind="draft_capture")
+                 tab.channel.reload(tab)
+diff --git a/tests/test_cdp_channel.py b/tests/test_cdp_channel.py
+index fc605a4..fcacd93 100644
+--- a/tests/test_cdp_channel.py
++++ b/tests/test_cdp_channel.py
+@@ -358,6 +358,8 @@ def test_attach_open_close_detach_own_pages_without_context_page_enumeration() -
+     assert [event for event, _handler in context.cdp_sessions[0].listeners] == [
+         "Network.requestWillBeSent",
+         "Network.requestWillBeSentExtraInfo",
++        "Network.webSocketFrameReceived",
++        "Network.webSocketFrameSent",
+     ]
+     assert context.cdp_sessions[0].send_calls == [("Network.enable", None)]
+     assert context.pages_created[0].order.index("page.on:request") < context.pages_created[0].order.index("page.goto")
+diff --git a/tests/test_cli.py b/tests/test_cli.py
+index ff31465..669cd07 100644
+--- a/tests/test_cli.py
++++ b/tests/test_cli.py
+@@ -478,7 +478,7 @@ def test_cli_ask_closes_tab_on_success(tmp_path, capsys, monkeypatch) -> None:
+     _assert_opened_and_closed_once(mock)
+ 
+ 
+-def test_cli_rate_limited_429_returns_52_without_stdout_out_or_clipboard_salvage(tmp_path, capsys, monkeypatch) -> None:
++def test_cli_capture_429_returns_52_without_stdout_out_or_clipboard_salvage(tmp_path, capsys, monkeypatch) -> None:
+     import ask_chatgpt.cli as cli
+     from ask_chatgpt.channels.base import TurnDom, TurnDomSnapshot
+     from ask_chatgpt.channels.mock import MockBackendResponse, MockChannel, MockScenario, ScriptedClock, TimedBackendResponse, TimedTurnSnapshot
+@@ -507,7 +507,7 @@ def test_cli_rate_limited_429_returns_52_without_stdout_out_or_clipboard_salvage
+         model_labels=(),
+     )
+     scenario = MockScenario(
+-        name="cli_completion_429_rate_limited",
++        name="cli_capture_429_rate_limited",
+         turn_timeline=(
+             TimedTurnSnapshot(0.0, baseline),
+             TimedTurnSnapshot(0.5, submitted),
+@@ -515,19 +515,6 @@ def test_cli_rate_limited_429_returns_52_without_stdout_out_or_clipboard_salvage
+         ),
+         backend_timeline=(
+             TimedBackendResponse(0.0, MockBackendResponse(429, {"detail": "too many requests"}, headers={"retry-after": "45"})),
+-            TimedBackendResponse(
+-                1.0,
+-                MockBackendResponse(
+-                    200,
+-                    _backend_raw(
+-                        conversation_id,
+-                        user_id="user-new-2",
+-                        assistant_id="assistant-new-2",
+-                        prompt=prompt,
+-                        answer_text="answer after old swallow",
+-                    ),
+-                ),
+-            ),
+         ),
+         request_snapshots=_backend_request_snapshots(conversation_id, count=6),
+         clipboard_permission="granted",
+diff --git a/tests/test_send_completion.py b/tests/test_send_completion.py
+index 7bc85ef..1463ed9 100644
+--- a/tests/test_send_completion.py
++++ b/tests/test_send_completion.py
+@@ -2,9 +2,12 @@ from __future__ import annotations
+ 
+ from pathlib import Path
+ from types import SimpleNamespace
++import inspect
+ 
+ import pytest
+ 
++import ask_chatgpt.channels.base as channel_base_module
++import ask_chatgpt.channels.mock as mock_channel_module
+ from ask_chatgpt.channels.base import RequestSnapshot, TurnDom, TurnDomSnapshot
+ from ask_chatgpt.channels.mock import (
+     HEADER_CANARIES,
+@@ -171,6 +174,20 @@ def _request_snapshots(conversation_id: str = "conv_mock_completion", count: int
+     return tuple(snapshots)
+ 
+ 
++def _ws_frame(at_s: float, direction: str = "received") -> object:
++    frame_type = getattr(mock_channel_module, "TimedWebSocketFrame", None)
++    assert frame_type is not None, "MockChannel websocket-idle seam is missing"
++    return frame_type(at_s=at_s, direction=direction)
++
++
++def _arm_ws_idle_observer(mock: MockChannel, tab) -> object:
++    arm = getattr(mock, "arm_websocket_idle_observer", None)
++    assert callable(arm), "BrowserChannel websocket-idle arm method is missing"
++    observer = arm(tab)
++    assert observer is not None, "scripted websocket-idle observer was not armed"
++    return observer
++
++
+ def _session_success_scenario() -> MockScenario:
+     baseline = _baseline_snapshot()
+     submitted = TurnDomSnapshot(
+@@ -535,7 +552,7 @@ def test_successful_ask_returns_new_assistant_and_supersedes_pending(tmp_path) -
+     assert answer.user_message_id == "user-new-2"
+     assert answer.content_markdown == "final answer"
+     assert answer.message_id != "baseline-assistant-1"
+-    assert mock.call_order.index("query_turns") < mock.call_order.index("fill") < mock.call_order.index("click")
++    assert mock.call_order.index("query_turns") < mock.call_order.index("fill") < mock.call_order.index("arm_websocket_idle_observer") < mock.call_order.index("click")
+     assert mock.method_counts["full_raw_fetches"] >= 1
+     assert mock.method_counts.get("backend_checks", 0) == 0
+     visible = Store(data_dir=tmp_path).load_transcript(CONV).turns
+@@ -607,6 +624,226 @@ def test_session_completion_id_absent_does_not_return_stale_assistant_and_salvag
+     assert partial.content_markdown != stale.content_markdown
+ 
+ 
++def test_ws_idle_primary_completes_without_periodic_backend_fetch() -> None:
++    baseline_snapshot = _baseline_snapshot()
++    answering = TurnDomSnapshot(
++        users=baseline_snapshot.users,
++        assistants=(*baseline_snapshot.assistants, TurnDom("assistant-ws-2", "assistant", "ws final answer")),
++        stop_visible=True,
++        composer_visible=True,
++        model_labels=baseline_snapshot.model_labels,
++    )
++    dom_done = TurnDomSnapshot(
++        users=baseline_snapshot.users,
++        assistants=answering.assistants,
++        stop_visible=False,
++        composer_visible=True,
++        model_labels=baseline_snapshot.model_labels,
++    )
++    clock = ScriptedClock()
++    mock = MockChannel(
++        MockScenario(
++            name="ws_idle_primary_zero_backend_get",
++            turn_timeline=(
++                TimedTurnSnapshot(0.0, answering),
++                TimedTurnSnapshot(1.0, dom_done),
++            ),
++            backend_responses={
++                "/backend-api/conversation/conv_mock_completion": MockBackendResponse(200, _raw_conversation()),
++            },
++            request_snapshots=_request_snapshots(count=1),
++            websocket_frames=(
++                _ws_frame(0.5, "sent"),
++                _ws_frame(2.0, "received"),
++            ),
++        ),
++        monotonic=clock.monotonic,
++        sleeper=clock.sleep,
++    )
++    tab = _open_mock_tab(mock)
++    observer = _arm_ws_idle_observer(mock, tab)
++
++    state = wait_for_completion(
++        tab,
++        CONV,
++        SELECTORS,
++        TurnBaseline("baseline-user-1", 1, "baseline-assistant-1", 1),
++        activity_timeout_s=20.0,
++        max_total_wait_s=None,
++        progress_poll_interval_s=1.0,
++        backend_check_interval_s=None,
++        websocket_idle_timeout_s=3.0,
++        websocket_idle_observer=observer,
++    )
++
++    assert state.complete is True
++    assert state.source == "ws_idle"
++    assert state.assistant_message_id == "assistant-ws-2"
++    assert clock.monotonic() == 5.0
++    assert mock.method_counts.get("full_raw_fetches", 0) == 0
++    assert [call.details["url"] for call in mock.calls if call.method == "fetch_in_page"] == []
++
++
++def test_ws_idle_no_false_early_mid_answer_gap_below_n() -> None:
++    baseline_snapshot = _baseline_snapshot()
++    apparently_done = TurnDomSnapshot(
++        users=baseline_snapshot.users,
++        assistants=(*baseline_snapshot.assistants, TurnDom("assistant-ws-gap", "assistant", "stable looking answer")),
++        stop_visible=False,
++        composer_visible=True,
++        model_labels=baseline_snapshot.model_labels,
++    )
++    clock = ScriptedClock()
++    mock = MockChannel(
++        MockScenario(
++            name="ws_idle_no_false_early",
++            turn_timeline=(TimedTurnSnapshot(0.0, apparently_done),),
++            websocket_frames=(
++                _ws_frame(0.0, "received"),
++                _ws_frame(7.0, "received"),
++            ),
++        ),
++        monotonic=clock.monotonic,
++        sleeper=clock.sleep,
++    )
++    tab = _open_mock_tab(mock)
++    observer = _arm_ws_idle_observer(mock, tab)
++
++    state = wait_for_completion(
++        tab,
++        CONV,
++        SELECTORS,
++        TurnBaseline("baseline-user-1", 1, "baseline-assistant-1", 1),
++        activity_timeout_s=30.0,
++        max_total_wait_s=None,
++        progress_poll_interval_s=1.0,
++        backend_check_interval_s=None,
++        websocket_idle_timeout_s=8.0,
++        websocket_idle_observer=observer,
++    )
++
++    assert state.source == "ws_idle"
++    assert state.assistant_message_id == "assistant-ws-gap"
++    assert clock.monotonic() == 15.0
++
++
++def test_dom_fallback_completes_without_ws_idle_or_backend_fetch() -> None:
++    baseline_snapshot = _baseline_snapshot()
++    complete = TurnDomSnapshot(
++        users=baseline_snapshot.users,
++        assistants=(*baseline_snapshot.assistants, TurnDom("assistant-dom-2", "assistant", "dom fallback answer")),
++        stop_visible=False,
++        composer_visible=True,
++        model_labels=baseline_snapshot.model_labels,
++    )
++    clock = ScriptedClock()
++    mock = MockChannel(
++        MockScenario(
++            name="dom_fallback_no_ws_idle",
++            turn_timeline=(TimedTurnSnapshot(0.0, complete),),
++            backend_responses={
++                "/backend-api/conversation/conv_mock_completion": MockBackendResponse(200, _raw_conversation()),
++            },
++            request_snapshots=_request_snapshots(count=1),
++        ),
++        monotonic=clock.monotonic,
++        sleeper=clock.sleep,
++    )
++    tab = _open_mock_tab(mock)
++
++    state = wait_for_completion(
++        tab,
++        CONV,
++        SELECTORS,
++        TurnBaseline("baseline-user-1", 1, "baseline-assistant-1", 1),
++        activity_timeout_s=10.0,
++        max_total_wait_s=None,
++        progress_poll_interval_s=1.0,
++        backend_check_interval_s=None,
++    )
++
++    assert state.source == "dom"
++    assert state.assistant_message_id == "assistant-dom-2"
++    assert clock.monotonic() == 1.0
++    assert mock.method_counts.get("full_raw_fetches", 0) == 0
++
++
++def test_timeout_partial_salvage_attachment_survives_without_backend_poll() -> None:
++    baseline_snapshot = _baseline_snapshot()
++    partial = TurnDomSnapshot(
++        users=baseline_snapshot.users,
++        assistants=(*baseline_snapshot.assistants, TurnDom("assistant-partial-timeout", "assistant", "visible partial")),
++        stop_visible=True,
++        composer_visible=True,
++        model_labels=baseline_snapshot.model_labels,
++    )
++    clock = ScriptedClock()
++    mock = MockChannel(
++        MockScenario(
++            name="partial_salvage_no_backend_poll",
++            turn_timeline=(TimedTurnSnapshot(0.0, partial),),
++            backend_responses={
++                "/backend-api/conversation/conv_mock_completion": MockBackendResponse(
++                    200,
++                    _raw_conversation(assistant_id="assistant-backend-partial", assistant_text="backend partial", status="in_progress"),
++                ),
++            },
++            request_snapshots=_request_snapshots(count=1),
++        ),
++        monotonic=clock.monotonic,
++        sleeper=clock.sleep,
++    )
++    tab = _open_mock_tab(mock)
++
++    with pytest.raises(MaxTotalWaitExceededError) as excinfo:
++        wait_for_completion(
++            tab,
++            CONV,
++            SELECTORS,
++            TurnBaseline("baseline-user-1", 1, "baseline-assistant-1", 1),
++            activity_timeout_s=100.0,
++            max_total_wait_s=3.0,
++            progress_poll_interval_s=1.0,
++            backend_check_interval_s=None,
++        )
++
++    assert getattr(excinfo.value, "backend_partial", None) is None
++    dom_partial = getattr(excinfo.value, "dom_partial", None)
++    assert dom_partial is not None
++    assert dom_partial.assistant_message_id == "assistant-partial-timeout"
++    assert dom_partial.partial_markdown == "visible partial"
++    assert mock.method_counts.get("full_raw_fetches", 0) == 0
++
++
++def test_websocket_idle_observer_seam_is_timestamp_count_only() -> None:
++    snapshot_type = getattr(channel_base_module, "WebSocketIdleSnapshot", None)
++    assert snapshot_type is not None, "WebSocketIdleSnapshot seam is missing"
++    snapshot_fields = set(snapshot_type.__dataclass_fields__)
++    assert snapshot_fields == {
++        "armed_monotonic_s",
++        "last_frame_monotonic_s",
++        "frame_count",
++        "sent_count",
++        "received_count",
++        "idle_for_s",
++        "idle",
++    }
++    assert not any("payload" in field.lower() or "text" in field.lower() for field in snapshot_fields)
++
++    frame_type = getattr(mock_channel_module, "TimedWebSocketFrame", None)
++    assert frame_type is not None, "Mock websocket frame seam is missing"
++    frame_fields = set(frame_type.__dataclass_fields__)
++    assert frame_fields == {"at_s", "direction"}
++
++    from ask_chatgpt.channels.cdp import CdpChannel
++
++    record_signature = inspect.signature(CdpChannel._record_websocket_frame_timestamp)
++    assert tuple(record_signature.parameters) == ("self", "tab_id", "direction")
++    cdp_source = (Path(__file__).parents[1] / "src" / "ask_chatgpt" / "channels" / "cdp.py").read_text(encoding="utf-8")
++    assert "payloadData" not in cdp_source
++    assert "frame_text" not in cdp_source
++
++
+ def test_old_stable_assistant_is_not_completion() -> None:
+     clock = ScriptedClock()
+     mock = MockChannel(
+@@ -752,7 +989,7 @@ def test_poll_backend_completion_default_uses_full_conversation_endpoint_not_str
+     assert mock.method_counts.get("backend_checks", 0) == 0
+ 
+ 
+-def test_sparse_backend_cadence_uses_fresh_one_use_headers() -> None:
++def test_explicit_backend_rescue_is_one_shot_and_uses_fresh_one_use_headers() -> None:
+     baseline = _baseline_snapshot()
+     growing = TurnDomSnapshot(
+         users=baseline.users,
+@@ -761,16 +998,23 @@ def test_sparse_backend_cadence_uses_fresh_one_use_headers() -> None:
+         composer_visible=True,
+         model_labels=baseline.model_labels,
+     )
++    complete = TurnDomSnapshot(
++        users=baseline.users,
++        assistants=(*baseline.assistants, TurnDom("assistant-new-2", "assistant", "done dom")),
++        stop_visible=False,
++        composer_visible=True,
++        model_labels=baseline.model_labels,
++    )
+     scenario = MockScenario(
+-        name="sparse_backend_cadence",
++        name="one_shot_backend_rescue",
+         one_use_headers=True,
+-        turn_timeline=(TimedTurnSnapshot(0.0, growing),),
++        turn_timeline=(TimedTurnSnapshot(0.0, growing), TimedTurnSnapshot(35.0, complete)),
+         backend_timeline=(
+             TimedBackendResponse(0.0, MockBackendResponse(200, _raw_conversation(assistant_text="working", status="in_progress", update_time=1.0))),
+             TimedBackendResponse(30.0, MockBackendResponse(200, _raw_conversation(assistant_text="still", status="in_progress", update_time=2.0))),
+             TimedBackendResponse(60.0, MockBackendResponse(200, _raw_conversation(assistant_text="done", status="complete", update_time=3.0))),
+         ),
+-        request_snapshots=_request_snapshots(count=4),
++        request_snapshots=_request_snapshots(count=2),
+     )
+     clock = ScriptedClock()
+     mock = MockChannel(scenario, monotonic=clock.monotonic, sleeper=clock.sleep)
+@@ -788,15 +1032,16 @@ def test_sparse_backend_cadence_uses_fresh_one_use_headers() -> None:
+         backend_check_interval_s=30.0,
+     )
+ 
++    assert state.source == "dom"
+     assert state.assistant_message_id == "assistant-new-2"
+-    assert mock.method_counts["full_raw_fetches"] == 3
+-    assert mock.method_counts["header_acquisitions"] == 3
++    assert state.partial_markdown == "done dom"
++    assert mock.method_counts["full_raw_fetches"] == 1
++    assert mock.method_counts["header_acquisitions"] == 1
+     assert mock.method_counts.get("backend_checks", 0) == 0
+-    assert mock.method_counts["dom_polls"] >= 30
+-    assert mock.method_counts["full_raw_fetches"] < mock.method_counts["dom_polls"]
++    assert mock.method_counts["dom_polls"] > mock.method_counts["full_raw_fetches"]
+ 
+ 
+-def test_backend_interval_none_uses_sparse_mock_default_not_dom_cadence() -> None:
++def test_backend_interval_none_disables_completion_backend_fetch_and_uses_dom() -> None:
+     baseline = _baseline_snapshot()
+     growing = TurnDomSnapshot(
+         users=baseline.users,
+@@ -805,9 +1050,16 @@ def test_backend_interval_none_uses_sparse_mock_default_not_dom_cadence() -> Non
+         composer_visible=True,
+         model_labels=baseline.model_labels,
+     )
++    complete = TurnDomSnapshot(
++        users=baseline.users,
++        assistants=(*baseline.assistants, TurnDom("assistant-new-2", "assistant", "done dom")),
++        stop_visible=False,
++        composer_visible=True,
++        model_labels=baseline.model_labels,
++    )
+     scenario = MockScenario(
+-        name="none_backend_interval_sparse",
+-        turn_timeline=(TimedTurnSnapshot(0.0, growing),),
++        name="none_backend_interval_no_fetch",
++        turn_timeline=(TimedTurnSnapshot(0.0, growing), TimedTurnSnapshot(30.0, complete)),
+         backend_timeline=(
+             TimedBackendResponse(0.0, MockBackendResponse(200, _raw_conversation(assistant_text="working", status="in_progress", update_time=1.0))),
+             TimedBackendResponse(30.0, MockBackendResponse(200, _raw_conversation(assistant_text="done", status="complete", update_time=2.0))),
+@@ -829,8 +1081,9 @@ def test_backend_interval_none_uses_sparse_mock_default_not_dom_cadence() -> Non
+         backend_check_interval_s=None,
+     )
+ 
+-    assert state.partial_markdown == "done"
+-    assert mock.method_counts["full_raw_fetches"] == 2
++    assert state.source == "dom"
++    assert state.partial_markdown == "done dom"
++    assert mock.method_counts.get("full_raw_fetches", 0) == 0
+     assert mock.method_counts.get("backend_checks", 0) == 0
+     assert mock.method_counts["dom_polls"] >= 15
+ 
+@@ -941,7 +1194,7 @@ def test_completion_429_raises_rate_limited_with_retry_after_and_is_not_swallowe
+             activity_timeout_s=10.0,
+             max_total_wait_s=None,
+             progress_poll_interval_s=1.0,
+-            backend_check_interval_s=1.0,
++            backend_check_interval_s=0.0,
+         )
+ 
+     assert excinfo.value.details["retry_after_s"] == 123

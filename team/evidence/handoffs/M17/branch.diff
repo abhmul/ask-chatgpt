@@ -1,0 +1,1407 @@
+diff --git a/src/ask_chatgpt/capture.py b/src/ask_chatgpt/capture.py
+index aab3b40..78fea22 100644
+--- a/src/ask_chatgpt/capture.py
++++ b/src/ask_chatgpt/capture.py
+@@ -21,8 +21,10 @@ from ask_chatgpt.errors import (
+     BackendCaptureShapeError,
+     CaptureFailedClosedError,
+     HumanActionNeededError,
++    RateLimitedError,
+     StoreError,
+ )
++from ask_chatgpt.governor import DEFAULT_TOKEN_WEIGHTS, Governor, raise_for_rate_limit
+ from ask_chatgpt.identity import ConversationRef, backend_conversation_url, conversation_url
+ from ask_chatgpt.models import (
+     AttachmentRef,
+@@ -196,12 +198,21 @@ def acquire_backend_headers(
+             )
+ 
+ 
+-def stream_backend_conversation(tab: TabLease, conv: ConversationRef, headers: HeaderBundle | Mapping[str, str], *, raw_tmp: Path) -> BackendFetchMeta:
++def stream_backend_conversation(
++    tab: TabLease,
++    conv: ConversationRef,
++    headers: HeaderBundle | Mapping[str, str],
++    *,
++    raw_tmp: Path,
++    governor: Governor | None = None,
++) -> BackendFetchMeta:
+     conversation_id = _require_conversation_id(conv)
+     fetch_path = _backend_conversation_fetch_path(conversation_id)
+     started = _channel_monotonic(tab)
+     backend_headers = headers.for_single_fetch(fetch_path=fetch_path) if isinstance(headers, HeaderBundle) else retarget_headers(headers, fetch_path)
+     fetch_headers = {"accept": "application/json", **backend_headers}
++    if governor is not None:
++        governor.acquire(DEFAULT_TOKEN_WEIGHTS["backend_fetch"], action="backend_fetch", path_kind="capture")
+     result = tab.channel.fetch_in_page(
+         tab,
+         fetch_path,
+@@ -210,6 +221,7 @@ def stream_backend_conversation(tab: TabLease, conv: ConversationRef, headers: H
+         stream_to=raw_tmp,
+         timeout_s=None,
+     )
++    raise_for_rate_limit(result)
+     elapsed = _channel_monotonic(tab) - started
+     content_type = _content_type(result)
+     bytes_written = _fetch_bytes_written(result, raw_tmp)
+@@ -334,6 +346,7 @@ def capture_conversation(
+     with_attachments: bool = False,
+     send_context: SendContext | None = None,
+     header_mode: HeaderHarvestMode = "conversation",
++    governor: Governor | None = None,
+ ) -> CaptureResult:
+     conversation_id = _require_conversation_id(conv)
+     tmp_dir = store.ensure_conversation(conv).root
+@@ -341,20 +354,23 @@ def capture_conversation(
+     try:
+         headers = acquire_backend_headers(tab, conv, mode=header_mode)
+         backend_headers = headers.for_single_fetch(fetch_path=_backend_conversation_fetch_path(conversation_id))
+-        meta = stream_backend_conversation(tab, conv, backend_headers, raw_tmp=raw_tmp)
++        meta = stream_backend_conversation(tab, conv, backend_headers, raw_tmp=raw_tmp, governor=governor)
+         _validate_fetch_meta(meta)
+         top = validate_backend_shape(raw_tmp, conversation_id)
+         records = tuple(iter_current_branch_records(raw_tmp, conv, send_context=send_context))
+         raw_path = store.write_raw_mapping_atomic(conversation_id, raw_tmp)
+         store.upsert_many(records)
+         if with_attachments:
+-            updated_records = download_attachments(tab, conv, backend_headers, records, store)
++            updated_records = download_attachments(tab, conv, backend_headers, records, store, governor=governor)
+             if updated_records != records:
+                 store.upsert_many(updated_records)
+                 records = updated_records
+         transcript_path = store.ensure_conversation(conv).transcript_jsonl
+         transcript = Transcript(conv, records, raw_path, transcript_path)
+         return CaptureResult(transcript=transcript, async_status=top.async_status, raw_top_level_keys=top.top_level_keys, source="backend_api", fidelity="canonical")
++    except RateLimitedError:
++        _unlink_if_exists(raw_tmp)
++        raise
+     except (BackendAuthUnavailableError, BackendCaptureShapeError, StoreError) as exc:
+         _unlink_if_exists(raw_tmp)
+         return fallback_capture_ui(tab, conv, store, reason=exc.code if hasattr(exc, "code") else type(exc).__name__)
+@@ -383,6 +399,7 @@ def download_attachments(
+     store: Store,
+     *,
+     pace_s: float = 0.25,
++    governor: Governor | None = None,
+ ) -> tuple[TurnRecord, ...]:
+     """Resolve pending attachment refs to local cached bytes using the channel fetch seam."""
+ 
+@@ -403,7 +420,7 @@ def download_attachments(
+             else:
+                 outcome = outcomes_by_file_id.get(file_id)
+                 if outcome is None:
+-                    outcome = _download_one_attachment(tab, conv, headers, store, conversation_id, ref, file_id)
++                    outcome = _download_one_attachment(tab, conv, headers, store, conversation_id, ref, file_id, governor=governor)
+                     outcomes_by_file_id[file_id] = outcome
+                     if pace_s > 0 and outcome.download_state == "downloaded":
+                         _channel_sleep(tab, pace_s)
+@@ -427,9 +444,11 @@ def _download_one_attachment(
+     conversation_id: str,
+     ref: AttachmentRef,
+     file_id: str,
++    *,
++    governor: Governor | None = None,
+ ) -> _AttachmentDownloadOutcome:
+     try:
+-        descriptor = _fetch_attachment_descriptor(tab, headers, file_id)
++        descriptor = _fetch_attachment_descriptor(tab, headers, file_id, governor=governor)
+         if descriptor is None:
+             return _AttachmentDownloadOutcome("error")
+         download_url = descriptor.get("download_url")
+@@ -443,6 +462,8 @@ def _download_one_attachment(
+             if expected_size is None or existing_size == expected_size:
+                 return _AttachmentDownloadOutcome("downloaded", local_path)
+             target.unlink()
++        if governor is not None:
++            governor.acquire(DEFAULT_TOKEN_WEIGHTS["backend_fetch"], action="backend_fetch", path_kind="attachment_download")
+         result = tab.channel.fetch_in_page(tab, download_url, method="GET", stream_to=target, timeout_s=None)
+         if result.status < 200 or result.status >= 300:
+             _unlink_if_exists(target)
+@@ -456,8 +477,16 @@ def _download_one_attachment(
+         return _AttachmentDownloadOutcome("error")
+ 
+ 
+-def _fetch_attachment_descriptor(tab: TabLease, headers: Mapping[str, str], file_id: str) -> Mapping[str, Any] | None:
++def _fetch_attachment_descriptor(
++    tab: TabLease,
++    headers: Mapping[str, str],
++    file_id: str,
++    *,
++    governor: Governor | None = None,
++) -> Mapping[str, Any] | None:
+     descriptor_url = f"/backend-api/files/{quote(file_id, safe='')}/download"
++    if governor is not None:
++        governor.acquire(DEFAULT_TOKEN_WEIGHTS["backend_fetch"], action="backend_fetch", path_kind="attachment_descriptor")
+     result = tab.channel.fetch_in_page(
+         tab,
+         descriptor_url,
+diff --git a/src/ask_chatgpt/cli.py b/src/ask_chatgpt/cli.py
+index 848e992..fbd378b 100644
+--- a/src/ask_chatgpt/cli.py
++++ b/src/ask_chatgpt/cli.py
+@@ -11,7 +11,7 @@ from pathlib import Path
+ from typing import Any
+ 
+ from ask_chatgpt import __version__
+-from ask_chatgpt.errors import AskChatGPTError, CompletionTimeoutError
++from ask_chatgpt.errors import AskChatGPTError, CompletionTimeoutError, MaxTotalWaitExceededError
+ from ask_chatgpt.models import StatusReport, Transcript, TurnRecord
+ from ask_chatgpt.session import Session
+ from ask_chatgpt.store import Store
+@@ -40,6 +40,7 @@ _ERROR_EXIT_BY_CODE = {
+     "CAPTURE_FAIL_CLOSED": 42,
+     "COMPLETION_TIMEOUT": 50,
+     "MAX_TOTAL_WAIT_EXCEEDED": 51,
++    "RATE_LIMITED": 52,
+     "ATTACHMENT_NOT_FOUND": 60,
+     "ATTACHMENT_FETCH_FAILED": 61,
+     "TAB_POOL_EXHAUSTED": 62,
+@@ -89,7 +90,7 @@ def main(argv: Sequence[str] | None = None) -> int:
+     json_mode = bool(getattr(args, "json", False))
+     try:
+         return int(args.handler(args))
+-    except CompletionTimeoutError as exc:
++    except (CompletionTimeoutError, MaxTotalWaitExceededError) as exc:
+         if getattr(args, "command", None) == "ask":
+             partial = _partial_markdown_from_error(exc)
+             if partial:
+diff --git a/src/ask_chatgpt/completion.py b/src/ask_chatgpt/completion.py
+index 5517f62..c63d2f1 100644
+--- a/src/ask_chatgpt/completion.py
++++ b/src/ask_chatgpt/completion.py
+@@ -17,6 +17,7 @@ from ask_chatgpt.errors import (
+     HumanActionNeededError,
+     MaxTotalWaitExceededError,
+ )
++from ask_chatgpt.governor import DEFAULT_TOKEN_WEIGHTS, Governor, raise_for_rate_limit
+ from ask_chatgpt.identity import ConversationRef, conversation_url
+ from ask_chatgpt.models import SelectorMap, TurnRecord
+ from ask_chatgpt.send import TurnBaseline
+@@ -40,10 +41,13 @@ def poll_backend_completion(
+     baseline: TurnBaseline,
+     *,
+     prefer_lightweight: bool = False,
++    governor: Governor | None = None,
+ ) -> CompletionState:
+     conversation_id = _require_conversation_id(conv)
+     headers = acquire_backend_headers(tab, conv)
+     path = f"/backend-api/conversation/{conversation_id}/stream_status" if prefer_lightweight else f"/backend-api/conversation/{conversation_id}"
++    if governor is not None:
++        governor.acquire(DEFAULT_TOKEN_WEIGHTS["backend_fetch"], action="backend_fetch", path_kind="completion")
+     result = tab.channel.fetch_in_page(
+         tab,
+         path,
+@@ -51,6 +55,7 @@ def poll_backend_completion(
+         headers={"accept": "application/json", **headers.for_single_fetch()},
+         timeout_s=None,
+     )
++    raise_for_rate_limit(result)
+     if result.status != 200:
+         raise BackendCaptureShapeError(
+             "backend completion check did not return JSON success",
+@@ -134,6 +139,7 @@ def wait_for_completion(
+     max_total_wait_s: float | None,
+     progress_poll_interval_s: float = 2.0,
+     backend_check_interval_s: float | None = None,
++    governor: Governor | None = None,
+ ) -> CompletionState:
+     start = _monotonic(tab)
+     last_progress = start
+@@ -159,7 +165,7 @@ def wait_for_completion(
+         if now - last_backend_check >= backend_interval - 1e-9:
+             last_backend_check = now
+             try:
+-                backend_state = poll_backend_completion(tab, conv, baseline)
++                backend_state = poll_backend_completion(tab, conv, baseline, governor=governor)
+             except (BackendAuthUnavailableError, BackendCaptureShapeError):
+                 backend_state = None
+             if backend_state is not None:
+diff --git a/src/ask_chatgpt/errors.py b/src/ask_chatgpt/errors.py
+index 9e58e3b..b8a9e7c 100644
+--- a/src/ask_chatgpt/errors.py
++++ b/src/ask_chatgpt/errors.py
+@@ -223,6 +223,13 @@ class MaxTotalWaitExceededError(_KnownAskChatGPTError):
+     default_retry_action = "increase_wait_or_retry"
+ 
+ 
++class RateLimitedError(_KnownAskChatGPTError):
++    default_code = "RATE_LIMITED"
++    default_exit_code = 52
++    default_retryable = True
++    default_retry_action = "back_off"
++
++
+ class AttachmentNotFoundError(_KnownAskChatGPTError):
+     default_code = "ATTACHMENT_NOT_FOUND"
+     default_exit_code = 60
+@@ -286,6 +293,7 @@ __all__ = [
+     "MaxTotalWaitExceededError",
+     "ModelSelectionNotReflectedError",
+     "PromptNotSubmittedError",
++    "RateLimitedError",
+     "SelectorNotFoundError",
+     "StoreError",
+     "StoreWarning",
+diff --git a/src/ask_chatgpt/governor.py b/src/ask_chatgpt/governor.py
+new file mode 100644
+index 0000000..9b0c09a
+--- /dev/null
++++ b/src/ask_chatgpt/governor.py
+@@ -0,0 +1,287 @@
++"""Cross-process request rate governor for account-shared traffic."""
++
++from __future__ import annotations
++
++import json
++import math
++import os
++import re
++import time
++from collections.abc import Callable, Mapping
++from dataclasses import dataclass, field
++from pathlib import Path
++from types import MappingProxyType
++from typing import Any
++
++from ask_chatgpt.errors import RateLimitedError
++from ask_chatgpt.store import Store
++
++try:  # pragma: no cover - Linux in CI; fallback is for portability only.
++    import fcntl
++except ImportError:  # pragma: no cover
++    fcntl = None  # type: ignore[assignment]
++
++DEFAULT_BACKOFF_S = 1800.0
++_MIN_REFILL_RATE_TOKENS_PER_S = 1e-6
++_STATE_FILENAME = "bucket.json"
++_SAFE_LABEL_RE = re.compile(r"[^a-z0-9_.-]+")
++
++# THE REAL ACCOUNT RATE CEILING IS OPERATOR-OWNED — these defaults are conservative placeholders to be confirmed/measured with the operator, NEVER assumed as fact (see M16 §6, memory verify-inherited-resource-claims).
++DEFAULT_TOKEN_WEIGHTS: Mapping[str, float] = MappingProxyType(
++    {
++        "page_load": 3.0,
++        "reload": 3.0,
++        "send": 5.0,
++        "backend_fetch": 1.0,
++        "upload": 3.0,
++    }
++)
++
++
++@dataclass(frozen=True)
++class GovernorConfig:
++    """Configurable, operator-owned token-bucket allocation."""
++
++    account_capacity_tokens: float = 120.0
++    account_refill_tokens_per_min: float = 30.0
++    operator_reserve_tokens_per_min: float = 15.0
++    safety_margin: float = 0.50
++    token_weights: Mapping[str, float] = field(default_factory=lambda: DEFAULT_TOKEN_WEIGHTS)
++
++    @property
++    def capacity_tokens(self) -> float:
++        return max(1.0, _finite_float(self.account_capacity_tokens, 120.0))
++
++    @property
++    def refill_rate_tokens_per_s(self) -> float:
++        account = max(0.0, _finite_float(self.account_refill_tokens_per_min, 30.0))
++        reserve = max(0.0, _finite_float(self.operator_reserve_tokens_per_min, 15.0))
++        margin = min(0.99, max(0.0, _finite_float(self.safety_margin, 0.50)))
++        usable_per_min = max(0.0, account - reserve) * (1.0 - margin)
++        return max(_MIN_REFILL_RATE_TOKENS_PER_S, usable_per_min / 60.0)
++
++    def cost(self, action: str, default: float = 1.0) -> float:
++        value = self.token_weights.get(action, default)
++        return max(0.0, _finite_float(value, default))
++
++
++class Governor:
++    """File-lock token bucket shared by all tool processes.
++
++    ``acquire`` uses wait-not-fail semantics: if a prior 429 set
++    ``blocked_until`` or the bucket is empty, this process sleeps with the file
++    lock held, then persists the debited state. Holding the lock intentionally
++    serializes concurrent consumers against the shared account budget.
++    """
++
++    def __init__(
++        self,
++        *,
++        dir: str | Path | None = None,
++        clock: Callable[[], float] | None = None,
++        sleeper: Callable[[float], None] | None = None,
++        config: GovernorConfig | None = None,
++    ) -> None:
++        self.dir = Path(dir) if dir is not None else Store().resolve_data_dir() / "governor"
++        self.clock = clock or time.time
++        self.sleeper = sleeper or time.sleep
++        self.config = config or GovernorConfig()
++        self._state_path = self.dir / _STATE_FILENAME
++
++    def cost(self, action: str, default: float = 1.0) -> float:
++        return self.config.cost(action, default)
++
++    def acquire(self, cost: float, *, action: str, path_kind: str) -> None:
++        cost = max(0.0, _finite_float(cost, 0.0))
++        if cost > self.config.capacity_tokens:
++            raise ValueError("governor acquire cost exceeds bucket capacity")
++        safe_action = _safe_label(action)
++        safe_path_kind = _safe_label(path_kind)
++        with self._locked_state_file() as handle:
++            now = float(self.clock())
++            state = self._load_state(handle, now)
++            state = self._refill(state, now)
++            blocked_until = _optional_float(state.get("blocked_until"))
++            if blocked_until is not None and now < blocked_until:
++                self.sleeper(blocked_until - now)
++                now = float(self.clock())
++                state = self._refill(state, now)
++            tokens = _finite_float(state.get("tokens"), self.config.capacity_tokens)
++            while tokens + 1e-9 < cost:
++                delay = (cost - tokens) / self.config.refill_rate_tokens_per_s
++                self.sleeper(delay)
++                now = float(self.clock())
++                state = self._refill(state, now)
++                tokens = _finite_float(state.get("tokens"), 0.0)
++            state["tokens"] = max(0.0, tokens - cost)
++            state["last_action"] = safe_action
++            state["last_path_kind"] = safe_path_kind
++            self._write_state(handle, state)
++
++    def note_rate_limited(self, retry_after_s: float | None) -> None:
++        delay = _rate_limit_delay_s(retry_after_s)
++        with self._locked_state_file() as handle:
++            now = float(self.clock())
++            state = self._refill(self._load_state(handle, now), now)
++            blocked_until = now + delay
++            existing = _optional_float(state.get("blocked_until"))
++            state["blocked_until"] = max(existing or 0.0, blocked_until)
++            state["last_rate_limited_epoch"] = now
++            state["last_action"] = "rate_limited"
++            state["last_path_kind"] = "shared_backoff"
++            self._write_state(handle, state)
++
++    def snapshot(self) -> Mapping[str, Any]:
++        with self._locked_state_file() as handle:
++            now = float(self.clock())
++            state = self._refill(self._load_state(handle, now), now)
++            self._write_state(handle, state)
++            return MappingProxyType(dict(state))
++
++    def _locked_state_file(self):  # noqa: ANN202 - contextmanager protocol is enough here.
++        return _LockedStateFile(self._state_path)
++
++    def _initial_state(self, now: float) -> dict[str, Any]:
++        return {
++            "tokens": self.config.capacity_tokens,
++            "refill_epoch": now,
++            "blocked_until": None,
++            "last_rate_limited_epoch": None,
++            "last_action": None,
++            "last_path_kind": None,
++        }
++
++    def _load_state(self, handle: Any, now: float) -> dict[str, Any]:
++        handle.seek(0)
++        raw = handle.read()
++        if not raw:
++            return self._initial_state(now)
++        try:
++            loaded = json.loads(raw.decode("utf-8"))
++        except (UnicodeDecodeError, json.JSONDecodeError):
++            return self._initial_state(now)
++        if not isinstance(loaded, Mapping):
++            return self._initial_state(now)
++        state = self._initial_state(now)
++        state["tokens"] = min(
++            self.config.capacity_tokens,
++            max(0.0, _finite_float(loaded.get("tokens"), self.config.capacity_tokens)),
++        )
++        state["refill_epoch"] = _finite_float(loaded.get("refill_epoch"), now)
++        state["blocked_until"] = _optional_float(loaded.get("blocked_until"))
++        state["last_rate_limited_epoch"] = _optional_float(loaded.get("last_rate_limited_epoch"))
++        state["last_action"] = _safe_optional_label(loaded.get("last_action"))
++        state["last_path_kind"] = _safe_optional_label(loaded.get("last_path_kind"))
++        return state
++
++    def _refill(self, state: dict[str, Any], now: float) -> dict[str, Any]:
++        refill_epoch = _finite_float(state.get("refill_epoch"), now)
++        tokens = _finite_float(state.get("tokens"), self.config.capacity_tokens)
++        elapsed = max(0.0, now - refill_epoch)
++        state["tokens"] = min(
++            self.config.capacity_tokens,
++            max(0.0, tokens) + elapsed * self.config.refill_rate_tokens_per_s,
++        )
++        state["refill_epoch"] = now
++        blocked_until = _optional_float(state.get("blocked_until"))
++        if blocked_until is not None and now >= blocked_until:
++            state["blocked_until"] = None
++        return state
++
++    def _write_state(self, handle: Any, state: Mapping[str, Any]) -> None:
++        payload = json.dumps(dict(state), ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
++        handle.seek(0)
++        handle.truncate()
++        handle.write(payload)
++        handle.flush()
++        os.fsync(handle.fileno())
++
++
++class _LockedStateFile:
++    def __init__(self, path: Path) -> None:
++        self.path = path
++        self.handle: Any | None = None
++
++    def __enter__(self) -> Any:
++        self.path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
++        self.handle = self.path.open("a+b")
++        if fcntl is not None:
++            fcntl.flock(self.handle.fileno(), fcntl.LOCK_EX)
++        return self.handle
++
++    def __exit__(self, exc_type: object, exc: BaseException | None, tb: object) -> None:
++        if self.handle is None:
++            return
++        try:
++            if fcntl is not None:
++                fcntl.flock(self.handle.fileno(), fcntl.LOCK_UN)
++        finally:
++            self.handle.close()
++            self.handle = None
++
++
++def raise_for_rate_limit(result: object) -> None:
++    if int(getattr(result, "status", 0)) != 429:
++        return
++    retry_after_s = _parse_retry_after_seconds(getattr(result, "headers", {}))
++    raise RateLimitedError("rate limited", details={"retry_after_s": retry_after_s})
++
++
++def _parse_retry_after_seconds(headers: object) -> int | None:
++    if not isinstance(headers, Mapping):
++        return None
++    value: object | None = None
++    for key, candidate in headers.items():
++        if str(key).lower() == "retry-after":
++            value = candidate
++            break
++    if value is None:
++        return None
++    text = str(value).strip()
++    if not re.fullmatch(r"[0-9]+", text):
++        return None
++    return int(text)
++
++
++def _rate_limit_delay_s(retry_after_s: float | None) -> float:
++    if retry_after_s is None:
++        return DEFAULT_BACKOFF_S
++    value = _finite_float(retry_after_s, DEFAULT_BACKOFF_S)
++    return value if value > 0 else DEFAULT_BACKOFF_S
++
++
++def _safe_label(value: object) -> str:
++    text = _SAFE_LABEL_RE.sub("_", str(value).lower()).strip("_")
++    while "__" in text:
++        text = text.replace("__", "_")
++    return (text or "unspecified")[:80]
++
++
++def _safe_optional_label(value: object) -> str | None:
++    if value is None:
++        return None
++    return _safe_label(value)
++
++
++def _finite_float(value: object, default: float) -> float:
++    try:
++        result = float(value)  # type: ignore[arg-type]
++    except (TypeError, ValueError):
++        return float(default)
++    return result if math.isfinite(result) else float(default)
++
++
++def _optional_float(value: object) -> float | None:
++    if value is None:
++        return None
++    result = _finite_float(value, math.nan)
++    return result if math.isfinite(result) else None
++
++
++__all__ = [
++    "DEFAULT_BACKOFF_S",
++    "DEFAULT_TOKEN_WEIGHTS",
++    "Governor",
++    "GovernorConfig",
++    "raise_for_rate_limit",
++]
+diff --git a/src/ask_chatgpt/send.py b/src/ask_chatgpt/send.py
+index e365e0e..22ec0a6 100644
+--- a/src/ask_chatgpt/send.py
++++ b/src/ask_chatgpt/send.py
+@@ -49,12 +49,15 @@ def wait_for_idle_and_reload_if_needed(
+     tab: TabLease, selectors: SelectorMap, *, timeout_s: float
+ ) -> None:
+     deadline = _monotonic(tab) + timeout_s
++    observed_inflight_generation = False
+     while True:
+         snapshot = tab.channel.query_turns(tab, selectors)
+         if not snapshot.stop_visible:
+-            tab.channel.reload(tab)
+-            tab.channel.wait_for_load_state(tab, timeout_s=timeout_s)
++            if observed_inflight_generation:
++                tab.channel.reload(tab)
++                tab.channel.wait_for_load_state(tab, timeout_s=timeout_s)
+             return
++        observed_inflight_generation = True
+         if _monotonic(tab) >= deadline:
+             raise PromptNotSubmittedError(
+                 "existing generation did not become idle before send",
+diff --git a/src/ask_chatgpt/session.py b/src/ask_chatgpt/session.py
+index b3facf9..e6fd29c 100644
+--- a/src/ask_chatgpt/session.py
++++ b/src/ask_chatgpt/session.py
+@@ -5,6 +5,7 @@ from __future__ import annotations
+ from collections.abc import Callable, Iterator, Mapping, Sequence
+ from contextlib import contextmanager
+ from dataclasses import dataclass
++import random
+ import time
+ from pathlib import Path
+ from typing import Any, Literal
+@@ -20,9 +21,11 @@ from ask_chatgpt.errors import (
+     HumanActionNeededError,
+     InternalError,
+     MaxTotalWaitExceededError,
++    RateLimitedError,
+     StoreError,
+     TabPoolExhaustedError,
+ )
++from ask_chatgpt.governor import DEFAULT_TOKEN_WEIGHTS, Governor
+ from ask_chatgpt.identity import ConversationRef, conversation_url, parse_conversation_address, parse_project_address
+ from ask_chatgpt.menus import assert_reflected_model, assert_reflected_tools
+ from ask_chatgpt.models import (
+@@ -95,6 +98,7 @@ class TabPool:
+         if len(self._entries) >= self.max_tabs:
+             self._evict_one_unleased()
+         channel = self._session._channel()
++        self._session.governor.acquire(DEFAULT_TOKEN_WEIGHTS["page_load"], action="page_load", path_kind=mode)
+         tab = channel.open_tab(url)
+         self._tick += 1
+         self._entries.append(_ManagedTab(tab=tab, url=url, key=key, leased=True, last_used=self._tick))
+@@ -148,6 +152,8 @@ class AdaptiveSendBudget:
+         additive_increase_per_min: float = 1.0,
+         backoff_factor: float = 0.5,
+         min_rate_per_min: float = 0.5,
++        jitter_max_s: float = 1.0,
++        jitter_rng: Callable[[], float] | None = None,
+         monotonic: Callable[[], float] | None = None,
+         sleeper: Callable[[float], None] | None = None,
+     ) -> None:
+@@ -156,6 +162,8 @@ class AdaptiveSendBudget:
+         self.additive_increase_per_min = max(0.0, float(additive_increase_per_min))
+         self.backoff_factor = max(0.0, float(backoff_factor))
+         self.min_rate_per_min = max(0.000001, float(min_rate_per_min))
++        self.jitter_max_s = max(0.0, float(jitter_max_s))
++        self._jitter_rng = jitter_rng or random.random
+         self.current_rate_per_min = min(
+             self.max_rate_per_min,
+             max(self.min_rate_per_min, float(initial_rate_per_min)),
+@@ -213,6 +221,7 @@ class AdaptiveSendBudget:
+             "hard_message_cap": None,
+             "current_rate_per_min": self.current_rate_per_min,
+             "politeness_floor_s": self.politeness_floor_s,
++            "jitter_max_s": self.jitter_max_s,
+             "hard_paused": self._hard_paused,
+             "last_signal": self._last_signal,
+         }
+@@ -220,10 +229,14 @@ class AdaptiveSendBudget:
+     def _required_spacing_s(self) -> float:
+         return max(self.politeness_floor_s, 60.0 / self.current_rate_per_min)
+ 
++    def _effective_spacing_s(self) -> float:
++        jitter_sample = max(0.0, min(1.0, float(self._jitter_rng())))
++        return self._required_spacing_s() + jitter_sample * self.jitter_max_s
++
+     def _sleep_until_spacing_allows_submit(self) -> None:
+         if self._last_submission_monotonic is None:
+             return
+-        target = self._last_submission_monotonic + self._required_spacing_s()
++        target = self._last_submission_monotonic + self._effective_spacing_s()
+         delay = target - float(self._monotonic())
+         if delay > 0:
+             self._sleeper(delay)
+@@ -262,6 +275,42 @@ class PromptBudgetBusyError(AskChatGPTError):
+         )
+ 
+ 
++class _GovernedReloadChannel:
++    def __init__(self, tab: TabLease, governor: Governor, path_kind: str) -> None:
++        self._tab = tab
++        self._channel = tab.channel
++        self._governor = governor
++        self._path_kind = path_kind
++
++    def __getattr__(self, name: str) -> object:
++        return getattr(self._channel, name)
++
++    def monotonic(self) -> float:
++        monotonic = getattr(self._channel, "monotonic", None)
++        return float(monotonic()) if callable(monotonic) else time.monotonic()
++
++    def sleep(self, seconds: float) -> None:
++        sleeper = getattr(self._channel, "sleep", None)
++        if callable(sleeper):
++            sleeper(seconds)
++        else:
++            time.sleep(seconds)
++
++    def query_turns(self, _tab: TabLease, selectors: Mapping[str, str]):
++        return self._channel.query_turns(self._tab, selectors)  # type: ignore[arg-type]
++
++    def reload(self, _tab: TabLease) -> None:
++        self._governor.acquire(DEFAULT_TOKEN_WEIGHTS["reload"], action="reload", path_kind=self._path_kind)
++        self._channel.reload(self._tab)
++
++    def wait_for_load_state(self, _tab: TabLease, *, timeout_s: float) -> None:
++        self._channel.wait_for_load_state(self._tab, timeout_s=timeout_s)
++
++
++def _governed_reload_tab(tab: TabLease, governor: Governor, *, path_kind: str) -> TabLease:
++    return TabLease(tab_id=tab.tab_id, url=tab.url, channel=_GovernedReloadChannel(tab, governor, path_kind))
++
++
+ class Session:
+     def __init__(
+         self,
+@@ -298,6 +347,7 @@ class Session:
+         self.draft_url_learn_timeout_s = draft_url_learn_timeout_s
+         self.strict_selectors = strict_selectors
+         monotonic, sleeper = _channel_timing(self._browser_channel)
++        self.governor = Governor(dir=self.store.resolve_data_dir() / "governor", clock=monotonic, sleeper=sleeper)
+         self.tab_pool = TabPool(self, max_tabs=max_tabs, monotonic=monotonic)
+         self.send_budget = AdaptiveSendBudget(monotonic=monotonic, sleeper=sleeper)
+         self._attached = False
+@@ -401,7 +451,11 @@ class Session:
+         model_ref = ModelRef(None, model) if model is not None else None
+         active_tools = tuple(tools)
+         draft = ref.conversation_id is None or ref.is_draft
+-        wait_for_idle_and_reload_if_needed(tab, self.selector_map, timeout_s=self.composer_wait_timeout_s)
++        wait_for_idle_and_reload_if_needed(
++            _governed_reload_tab(tab, self.governor, path_kind="pre_send_idle"),
++            self.selector_map,
++            timeout_s=self.composer_wait_timeout_s,
++        )
+         if model is not None:
+             assert_reflected_model(tab, self.selector_map, model)
+         if active_tools:
+@@ -413,8 +467,11 @@ class Session:
+         with self.send_budget.submission():
+             wait_for_composer(tab, self.selector_map, timeout_s=self.composer_wait_timeout_s)
+             attachment_specs = _attachment_specs(attach)
++            if attachment_specs:
++                self.governor.acquire(DEFAULT_TOKEN_WEIGHTS["upload"], action="upload", path_kind="attachment")
+             upload_attachments(tab, self.selector_map, attachment_specs)
+             fill_composer(tab, self.selector_map, prompt)
++            self.governor.acquire(DEFAULT_TOKEN_WEIGHTS["send"], action="send", path_kind="composer_submit")
+             submit_composer(
+                 tab,
+                 self.selector_map,
+@@ -450,8 +507,10 @@ class Session:
+                 max_total_wait_s=max_total_wait if max_total_wait is not None else self.max_total_wait_s,
+                 progress_poll_interval_s=self.progress_poll_interval_s,
+                 backend_check_interval_s=self.backend_check_interval_s,
++                governor=self.governor,
+             )
+             if draft:
++                self.governor.acquire(DEFAULT_TOKEN_WEIGHTS["reload"], action="reload", path_kind="draft_capture")
+                 tab.channel.reload(tab)
+                 tab.channel.wait_for_load_state(tab, timeout_s=self.composer_wait_timeout_s)
+             capture = capture_conversation(
+@@ -464,8 +523,14 @@ class Session:
+                     model=model_ref,
+                     active_tools=active_tools,
+                 ),
++                governor=self.governor,
+             )
+             answer = _select_new_assistant(capture.transcript.turns, completion_state.assistant_message_id, baseline)
++        except RateLimitedError as exc:
++            self.send_budget.record_soft_signal("rate_limited")
++            retry_after = exc.details.get("retry_after_s")
++            self.governor.note_rate_limited(float(retry_after) if type(retry_after) in {int, float} else None)
++            raise
+         except KeyboardInterrupt as exc:
+             partial = self._record_partial_if_available(tab, ref, baseline, stub, submitted, exc)
+             if partial is not None:
+@@ -524,7 +589,7 @@ class Session:
+         self.store.put_conversation_ref(ref)
+         tab = self.tab_pool.acquire(ref, render=False)
+         try:
+-            captured = capture_conversation(tab, ref, self.store, with_attachments=with_attachments, header_mode="ambient_backend")
++            captured = capture_conversation(tab, ref, self.store, with_attachments=with_attachments, header_mode="ambient_backend", governor=self.governor)
+             del out
+             transcript = self.store.load_transcript(ref)
+             return transcript if transcript.turns else captured.transcript
+diff --git a/tests/test_capture.py b/tests/test_capture.py
+index 63f311f..2fcfa37 100644
+--- a/tests/test_capture.py
++++ b/tests/test_capture.py
+@@ -819,6 +819,38 @@ def test_header_bundle_is_one_use_and_header_canaries_do_not_persist_on_failed_c
+         assert all(canary not in text for text in scan_strings)
+ 
+ 
++def test_capture_429_raises_rate_limited_and_never_uses_ui_fallback(tmp_path) -> None:
++    from ask_chatgpt.errors import RateLimitedError
++
++    scenario = MockScenario(
++        name="capture_429_rate_limited",
++        backend_responses={
++            "/backend-api/conversation/conv_mock_headers": MockBackendResponse(
++                429,
++                {"detail": "too many requests"},
++                headers={"retry-after": "77"},
++            )
++        },
++        request_snapshots=backend_header_scenario().request_snapshots,
++        clipboard_permission="granted",
++        clipboard_text="clipboard fallback must not be used",
++    )
++    channel = MockChannel(scenario)
++    tab = channel.open_tab("https://chatgpt.com/c/conv_mock_headers")
++    store = Store(data_dir=tmp_path)
++    ref = ConversationRef("conv_mock_headers", "https://chatgpt.com/c/conv_mock_headers")
++
++    with pytest.raises(RateLimitedError) as excinfo:
++        capture_conversation(tab, ref, store)
++
++    assert excinfo.value.details["retry_after_s"] == 77
++    assert channel.method_counts.get("read_clipboard", 0) == 0
++    assert not any(
++        turn.capture_source in {"copy_button", "dom_text", "katex_annotation"}
++        for turn in store.load_transcript(ref, include_pending=True).turns
++    )
++
++
+ def test_fallback_requires_clipboard_grant_and_explicit_copy_is_not_canonical(tmp_path) -> None:
+     conv = ConversationRef("conv_mock_fallback", "https://chatgpt.com/c/conv_mock_fallback")
+     default_channel = MockChannel()
+diff --git a/tests/test_cli.py b/tests/test_cli.py
+index 6f84de1..ff31465 100644
+--- a/tests/test_cli.py
++++ b/tests/test_cli.py
+@@ -7,7 +7,7 @@ from pathlib import Path
+ import pytest
+ 
+ from ask_chatgpt import __version__
+-from ask_chatgpt.errors import CompletionTimeoutError, PromptNotSubmittedError
++from ask_chatgpt.errors import CompletionTimeoutError, MaxTotalWaitExceededError, PromptNotSubmittedError
+ from ask_chatgpt.identity import ConversationRef
+ from ask_chatgpt.models import PreflightResult, StatusReport, Transcript, TurnRecord
+ from ask_chatgpt.store import Store
+@@ -111,6 +111,10 @@ class RecordingSession:
+             err = CompletionTimeoutError("timed out safely", details={"authorization": "Bearer SECRET_TOKEN"})
+             err.partial_markdown = type(self).timeout_partial
+             raise err
++        if type(self).raise_from == "ask_max_total_wait":
++            err = MaxTotalWaitExceededError("max total wait elapsed safely")
++            err.partial_markdown = type(self).timeout_partial
++            raise err
+         if type(self).raise_from == "ask_prompt":
+             raise PromptNotSubmittedError(
+                 "prompt body SECRET_PROMPT_BODY was not submitted",
+@@ -474,6 +478,86 @@ def test_cli_ask_closes_tab_on_success(tmp_path, capsys, monkeypatch) -> None:
+     _assert_opened_and_closed_once(mock)
+ 
+ 
++def test_cli_rate_limited_429_returns_52_without_stdout_out_or_clipboard_salvage(tmp_path, capsys, monkeypatch) -> None:
++    import ask_chatgpt.cli as cli
++    from ask_chatgpt.channels.base import TurnDom, TurnDomSnapshot
++    from ask_chatgpt.channels.mock import MockBackendResponse, MockChannel, MockScenario, ScriptedClock, TimedBackendResponse, TimedTurnSnapshot
++
++    conversation_id = "conv_cli_rate_limited"
++    prompt = "literal prompt"
++    baseline = TurnDomSnapshot(
++        users=(TurnDom("baseline-user-1", "user", "baseline prompt"),),
++        assistants=(TurnDom("baseline-assistant-1", "assistant", "baseline answer"),),
++        stop_visible=False,
++        composer_visible=True,
++        model_labels=(),
++    )
++    submitted = TurnDomSnapshot(
++        users=(*baseline.users, TurnDom("user-new-2", "user", prompt)),
++        assistants=baseline.assistants,
++        stop_visible=True,
++        composer_visible=True,
++        model_labels=(),
++    )
++    complete = TurnDomSnapshot(
++        users=submitted.users,
++        assistants=(*baseline.assistants, TurnDom("assistant-new-2", "assistant", "answer after old swallow")),
++        stop_visible=False,
++        composer_visible=True,
++        model_labels=(),
++    )
++    scenario = MockScenario(
++        name="cli_completion_429_rate_limited",
++        turn_timeline=(
++            TimedTurnSnapshot(0.0, baseline),
++            TimedTurnSnapshot(0.5, submitted),
++            TimedTurnSnapshot(1.0, complete),
++        ),
++        backend_timeline=(
++            TimedBackendResponse(0.0, MockBackendResponse(429, {"detail": "too many requests"}, headers={"retry-after": "45"})),
++            TimedBackendResponse(
++                1.0,
++                MockBackendResponse(
++                    200,
++                    _backend_raw(
++                        conversation_id,
++                        user_id="user-new-2",
++                        assistant_id="assistant-new-2",
++                        prompt=prompt,
++                        answer_text="answer after old swallow",
++                    ),
++                ),
++            ),
++        ),
++        request_snapshots=_backend_request_snapshots(conversation_id, count=6),
++        clipboard_permission="granted",
++        clipboard_text="clipboard salvage must not be emitted",
++    )
++    clock = ScriptedClock()
++    mock = MockChannel(scenario, monotonic=clock.monotonic, sleeper=clock.sleep)
++    monkeypatch.setattr(cli, "Session", _real_session_factory(mock))
++    out = tmp_path / "answer.md"
++
++    code = cli.main([
++        "ask",
++        f"https://chatgpt.com/c/{conversation_id}",
++        prompt,
++        "--selector-channel",
++        "mock",
++        "--data-dir",
++        str(tmp_path / "data"),
++        "--out",
++        str(out),
++    ])
++
++    captured = capsys.readouterr()
++    assert code == 52
++    assert captured.out == ""
++    assert not out.exists()
++    assert captured.err.splitlines() == ["ERROR RATE_LIMITED: rate limited"]
++    assert mock.method_counts.get("read_clipboard", 0) == 0
++
++
+ def test_cli_ask_closes_tab_on_error_after_acquire(tmp_path, capsys, monkeypatch) -> None:
+     import ask_chatgpt.cli as cli
+     from ask_chatgpt.channels.mock import MockChannel, ScriptedClock
+@@ -805,6 +889,21 @@ def test_cli_completion_timeout_prints_salvage_to_stdout_and_out_before_error(tm
+     assert "SECRET_TOKEN" not in captured.err
+ 
+ 
++def test_cli_max_total_wait_prints_salvage_to_stdout_and_out_before_error(tmp_path, capsys, monkeypatch) -> None:
++    cli = _patch_session(monkeypatch)
++    RecordingSession.raise_from = "ask_max_total_wait"
++    RecordingSession.timeout_partial = "PARTIAL-ANSWER-SENTINEL"
++    out = tmp_path / "partial.md"
++
++    code = cli.main(["ask", "conv_cli", "prompt", "--selector-channel", "mock", "--out", str(out)])
++
++    captured = capsys.readouterr()
++    assert code == 51
++    assert captured.out == "PARTIAL-ANSWER-SENTINEL\n"
++    assert out.read_bytes() == captured.out.encode("utf-8")
++    assert captured.err.splitlines()[0] == "ERROR MAX_TOTAL_WAIT_EXCEEDED: max total wait elapsed safely"
++
++
+ def test_cli_prompt_not_submitted_error_exit_code_and_redaction(capsys, monkeypatch) -> None:
+     cli = _patch_session(monkeypatch)
+     RecordingSession.raise_from = "ask_prompt"
+diff --git a/tests/test_errors.py b/tests/test_errors.py
+index c30e9b9..558b42b 100644
+--- a/tests/test_errors.py
++++ b/tests/test_errors.py
+@@ -95,3 +95,19 @@ def test_base_error_accepts_explicit_machine_metadata_without_leaking_details()
+ 
+ def test_store_warning_is_shared_user_warning_type() -> None:
+     assert issubclass(StoreWarning, UserWarning)
++
++
++def test_rate_limited_error_exit_52_retryable_backoff_and_retry_after_preserved() -> None:
++    from ask_chatgpt.errors import RateLimitedError
++
++    err = RateLimitedError(
++        "rate limited",
++        details={"retry_after_s": 42, "Authorization": "Bearer SECRET_CANARY"},
++    )
++
++    assert err.code == "RATE_LIMITED"
++    assert err.exit_code == 52
++    assert err.retryable is True
++    assert err.retry_action == "back_off"
++    assert err.details["retry_after_s"] == 42
++    assert err.details["Authorization"] == "<redacted>"
+diff --git a/tests/test_rate_governor.py b/tests/test_rate_governor.py
+new file mode 100644
+index 0000000..864aa48
+--- /dev/null
++++ b/tests/test_rate_governor.py
+@@ -0,0 +1,61 @@
++from __future__ import annotations
++
++import pytest
++
++from ask_chatgpt.governor import Governor, GovernorConfig
++
++
++class FakeClock:
++    def __init__(self, start: float = 0.0) -> None:
++        self.now = float(start)
++        self.sleeps: list[float] = []
++
++    def time(self) -> float:
++        return self.now
++
++    def sleep(self, seconds: float) -> None:
++        self.sleeps.append(float(seconds))
++        self.now += float(seconds)
++
++
++def test_governor_token_bucket_sleeps_until_refill_when_exhausted(tmp_path) -> None:
++    clock = FakeClock()
++    governor = Governor(
++        dir=tmp_path,
++        clock=clock.time,
++        sleeper=clock.sleep,
++        config=GovernorConfig(
++            account_capacity_tokens=2.0,
++            account_refill_tokens_per_min=60.0,
++            operator_reserve_tokens_per_min=0.0,
++            safety_margin=0.0,
++        ),
++    )
++
++    governor.acquire(2.0, action="send", path_kind="composer_submit")
++    governor.acquire(1.0, action="backend_fetch", path_kind="completion")
++
++    assert clock.sleeps == [pytest.approx(1.0)]
++    assert governor.snapshot()["tokens"] == pytest.approx(0.0)
++
++
++def test_governor_retry_after_blocks_next_acquire_for_shared_backoff(tmp_path) -> None:
++    clock = FakeClock()
++    governor = Governor(
++        dir=tmp_path,
++        clock=clock.time,
++        sleeper=clock.sleep,
++        config=GovernorConfig(
++            account_capacity_tokens=5.0,
++            account_refill_tokens_per_min=60.0,
++            operator_reserve_tokens_per_min=0.0,
++            safety_margin=0.0,
++        ),
++    )
++
++    governor.note_rate_limited(retry_after_s=17.0)
++    governor.acquire(1.0, action="page_load", path_kind="open_tab")
++
++    assert clock.sleeps == [pytest.approx(17.0)]
++    assert clock.time() == pytest.approx(17.0)
++    assert governor.snapshot()["last_rate_limited_epoch"] == pytest.approx(0.0)
+diff --git a/tests/test_send_budget.py b/tests/test_send_budget.py
+index 806db20..eee779a 100644
+--- a/tests/test_send_budget.py
++++ b/tests/test_send_budget.py
+@@ -22,6 +22,29 @@ def test_send_budget_spaces_successive_submissions_with_fake_sleep() -> None:
+     assert budget.successful_submissions == 2
+ 
+ 
++def test_send_budget_one_sided_jitter_adds_to_required_spacing_with_injected_rng() -> None:
++    clock = ScriptedClock()
++    budget = AdaptiveSendBudget(
++        politeness_floor_s=0.0,
++        initial_rate_per_min=60.0,
++        max_rate_per_min=60.0,
++        additive_increase_per_min=0.0,
++        jitter_max_s=4.0,
++        jitter_rng=lambda: 0.25,
++        monotonic=clock.monotonic,
++        sleeper=clock.sleep,
++    )
++
++    with budget.submission():
++        pass
++    base_spacing = budget._required_spacing_s()
++    with budget.submission():
++        pass
++
++    assert clock.sleeps[-1] == pytest.approx(base_spacing + 1.0)
++    assert clock.sleeps[-1] >= base_spacing
++
++
+ def test_send_budget_politeness_floor_remains_hard_at_high_rate() -> None:
+     clock = ScriptedClock()
+     budget = AdaptiveSendBudget(
+diff --git a/tests/test_send_completion.py b/tests/test_send_completion.py
+index bee35b7..7bc85ef 100644
+--- a/tests/test_send_completion.py
++++ b/tests/test_send_completion.py
+@@ -910,3 +910,70 @@ def test_send_and_completion_sources_remain_offline_channel_only() -> None:
+         assert "playwright" not in text.lower()
+         assert "CdpChannel" not in text
+         assert ".context.pages" not in text
++
++
++def test_completion_429_raises_rate_limited_with_retry_after_and_is_not_swallowed() -> None:
++    from ask_chatgpt.errors import RateLimitedError
++
++    scenario = MockScenario(
++        name="completion_429_rate_limited",
++        backend_responses={
++            "/backend-api/conversation/conv_mock_completion": MockBackendResponse(
++                429,
++                {"detail": "too many requests"},
++                headers={"retry-after": "123"},
++            )
++        },
++        request_snapshots=_request_snapshots(count=1),
++        turn_timeline=(TimedTurnSnapshot(0.0, _baseline_snapshot(stop_visible=True)),),
++    )
++    clock = ScriptedClock()
++    mock = MockChannel(scenario, monotonic=clock.monotonic, sleeper=clock.sleep)
++    tab = _open_mock_tab(mock)
++    baseline = TurnBaseline("baseline-user-1", 1, "baseline-assistant-1", 1)
++
++    with pytest.raises(RateLimitedError) as excinfo:
++        wait_for_completion(
++            tab,
++            CONV,
++            SELECTORS,
++            baseline,
++            activity_timeout_s=10.0,
++            max_total_wait_s=None,
++            progress_poll_interval_s=1.0,
++            backend_check_interval_s=1.0,
++        )
++
++    assert excinfo.value.details["retry_after_s"] == 123
++    assert mock.method_counts.get("dom_polls", 0) == 0
++
++
++def test_session_invokes_governor_for_page_load_send_and_backend_fetches(tmp_path) -> None:
++    clock = ScriptedClock()
++    mock = MockChannel(_session_success_scenario(), monotonic=clock.monotonic, sleeper=clock.sleep)
++    session = Session(
++        data_dir=tmp_path,
++        channel=mock,
++        selector_map=SELECTORS,
++        send_verify_timeout_s=4.0,
++        composer_wait_timeout_s=2.0,
++        progress_poll_interval_s=1.0,
++        backend_check_interval_s=1.0,
++        activity_timeout_s=10.0,
++    )
++    acquired: list[tuple[float, str, str]] = []
++    original_acquire = session.governor.acquire
++
++    def spy_acquire(cost: float, *, action: str, path_kind: str) -> None:
++        acquired.append((float(cost), action, path_kind))
++        original_acquire(cost, action=action, path_kind=path_kind)
++
++    session.governor.acquire = spy_acquire  # type: ignore[method-assign]
++
++    answer = session.ask(CONV, "literal prompt")
++
++    assert answer.content_markdown == "final answer"
++    actions = [item[1] for item in acquired]
++    assert "page_load" in actions
++    assert "send" in actions
++    assert "backend_fetch" in actions
+diff --git a/tests/test_session_draft_loop.py b/tests/test_session_draft_loop.py
+index 1b7ea83..a58081f 100644
+--- a/tests/test_session_draft_loop.py
++++ b/tests/test_session_draft_loop.py
+@@ -2,6 +2,7 @@ from __future__ import annotations
+ 
+ from dataclasses import replace
+ 
++from ask_chatgpt.capture import REQUIRED_CAPTURE_HEADERS
+ from ask_chatgpt.channels.base import RequestSnapshot, TurnDom, TurnDomSnapshot
+ from ask_chatgpt.channels.mock import (
+     HEADER_CANARIES,
+@@ -82,6 +83,27 @@ def _raw_conversation(
+     }
+ 
+ 
++def _raw_conversation_in_progress(
++    conversation_id: str,
++    *,
++    user_id: str,
++    assistant_id: str,
++    prompt: str,
++    answer: str,
++) -> dict[str, object]:
++    raw = _raw_conversation(conversation_id, user_id=user_id, assistant_id=assistant_id, prompt=prompt, answer=answer)
++    raw["async_status"] = "in_progress"
++    mapping = raw["mapping"]
++    assert isinstance(mapping, dict)
++    assistant_node = mapping["assistant"]
++    assert isinstance(assistant_node, dict)
++    message = assistant_node["message"]
++    assert isinstance(message, dict)
++    message["metadata"] = {"is_complete": False}
++    message["status"] = "in_progress"
++    return raw
++
++
+ def _request_snapshots(conversation_id: str, count: int = 6) -> tuple[RequestSnapshot, ...]:
+     return tuple(
+         RequestSnapshot(
+@@ -133,6 +155,110 @@ def _draft_scenario(
+     )
+ 
+ 
++def _loop_two_turn_scenario(
++    conversation_id: str,
++    message: str,
++    answer1: str,
++    answer2: str,
++    *,
++    request_count: int = 8,
++) -> MockScenario:
++    baseline = TurnDomSnapshot(users=(), assistants=(), stop_visible=False, composer_visible=True, model_labels=())
++    submitted1 = TurnDomSnapshot(
++        users=(TurnDom("user-loop-1", "user", message),),
++        assistants=(),
++        stop_visible=True,
++        composer_visible=True,
++        model_labels=(),
++    )
++    complete1 = TurnDomSnapshot(
++        users=submitted1.users,
++        assistants=(TurnDom("assistant-loop-1", "assistant", answer1),),
++        stop_visible=False,
++        composer_visible=True,
++        model_labels=(),
++    )
++    submitted2 = TurnDomSnapshot(
++        users=(*submitted1.users, TurnDom("user-loop-2", "user", message)),
++        assistants=complete1.assistants,
++        stop_visible=True,
++        composer_visible=True,
++        model_labels=(),
++    )
++    complete2 = TurnDomSnapshot(
++        users=submitted2.users,
++        assistants=(*complete1.assistants, TurnDom("assistant-loop-2", "assistant", answer2)),
++        stop_visible=False,
++        composer_visible=True,
++        model_labels=(),
++    )
++    return MockScenario(
++        name="loop_two_real_sends",
++        turn_timeline=(
++            TimedTurnSnapshot(0.0, baseline),
++            TimedTurnSnapshot(0.5, submitted1),
++            TimedTurnSnapshot(1.0, complete1),
++            TimedTurnSnapshot(2.0, submitted2),
++            TimedTurnSnapshot(2.5, complete2),
++        ),
++        backend_timeline=(
++            TimedBackendResponse(
++                0.0,
++                MockBackendResponse(
++                    200,
++                    _raw_conversation_in_progress(
++                        conversation_id,
++                        user_id="user-loop-1",
++                        assistant_id="assistant-loop-1",
++                        prompt=message,
++                        answer=answer1,
++                    ),
++                ),
++            ),
++            TimedBackendResponse(
++                1.0,
++                MockBackendResponse(
++                    200,
++                    _raw_conversation(
++                        conversation_id,
++                        user_id="user-loop-1",
++                        assistant_id="assistant-loop-1",
++                        prompt=message,
++                        answer=answer1,
++                    ),
++                ),
++            ),
++            TimedBackendResponse(
++                2.0,
++                MockBackendResponse(
++                    200,
++                    _raw_conversation_in_progress(
++                        conversation_id,
++                        user_id="user-loop-2",
++                        assistant_id="assistant-loop-2",
++                        prompt=message,
++                        answer=answer2,
++                    ),
++                ),
++            ),
++            TimedBackendResponse(
++                2.5,
++                MockBackendResponse(
++                    200,
++                    _raw_conversation(
++                        conversation_id,
++                        user_id="user-loop-2",
++                        assistant_id="assistant-loop-2",
++                        prompt=message,
++                        answer=answer2,
++                    ),
++                ),
++            ),
++        ),
++        request_snapshots=_request_snapshots(conversation_id, count=request_count),
++    )
++
++
+ def _session(
+     tmp_path,
+     channel: MockChannel,
+@@ -508,55 +634,33 @@ def test_loop_sigint_salvages_partial_turn_then_reraises(tmp_path, monkeypatch)
+         next(iterator)
+ 
+ 
++def test_loop_persisted_tab_opens_once_and_does_not_reload_when_already_idle(tmp_path) -> None:
++    conversation_id = "loop-no-reload-123"
++    message = "MOCK_PROMPT_LOOP_NO_RELOAD_CANARY"
++    answer1 = "MOCK_ASSISTANT_LOOP_NO_RELOAD_ONE"
++    answer2 = "MOCK_ASSISTANT_LOOP_NO_RELOAD_TWO"
++    scenario = _loop_two_turn_scenario(conversation_id, message, answer1, answer2)
++    clock = ScriptedClock()
++    channel = MockChannel(scenario, monotonic=clock.monotonic, sleeper=clock.sleep)
++    session = _session(tmp_path, channel)
++    session.send_budget.politeness_floor_s = 0.0
++    session.send_budget.current_rate_per_min = 60_000.0
++    session.send_budget.max_rate_per_min = 60_000.0
++
++    answers = list(session.loop(conversation_id, message=message, max_iterations=2))
++
++    assert [answer.message_id for answer in answers] == ["assistant-loop-1", "assistant-loop-2"]
++    assert session.tab_pool.snapshot()["managed_tabs"] == 1
++    assert channel.method_counts.get("open_tab", 0) == 1
++    assert channel.method_counts.get("reload", 0) == 0
++
++
+ def test_loop_two_iterations_sends_real_turns_and_appends_transcript_without_cap(tmp_path) -> None:
+     conversation_id = "loop-real-123"
+     message = "MOCK_PROMPT_LOOP_CANARY"
+     answer1 = "MOCK_ASSISTANT_LOOP_CANARY_ONE"
+     answer2 = "MOCK_ASSISTANT_LOOP_CANARY_TWO"
+-    baseline = TurnDomSnapshot(users=(), assistants=(), stop_visible=False, composer_visible=True, model_labels=())
+-    submitted1 = TurnDomSnapshot(
+-        users=(TurnDom("user-loop-1", "user", message),),
+-        assistants=(),
+-        stop_visible=True,
+-        composer_visible=True,
+-        model_labels=(),
+-    )
+-    complete1 = TurnDomSnapshot(
+-        users=submitted1.users,
+-        assistants=(TurnDom("assistant-loop-1", "assistant", answer1),),
+-        stop_visible=False,
+-        composer_visible=True,
+-        model_labels=(),
+-    )
+-    submitted2 = TurnDomSnapshot(
+-        users=(*submitted1.users, TurnDom("user-loop-2", "user", message)),
+-        assistants=complete1.assistants,
+-        stop_visible=True,
+-        composer_visible=True,
+-        model_labels=(),
+-    )
+-    complete2 = TurnDomSnapshot(
+-        users=submitted2.users,
+-        assistants=(*complete1.assistants, TurnDom("assistant-loop-2", "assistant", answer2)),
+-        stop_visible=False,
+-        composer_visible=True,
+-        model_labels=(),
+-    )
+-    scenario = MockScenario(
+-        name="loop_two_real_sends",
+-        turn_timeline=(
+-            TimedTurnSnapshot(0.0, baseline),
+-            TimedTurnSnapshot(0.5, submitted1),
+-            TimedTurnSnapshot(1.0, complete1),
+-            TimedTurnSnapshot(2.0, submitted2),
+-            TimedTurnSnapshot(2.5, complete2),
+-        ),
+-        backend_timeline=(
+-            TimedBackendResponse(0.0, MockBackendResponse(200, _raw_conversation(conversation_id, user_id="user-loop-1", assistant_id="assistant-loop-1", prompt=message, answer=answer1))),
+-            TimedBackendResponse(2.0, MockBackendResponse(200, _raw_conversation(conversation_id, user_id="user-loop-2", assistant_id="assistant-loop-2", prompt=message, answer=answer2))),
+-        ),
+-        request_snapshots=_request_snapshots(conversation_id, count=8),
+-    )
++    scenario = _loop_two_turn_scenario(conversation_id, message, answer1, answer2)
+     clock = ScriptedClock()
+     channel = MockChannel(scenario, monotonic=clock.monotonic, sleeper=clock.sleep)
+     session = _session(tmp_path, channel)
+@@ -573,3 +677,57 @@ def test_loop_two_iterations_sends_real_turns_and_appends_transcript_without_cap
+     assert [turn.message_id for turn in transcript.turns if turn.role == "assistant"] == ["assistant-loop-1", "assistant-loop-2"]
+     assert session.send_budget.successful_submissions == 2
+     assert session.tab_pool.snapshot()["managed_tabs"] == 1
++    assert channel.method_counts.get("open_tab", 0) == 1
++    assert channel.method_counts.get("reload", 0) == 0
++
++
++def test_loop_capture_harvests_required_headers_without_steady_state_reloads(tmp_path) -> None:
++    conversation_id = "loop-harvest-123"
++    message = "MOCK_PROMPT_LOOP_HARVEST_CANARY"
++    answer1 = "MOCK_ASSISTANT_LOOP_HARVEST_ONE"
++    answer2 = "MOCK_ASSISTANT_LOOP_HARVEST_TWO"
++    fetch_path = f"/backend-api/conversation/{conversation_id}"
++
++    class RecordingChannel(MockChannel):
++        def __init__(self, scenario: MockScenario, *, monotonic, sleeper) -> None:  # noqa: ANN001
++            super().__init__(scenario, monotonic=monotonic, sleeper=sleeper)
++            self.conversation_fetch_header_names: list[tuple[str, ...]] = []
++            self.conversation_fetch_target_paths: list[str | None] = []
++
++        def fetch_in_page(self, tab, url, *, method="GET", headers=None, body=None, stream_to=None, timeout_s=None):  # noqa: ANN001, ANN201
++            if url == fetch_path and stream_to is not None:
++                lower_headers = {str(key).lower(): str(value) for key, value in dict(headers or {}).items()}
++                self.conversation_fetch_header_names.append(tuple(sorted(lower_headers)))
++                self.conversation_fetch_target_paths.append(lower_headers.get("x-openai-target-path"))
++            return super().fetch_in_page(
++                tab,
++                url,
++                method=method,
++                headers=headers,
++                body=body,
++                stream_to=stream_to,
++                timeout_s=timeout_s,
++            )
++
++    # Falsifiability: these synthetic request snapshots are the only harvest source; if harvest is starved, no canonical stream fetch is recorded and the assertions below fail before reload accounting.
++    scenario = _loop_two_turn_scenario(conversation_id, message, answer1, answer2)
++    clock = ScriptedClock()
++    channel = RecordingChannel(scenario, monotonic=clock.monotonic, sleeper=clock.sleep)
++    session = _session(tmp_path, channel)
++    session.send_budget.politeness_floor_s = 0.0
++    session.send_budget.current_rate_per_min = 60_000.0
++    session.send_budget.max_rate_per_min = 60_000.0
++
++    answers = list(session.loop(conversation_id, message=message, max_iterations=2))
++
++    assert [answer.capture_source for answer in answers] == ["backend_api", "backend_api"]
++    assert [answer.message_id for answer in answers] == ["assistant-loop-1", "assistant-loop-2"]
++    assert len(channel.conversation_fetch_header_names) == 2
++    assert channel.conversation_fetch_target_paths == [fetch_path, fetch_path]
++    required_names = set(REQUIRED_CAPTURE_HEADERS)
++    assert len(required_names) == 8
++    for header_names in channel.conversation_fetch_header_names:
++        assert required_names.issubset(set(header_names))
++    assert session.tab_pool.snapshot()["managed_tabs"] == 1
++    assert channel.method_counts.get("open_tab", 0) == 1
++    assert channel.method_counts.get("reload", 0) == 0
