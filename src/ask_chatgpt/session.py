@@ -11,8 +11,8 @@ from pathlib import Path
 from typing import Any, Literal
 
 from ask_chatgpt.capture import SendContext, capture_conversation
-from ask_chatgpt.channels.base import BrowserChannel, TabLease
-from ask_chatgpt.completion import salvage_partial, wait_for_completion
+from ask_chatgpt.channels.base import BrowserChannel, TabLease, WebSocketIdleObserver
+from ask_chatgpt.completion import DEFAULT_WEBSOCKET_IDLE_TIMEOUT_S, salvage_partial, wait_for_completion
 from ask_chatgpt.errors import (
     AskChatGPTError,
     AttachmentFetchError,
@@ -311,6 +311,19 @@ def _governed_reload_tab(tab: TabLease, governor: Governor, *, path_kind: str) -
     return TabLease(tab_id=tab.tab_id, url=tab.url, channel=_GovernedReloadChannel(tab, governor, path_kind))
 
 
+def _arm_websocket_idle_observer(tab: TabLease) -> WebSocketIdleObserver | None:
+    arm = getattr(tab.channel, "arm_websocket_idle_observer", None)
+    if not callable(arm):
+        return None
+    return arm(tab)
+
+
+def _close_websocket_idle_observer(observer: WebSocketIdleObserver | None) -> None:
+    if observer is None:
+        return
+    observer.close()
+
+
 class Session:
     def __init__(
         self,
@@ -327,6 +340,7 @@ class Session:
         composer_wait_timeout_s: float = 20.0,
         progress_poll_interval_s: float = 2.0,
         backend_check_interval_s: float | None = None,
+        websocket_idle_timeout_s: float = DEFAULT_WEBSOCKET_IDLE_TIMEOUT_S,
         draft_url_learn_timeout_s: float = 15.0,
         strict_selectors: bool = True,
     ) -> None:
@@ -344,6 +358,7 @@ class Session:
         self.composer_wait_timeout_s = composer_wait_timeout_s
         self.progress_poll_interval_s = progress_poll_interval_s
         self.backend_check_interval_s = backend_check_interval_s
+        self.websocket_idle_timeout_s = websocket_idle_timeout_s
         self.draft_url_learn_timeout_s = draft_url_learn_timeout_s
         self.strict_selectors = strict_selectors
         monotonic, sleeper = _channel_timing(self._browser_channel)
@@ -448,6 +463,7 @@ class Session:
     ) -> tuple[TurnRecord, ConversationRef]:
         stub: TurnRecord | None = None
         submitted: SubmittedTurn | None = None
+        ws_idle_observer: WebSocketIdleObserver | None = None
         model_ref = ModelRef(None, model) if model is not None else None
         active_tools = tuple(tools)
         draft = ref.conversation_id is None or ref.is_draft
@@ -471,6 +487,7 @@ class Session:
                 self.governor.acquire(DEFAULT_TOKEN_WEIGHTS["upload"], action="upload", path_kind="attachment")
             upload_attachments(tab, self.selector_map, attachment_specs)
             fill_composer(tab, self.selector_map, prompt)
+            ws_idle_observer = _arm_websocket_idle_observer(tab)
             self.governor.acquire(DEFAULT_TOKEN_WEIGHTS["send"], action="send", path_kind="composer_submit")
             submit_composer(
                 tab,
@@ -498,17 +515,22 @@ class Session:
         canonical_user = _canonical_user_record(ref, submitted, stub, model_ref, active_tools)
         self.store.commit_send(stub.client_send_id or "", canonical_user)
         try:
-            completion_state = wait_for_completion(
-                tab,
-                ref,
-                self.selector_map,
-                baseline,
-                activity_timeout_s=timeout if timeout is not None else self.activity_timeout_s,
-                max_total_wait_s=max_total_wait if max_total_wait is not None else self.max_total_wait_s,
-                progress_poll_interval_s=self.progress_poll_interval_s,
-                backend_check_interval_s=self.backend_check_interval_s,
-                governor=self.governor,
-            )
+            try:
+                completion_state = wait_for_completion(
+                    tab,
+                    ref,
+                    self.selector_map,
+                    baseline,
+                    activity_timeout_s=timeout if timeout is not None else self.activity_timeout_s,
+                    max_total_wait_s=max_total_wait if max_total_wait is not None else self.max_total_wait_s,
+                    progress_poll_interval_s=self.progress_poll_interval_s,
+                    backend_check_interval_s=self.backend_check_interval_s,
+                    websocket_idle_timeout_s=self.websocket_idle_timeout_s,
+                    websocket_idle_observer=ws_idle_observer,
+                    governor=self.governor,
+                )
+            finally:
+                _close_websocket_idle_observer(ws_idle_observer)
             if draft:
                 self.governor.acquire(DEFAULT_TOKEN_WEIGHTS["reload"], action="reload", path_kind="draft_capture")
                 tab.channel.reload(tab)

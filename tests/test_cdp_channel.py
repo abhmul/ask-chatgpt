@@ -358,6 +358,8 @@ def test_attach_open_close_detach_own_pages_without_context_page_enumeration() -
     assert [event for event, _handler in context.cdp_sessions[0].listeners] == [
         "Network.requestWillBeSent",
         "Network.requestWillBeSentExtraInfo",
+        "Network.webSocketFrameReceived",
+        "Network.webSocketFrameSent",
     ]
     assert context.cdp_sessions[0].send_calls == [("Network.enable", None)]
     assert context.pages_created[0].order.index("page.on:request") < context.pages_created[0].order.index("page.goto")

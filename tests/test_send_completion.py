@@ -2,9 +2,12 @@ from __future__ import annotations
 
 from pathlib import Path
 from types import SimpleNamespace
+import inspect
 
 import pytest
 
+import ask_chatgpt.channels.base as channel_base_module
+import ask_chatgpt.channels.mock as mock_channel_module
 from ask_chatgpt.channels.base import RequestSnapshot, TurnDom, TurnDomSnapshot
 from ask_chatgpt.channels.mock import (
     HEADER_CANARIES,
@@ -169,6 +172,20 @@ def _request_snapshots(conversation_id: str = "conv_mock_completion", count: int
             )
         )
     return tuple(snapshots)
+
+
+def _ws_frame(at_s: float, direction: str = "received") -> object:
+    frame_type = getattr(mock_channel_module, "TimedWebSocketFrame", None)
+    assert frame_type is not None, "MockChannel websocket-idle seam is missing"
+    return frame_type(at_s=at_s, direction=direction)
+
+
+def _arm_ws_idle_observer(mock: MockChannel, tab) -> object:
+    arm = getattr(mock, "arm_websocket_idle_observer", None)
+    assert callable(arm), "BrowserChannel websocket-idle arm method is missing"
+    observer = arm(tab)
+    assert observer is not None, "scripted websocket-idle observer was not armed"
+    return observer
 
 
 def _session_success_scenario() -> MockScenario:
@@ -535,7 +552,7 @@ def test_successful_ask_returns_new_assistant_and_supersedes_pending(tmp_path) -
     assert answer.user_message_id == "user-new-2"
     assert answer.content_markdown == "final answer"
     assert answer.message_id != "baseline-assistant-1"
-    assert mock.call_order.index("query_turns") < mock.call_order.index("fill") < mock.call_order.index("click")
+    assert mock.call_order.index("query_turns") < mock.call_order.index("fill") < mock.call_order.index("arm_websocket_idle_observer") < mock.call_order.index("click")
     assert mock.method_counts["full_raw_fetches"] >= 1
     assert mock.method_counts.get("backend_checks", 0) == 0
     visible = Store(data_dir=tmp_path).load_transcript(CONV).turns
@@ -605,6 +622,226 @@ def test_session_completion_id_absent_does_not_return_stale_assistant_and_salvag
     assert partial.message_id == "assistant-new-2"
     assert partial.content_markdown == "dom new partial"
     assert partial.content_markdown != stale.content_markdown
+
+
+def test_ws_idle_primary_completes_without_periodic_backend_fetch() -> None:
+    baseline_snapshot = _baseline_snapshot()
+    answering = TurnDomSnapshot(
+        users=baseline_snapshot.users,
+        assistants=(*baseline_snapshot.assistants, TurnDom("assistant-ws-2", "assistant", "ws final answer")),
+        stop_visible=True,
+        composer_visible=True,
+        model_labels=baseline_snapshot.model_labels,
+    )
+    dom_done = TurnDomSnapshot(
+        users=baseline_snapshot.users,
+        assistants=answering.assistants,
+        stop_visible=False,
+        composer_visible=True,
+        model_labels=baseline_snapshot.model_labels,
+    )
+    clock = ScriptedClock()
+    mock = MockChannel(
+        MockScenario(
+            name="ws_idle_primary_zero_backend_get",
+            turn_timeline=(
+                TimedTurnSnapshot(0.0, answering),
+                TimedTurnSnapshot(1.0, dom_done),
+            ),
+            backend_responses={
+                "/backend-api/conversation/conv_mock_completion": MockBackendResponse(200, _raw_conversation()),
+            },
+            request_snapshots=_request_snapshots(count=1),
+            websocket_frames=(
+                _ws_frame(0.5, "sent"),
+                _ws_frame(2.0, "received"),
+            ),
+        ),
+        monotonic=clock.monotonic,
+        sleeper=clock.sleep,
+    )
+    tab = _open_mock_tab(mock)
+    observer = _arm_ws_idle_observer(mock, tab)
+
+    state = wait_for_completion(
+        tab,
+        CONV,
+        SELECTORS,
+        TurnBaseline("baseline-user-1", 1, "baseline-assistant-1", 1),
+        activity_timeout_s=20.0,
+        max_total_wait_s=None,
+        progress_poll_interval_s=1.0,
+        backend_check_interval_s=None,
+        websocket_idle_timeout_s=3.0,
+        websocket_idle_observer=observer,
+    )
+
+    assert state.complete is True
+    assert state.source == "ws_idle"
+    assert state.assistant_message_id == "assistant-ws-2"
+    assert clock.monotonic() == 5.0
+    assert mock.method_counts.get("full_raw_fetches", 0) == 0
+    assert [call.details["url"] for call in mock.calls if call.method == "fetch_in_page"] == []
+
+
+def test_ws_idle_no_false_early_mid_answer_gap_below_n() -> None:
+    baseline_snapshot = _baseline_snapshot()
+    apparently_done = TurnDomSnapshot(
+        users=baseline_snapshot.users,
+        assistants=(*baseline_snapshot.assistants, TurnDom("assistant-ws-gap", "assistant", "stable looking answer")),
+        stop_visible=False,
+        composer_visible=True,
+        model_labels=baseline_snapshot.model_labels,
+    )
+    clock = ScriptedClock()
+    mock = MockChannel(
+        MockScenario(
+            name="ws_idle_no_false_early",
+            turn_timeline=(TimedTurnSnapshot(0.0, apparently_done),),
+            websocket_frames=(
+                _ws_frame(0.0, "received"),
+                _ws_frame(7.0, "received"),
+            ),
+        ),
+        monotonic=clock.monotonic,
+        sleeper=clock.sleep,
+    )
+    tab = _open_mock_tab(mock)
+    observer = _arm_ws_idle_observer(mock, tab)
+
+    state = wait_for_completion(
+        tab,
+        CONV,
+        SELECTORS,
+        TurnBaseline("baseline-user-1", 1, "baseline-assistant-1", 1),
+        activity_timeout_s=30.0,
+        max_total_wait_s=None,
+        progress_poll_interval_s=1.0,
+        backend_check_interval_s=None,
+        websocket_idle_timeout_s=8.0,
+        websocket_idle_observer=observer,
+    )
+
+    assert state.source == "ws_idle"
+    assert state.assistant_message_id == "assistant-ws-gap"
+    assert clock.monotonic() == 15.0
+
+
+def test_dom_fallback_completes_without_ws_idle_or_backend_fetch() -> None:
+    baseline_snapshot = _baseline_snapshot()
+    complete = TurnDomSnapshot(
+        users=baseline_snapshot.users,
+        assistants=(*baseline_snapshot.assistants, TurnDom("assistant-dom-2", "assistant", "dom fallback answer")),
+        stop_visible=False,
+        composer_visible=True,
+        model_labels=baseline_snapshot.model_labels,
+    )
+    clock = ScriptedClock()
+    mock = MockChannel(
+        MockScenario(
+            name="dom_fallback_no_ws_idle",
+            turn_timeline=(TimedTurnSnapshot(0.0, complete),),
+            backend_responses={
+                "/backend-api/conversation/conv_mock_completion": MockBackendResponse(200, _raw_conversation()),
+            },
+            request_snapshots=_request_snapshots(count=1),
+        ),
+        monotonic=clock.monotonic,
+        sleeper=clock.sleep,
+    )
+    tab = _open_mock_tab(mock)
+
+    state = wait_for_completion(
+        tab,
+        CONV,
+        SELECTORS,
+        TurnBaseline("baseline-user-1", 1, "baseline-assistant-1", 1),
+        activity_timeout_s=10.0,
+        max_total_wait_s=None,
+        progress_poll_interval_s=1.0,
+        backend_check_interval_s=None,
+    )
+
+    assert state.source == "dom"
+    assert state.assistant_message_id == "assistant-dom-2"
+    assert clock.monotonic() == 1.0
+    assert mock.method_counts.get("full_raw_fetches", 0) == 0
+
+
+def test_timeout_partial_salvage_attachment_survives_without_backend_poll() -> None:
+    baseline_snapshot = _baseline_snapshot()
+    partial = TurnDomSnapshot(
+        users=baseline_snapshot.users,
+        assistants=(*baseline_snapshot.assistants, TurnDom("assistant-partial-timeout", "assistant", "visible partial")),
+        stop_visible=True,
+        composer_visible=True,
+        model_labels=baseline_snapshot.model_labels,
+    )
+    clock = ScriptedClock()
+    mock = MockChannel(
+        MockScenario(
+            name="partial_salvage_no_backend_poll",
+            turn_timeline=(TimedTurnSnapshot(0.0, partial),),
+            backend_responses={
+                "/backend-api/conversation/conv_mock_completion": MockBackendResponse(
+                    200,
+                    _raw_conversation(assistant_id="assistant-backend-partial", assistant_text="backend partial", status="in_progress"),
+                ),
+            },
+            request_snapshots=_request_snapshots(count=1),
+        ),
+        monotonic=clock.monotonic,
+        sleeper=clock.sleep,
+    )
+    tab = _open_mock_tab(mock)
+
+    with pytest.raises(MaxTotalWaitExceededError) as excinfo:
+        wait_for_completion(
+            tab,
+            CONV,
+            SELECTORS,
+            TurnBaseline("baseline-user-1", 1, "baseline-assistant-1", 1),
+            activity_timeout_s=100.0,
+            max_total_wait_s=3.0,
+            progress_poll_interval_s=1.0,
+            backend_check_interval_s=None,
+        )
+
+    assert getattr(excinfo.value, "backend_partial", None) is None
+    dom_partial = getattr(excinfo.value, "dom_partial", None)
+    assert dom_partial is not None
+    assert dom_partial.assistant_message_id == "assistant-partial-timeout"
+    assert dom_partial.partial_markdown == "visible partial"
+    assert mock.method_counts.get("full_raw_fetches", 0) == 0
+
+
+def test_websocket_idle_observer_seam_is_timestamp_count_only() -> None:
+    snapshot_type = getattr(channel_base_module, "WebSocketIdleSnapshot", None)
+    assert snapshot_type is not None, "WebSocketIdleSnapshot seam is missing"
+    snapshot_fields = set(snapshot_type.__dataclass_fields__)
+    assert snapshot_fields == {
+        "armed_monotonic_s",
+        "last_frame_monotonic_s",
+        "frame_count",
+        "sent_count",
+        "received_count",
+        "idle_for_s",
+        "idle",
+    }
+    assert not any("payload" in field.lower() or "text" in field.lower() for field in snapshot_fields)
+
+    frame_type = getattr(mock_channel_module, "TimedWebSocketFrame", None)
+    assert frame_type is not None, "Mock websocket frame seam is missing"
+    frame_fields = set(frame_type.__dataclass_fields__)
+    assert frame_fields == {"at_s", "direction"}
+
+    from ask_chatgpt.channels.cdp import CdpChannel
+
+    record_signature = inspect.signature(CdpChannel._record_websocket_frame_timestamp)
+    assert tuple(record_signature.parameters) == ("self", "tab_id", "direction")
+    cdp_source = (Path(__file__).parents[1] / "src" / "ask_chatgpt" / "channels" / "cdp.py").read_text(encoding="utf-8")
+    assert "payloadData" not in cdp_source
+    assert "frame_text" not in cdp_source
 
 
 def test_old_stable_assistant_is_not_completion() -> None:
@@ -752,7 +989,7 @@ def test_poll_backend_completion_default_uses_full_conversation_endpoint_not_str
     assert mock.method_counts.get("backend_checks", 0) == 0
 
 
-def test_sparse_backend_cadence_uses_fresh_one_use_headers() -> None:
+def test_explicit_backend_rescue_is_one_shot_and_uses_fresh_one_use_headers() -> None:
     baseline = _baseline_snapshot()
     growing = TurnDomSnapshot(
         users=baseline.users,
@@ -761,16 +998,23 @@ def test_sparse_backend_cadence_uses_fresh_one_use_headers() -> None:
         composer_visible=True,
         model_labels=baseline.model_labels,
     )
+    complete = TurnDomSnapshot(
+        users=baseline.users,
+        assistants=(*baseline.assistants, TurnDom("assistant-new-2", "assistant", "done dom")),
+        stop_visible=False,
+        composer_visible=True,
+        model_labels=baseline.model_labels,
+    )
     scenario = MockScenario(
-        name="sparse_backend_cadence",
+        name="one_shot_backend_rescue",
         one_use_headers=True,
-        turn_timeline=(TimedTurnSnapshot(0.0, growing),),
+        turn_timeline=(TimedTurnSnapshot(0.0, growing), TimedTurnSnapshot(35.0, complete)),
         backend_timeline=(
             TimedBackendResponse(0.0, MockBackendResponse(200, _raw_conversation(assistant_text="working", status="in_progress", update_time=1.0))),
             TimedBackendResponse(30.0, MockBackendResponse(200, _raw_conversation(assistant_text="still", status="in_progress", update_time=2.0))),
             TimedBackendResponse(60.0, MockBackendResponse(200, _raw_conversation(assistant_text="done", status="complete", update_time=3.0))),
         ),
-        request_snapshots=_request_snapshots(count=4),
+        request_snapshots=_request_snapshots(count=2),
     )
     clock = ScriptedClock()
     mock = MockChannel(scenario, monotonic=clock.monotonic, sleeper=clock.sleep)
@@ -788,15 +1032,16 @@ def test_sparse_backend_cadence_uses_fresh_one_use_headers() -> None:
         backend_check_interval_s=30.0,
     )
 
+    assert state.source == "dom"
     assert state.assistant_message_id == "assistant-new-2"
-    assert mock.method_counts["full_raw_fetches"] == 3
-    assert mock.method_counts["header_acquisitions"] == 3
+    assert state.partial_markdown == "done dom"
+    assert mock.method_counts["full_raw_fetches"] == 1
+    assert mock.method_counts["header_acquisitions"] == 1
     assert mock.method_counts.get("backend_checks", 0) == 0
-    assert mock.method_counts["dom_polls"] >= 30
-    assert mock.method_counts["full_raw_fetches"] < mock.method_counts["dom_polls"]
+    assert mock.method_counts["dom_polls"] > mock.method_counts["full_raw_fetches"]
 
 
-def test_backend_interval_none_uses_sparse_mock_default_not_dom_cadence() -> None:
+def test_backend_interval_none_disables_completion_backend_fetch_and_uses_dom() -> None:
     baseline = _baseline_snapshot()
     growing = TurnDomSnapshot(
         users=baseline.users,
@@ -805,9 +1050,16 @@ def test_backend_interval_none_uses_sparse_mock_default_not_dom_cadence() -> Non
         composer_visible=True,
         model_labels=baseline.model_labels,
     )
+    complete = TurnDomSnapshot(
+        users=baseline.users,
+        assistants=(*baseline.assistants, TurnDom("assistant-new-2", "assistant", "done dom")),
+        stop_visible=False,
+        composer_visible=True,
+        model_labels=baseline.model_labels,
+    )
     scenario = MockScenario(
-        name="none_backend_interval_sparse",
-        turn_timeline=(TimedTurnSnapshot(0.0, growing),),
+        name="none_backend_interval_no_fetch",
+        turn_timeline=(TimedTurnSnapshot(0.0, growing), TimedTurnSnapshot(30.0, complete)),
         backend_timeline=(
             TimedBackendResponse(0.0, MockBackendResponse(200, _raw_conversation(assistant_text="working", status="in_progress", update_time=1.0))),
             TimedBackendResponse(30.0, MockBackendResponse(200, _raw_conversation(assistant_text="done", status="complete", update_time=2.0))),
@@ -829,8 +1081,9 @@ def test_backend_interval_none_uses_sparse_mock_default_not_dom_cadence() -> Non
         backend_check_interval_s=None,
     )
 
-    assert state.partial_markdown == "done"
-    assert mock.method_counts["full_raw_fetches"] == 2
+    assert state.source == "dom"
+    assert state.partial_markdown == "done dom"
+    assert mock.method_counts.get("full_raw_fetches", 0) == 0
     assert mock.method_counts.get("backend_checks", 0) == 0
     assert mock.method_counts["dom_polls"] >= 15
 
@@ -941,7 +1194,7 @@ def test_completion_429_raises_rate_limited_with_retry_after_and_is_not_swallowe
             activity_timeout_s=10.0,
             max_total_wait_s=None,
             progress_poll_interval_s=1.0,
-            backend_check_interval_s=1.0,
+            backend_check_interval_s=0.0,
         )
 
     assert excinfo.value.details["retry_after_s"] == 123

@@ -21,7 +21,7 @@ from urllib.request import urlopen
 
 from ask_chatgpt.allowlist import Allowlist
 from ask_chatgpt.capture import REQUIRED_CAPTURE_HEADERS
-from ask_chatgpt.channels.base import FetchResult, RequestSnapshot, TabLease, TurnDom, TurnDomSnapshot
+from ask_chatgpt.channels.base import FetchResult, RequestSnapshot, TabLease, TurnDom, TurnDomSnapshot, WebSocketIdleSnapshot
 from ask_chatgpt.errors import HumanActionNeededError, SelectorNotFoundError
 from ask_chatgpt.models import JsonValue, PreflightResult, SelectorMap
 
@@ -475,6 +475,29 @@ class _CdpRequestInfo:
     headers: dict[str, str] | None = None
 
 
+@dataclass
+class _CdpWebSocketIdleState:
+    armed_monotonic_s: float
+    last_frame_monotonic_s: float | None = None
+    frame_count: int = 0
+    sent_count: int = 0
+    received_count: int = 0
+    closed: bool = False
+
+
+class _CdpWebSocketIdleObserver:
+    def __init__(self, channel: CdpChannel, tab_id: str, state: _CdpWebSocketIdleState) -> None:
+        self._channel = channel
+        self._tab_id = tab_id
+        self._state = state
+
+    def snapshot(self, *, now_s: float, idle_after_s: float) -> WebSocketIdleSnapshot:
+        return self._channel._websocket_idle_snapshot(self._tab_id, self._state, now_s=now_s, idle_after_s=idle_after_s)
+
+    def close(self) -> None:
+        self._channel._close_websocket_idle_observer(self._tab_id, self._state)
+
+
 def decode_stream_chunk_base64(chunk: str) -> bytes:
     try:
         return base64.b64decode(chunk.encode("ascii"), validate=True)
@@ -548,6 +571,7 @@ class CdpChannel:
         self._request_buffers: dict[str, list[_ObservedRequest]] = {}
         self._request_cursors: dict[str, int] = {}
         self._cdp_requests: dict[str, dict[str, _CdpRequestInfo]] = {}
+        self._websocket_idle_states: dict[str, _CdpWebSocketIdleState] = {}
 
     def preflight(self, *, timeout_s: float = 5.0) -> PreflightResult:
         url = f"{self.cdp_endpoint}/json/version"
@@ -795,6 +819,14 @@ class CdpChannel:
                 raise TimeoutError("CDP request predicate did not match")
             self._pump_page_events(state.page, deadline)
 
+    def arm_websocket_idle_observer(self, tab: TabLease) -> _CdpWebSocketIdleObserver | None:
+        state = self._validate_tab_state(tab)
+        if state.cdp_session is None:
+            return None
+        idle_state = _CdpWebSocketIdleState(armed_monotonic_s=self.monotonic())
+        self._websocket_idle_states[tab.tab_id] = idle_state
+        return _CdpWebSocketIdleObserver(self, tab.tab_id, idle_state)
+
     def fetch_in_page(
         self,
         tab: TabLease,
@@ -897,8 +929,16 @@ class CdpChannel:
         def on_request_extra_info(event: Mapping[str, Any]) -> None:
             self._record_cdp_extra_info(tab_id, event)
 
+        def on_websocket_frame_received(_event: Mapping[str, Any]) -> None:
+            self._record_websocket_frame_timestamp(tab_id, "received")
+
+        def on_websocket_frame_sent(_event: Mapping[str, Any]) -> None:
+            self._record_websocket_frame_timestamp(tab_id, "sent")
+
         cdp_session.on("Network.requestWillBeSent", on_request_will_be_sent)
         cdp_session.on("Network.requestWillBeSentExtraInfo", on_request_extra_info)
+        cdp_session.on("Network.webSocketFrameReceived", on_websocket_frame_received)
+        cdp_session.on("Network.webSocketFrameSent", on_websocket_frame_sent)
         cdp_session.send("Network.enable")
         return cdp_session
 
@@ -937,6 +977,44 @@ class CdpChannel:
             return
         info = self._cdp_requests.setdefault(tab_id, {}).setdefault(request_id, _CdpRequestInfo())
         info.headers = _project_required_headers(headers)
+
+    def _record_websocket_frame_timestamp(self, tab_id: str, direction: Literal["sent", "received"]) -> None:
+        state = self._websocket_idle_states.get(tab_id)
+        if state is None or state.closed:
+            return
+        state.last_frame_monotonic_s = self.monotonic()
+        state.frame_count += 1
+        if direction == "sent":
+            state.sent_count += 1
+        else:
+            state.received_count += 1
+
+    def _websocket_idle_snapshot(
+        self,
+        tab_id: str,
+        state: _CdpWebSocketIdleState,
+        *,
+        now_s: float,
+        idle_after_s: float,
+    ) -> WebSocketIdleSnapshot:
+        current = self._websocket_idle_states.get(tab_id)
+        closed = current is not state or state.closed
+        last_frame = state.last_frame_monotonic_s if state.last_frame_monotonic_s is not None else state.armed_monotonic_s
+        idle_for = max(0.0, float(now_s) - last_frame)
+        return WebSocketIdleSnapshot(
+            armed_monotonic_s=state.armed_monotonic_s,
+            last_frame_monotonic_s=last_frame,
+            frame_count=state.frame_count,
+            sent_count=state.sent_count,
+            received_count=state.received_count,
+            idle_for_s=idle_for,
+            idle=(not closed) and idle_for >= float(idle_after_s),
+        )
+
+    def _close_websocket_idle_observer(self, tab_id: str, state: _CdpWebSocketIdleState) -> None:
+        state.closed = True
+        if self._websocket_idle_states.get(tab_id) is state:
+            self._websocket_idle_states.pop(tab_id, None)
 
     def _headers_for_observed_request(
         self,
@@ -988,6 +1066,9 @@ class CdpChannel:
         self._request_buffers.pop(tab_id, None)
         self._request_cursors.pop(tab_id, None)
         self._cdp_requests.pop(tab_id, None)
+        state = self._websocket_idle_states.pop(tab_id, None)
+        if state is not None:
+            state.closed = True
         self._tab_states.pop(tab_id, None)
 
 

@@ -23,6 +23,7 @@ from ask_chatgpt.channels.base import (
     RequestSnapshot,
     TabLease,
     TurnDomSnapshot,
+    WebSocketIdleSnapshot,
 )
 from ask_chatgpt.errors import HumanActionNeededError, SelectorNotFoundError
 from ask_chatgpt.models import JsonValue, PreflightResult, SelectorMap
@@ -102,6 +103,12 @@ class TimedBackendResponse:
 
 
 @dataclass(frozen=True)
+class TimedWebSocketFrame:
+    at_s: float
+    direction: Literal["sent", "received"] = "received"
+
+
+@dataclass(frozen=True)
 class TimedSelectorPresence:
     at_s: float
     present: bool
@@ -118,6 +125,8 @@ class MockScenario:
     download_responses: Mapping[str, MockBackendResponse] = field(default_factory=dict)
     backend_timeline: tuple[TimedBackendResponse, ...] = ()
     turn_timeline: tuple[TimedTurnSnapshot, ...] = ()
+    websocket_frames: tuple[TimedWebSocketFrame, ...] = ()
+    websocket_observer_available: bool = False
     model_label_sequence: tuple[Sequence[str], ...] = ()
     request_snapshots: tuple[RequestSnapshot, ...] = ()
     requests_require_reload: bool = False
@@ -193,6 +202,30 @@ class _MockContext:
         raise AttributeError(f"MockChannel exposes no context.{attr} browser internals")
 
 
+@dataclass
+class _MockWebSocketIdleState:
+    tab_id: str
+    armed_monotonic_s: float
+    last_frame_monotonic_s: float | None = None
+    frame_count: int = 0
+    sent_count: int = 0
+    received_count: int = 0
+    next_frame_index: int = 0
+    closed: bool = False
+
+
+class _MockWebSocketIdleObserver:
+    def __init__(self, channel: MockChannel, state: _MockWebSocketIdleState) -> None:
+        self._channel = channel
+        self._state = state
+
+    def snapshot(self, *, now_s: float, idle_after_s: float) -> WebSocketIdleSnapshot:
+        return self._channel._websocket_idle_snapshot(self._state, now_s=now_s, idle_after_s=idle_after_s)
+
+    def close(self) -> None:
+        self._state.closed = True
+
+
 class MockChannel:
     """Scripted offline implementation of the ``BrowserChannel`` Protocol."""
 
@@ -225,6 +258,7 @@ class MockChannel:
         self._current_url_sequence_index = 0
         self._selector_enabled_indexes: Counter[str] = Counter()
         self._selector_enabled_last: dict[str, bool] = {}
+        self._websocket_idle_states: list[_MockWebSocketIdleState] = []
         self._menu_options_by_key: dict[str, list[dict[str, JsonValue]]] = {
             key: [dict(option) for option in options]
             for key, options in self.scenario.menu_options.items()
@@ -297,6 +331,9 @@ class MockChannel:
         self._validate_tab(tab)
         self._tabs.pop(tab.tab_id, None)
         self._composer_text.pop(tab.tab_id, None)
+        for state in self._websocket_idle_states:
+            if state.tab_id == tab.tab_id:
+                state.closed = True
         self._record("close_tab", tab=tab)
 
     def reload(self, tab: TabLease) -> None:
@@ -434,6 +471,15 @@ class MockChannel:
                 self._request_index = index + 1
                 return request
         raise TimeoutError("mock wait_for_request predicate did not match")
+
+    def arm_websocket_idle_observer(self, tab: TabLease) -> _MockWebSocketIdleObserver | None:
+        self._validate_tab(tab)
+        self._record("arm_websocket_idle_observer", tab=tab)
+        if not self.scenario.websocket_observer_available and not self.scenario.websocket_frames:
+            return None
+        state = _MockWebSocketIdleState(tab_id=tab.tab_id, armed_monotonic_s=self.monotonic())
+        self._websocket_idle_states.append(state)
+        return _MockWebSocketIdleObserver(self, state)
 
     def fetch_in_page(
         self,
@@ -749,6 +795,52 @@ class MockChannel:
                 break
         return selected
 
+    def _websocket_idle_snapshot(
+        self,
+        state: _MockWebSocketIdleState,
+        *,
+        now_s: float,
+        idle_after_s: float,
+    ) -> WebSocketIdleSnapshot:
+        self._record("websocket_idle_snapshot", tab=TabLease(state.tab_id, self._tabs.get(state.tab_id, ""), self))
+        if state.closed:
+            last_frame = state.last_frame_monotonic_s if state.last_frame_monotonic_s is not None else state.armed_monotonic_s
+            return WebSocketIdleSnapshot(
+                armed_monotonic_s=state.armed_monotonic_s,
+                last_frame_monotonic_s=last_frame,
+                frame_count=state.frame_count,
+                sent_count=state.sent_count,
+                received_count=state.received_count,
+                idle_for_s=max(0.0, float(now_s) - last_frame),
+                idle=False,
+            )
+        frames = sorted(self.scenario.websocket_frames, key=lambda item: item.at_s)
+        while state.next_frame_index < len(frames):
+            frame = frames[state.next_frame_index]
+            if frame.at_s < state.armed_monotonic_s:
+                state.next_frame_index += 1
+                continue
+            if frame.at_s > now_s:
+                break
+            state.last_frame_monotonic_s = float(frame.at_s)
+            state.frame_count += 1
+            if frame.direction == "sent":
+                state.sent_count += 1
+            else:
+                state.received_count += 1
+            state.next_frame_index += 1
+        last_frame = state.last_frame_monotonic_s if state.last_frame_monotonic_s is not None else state.armed_monotonic_s
+        idle_for = max(0.0, float(now_s) - last_frame)
+        return WebSocketIdleSnapshot(
+            armed_monotonic_s=state.armed_monotonic_s,
+            last_frame_monotonic_s=last_frame,
+            frame_count=state.frame_count,
+            sent_count=state.sent_count,
+            received_count=state.received_count,
+            idle_for_s=idle_for,
+            idle=idle_for >= float(idle_after_s),
+        )
+
     @staticmethod
     def _lower_headers(headers: Mapping[str, str]) -> dict[str, str]:
         return {str(key).lower(): str(value) for key, value in headers.items()}
@@ -781,4 +873,5 @@ __all__ = [
     "TimedBackendResponse",
     "TimedSelectorPresence",
     "TimedTurnSnapshot",
+    "TimedWebSocketFrame",
 ]
