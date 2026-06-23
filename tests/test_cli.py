@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from ask_chatgpt import __version__
-from ask_chatgpt.errors import CompletionTimeoutError, PromptNotSubmittedError
+from ask_chatgpt.errors import CompletionTimeoutError, MaxTotalWaitExceededError, PromptNotSubmittedError
 from ask_chatgpt.identity import ConversationRef
 from ask_chatgpt.models import PreflightResult, StatusReport, Transcript, TurnRecord
 from ask_chatgpt.store import Store
@@ -109,6 +109,10 @@ class RecordingSession:
         self.calls.append(("ask", (conv, prompt), kwargs))
         if type(self).raise_from == "ask_timeout":
             err = CompletionTimeoutError("timed out safely", details={"authorization": "Bearer SECRET_TOKEN"})
+            err.partial_markdown = type(self).timeout_partial
+            raise err
+        if type(self).raise_from == "ask_max_total_wait":
+            err = MaxTotalWaitExceededError("max total wait elapsed safely")
             err.partial_markdown = type(self).timeout_partial
             raise err
         if type(self).raise_from == "ask_prompt":
@@ -803,6 +807,21 @@ def test_cli_completion_timeout_prints_salvage_to_stdout_and_out_before_error(tm
     assert out.read_bytes() == captured.out.encode("utf-8")
     assert captured.err.splitlines()[0] == "ERROR COMPLETION_TIMEOUT: timed out safely"
     assert "SECRET_TOKEN" not in captured.err
+
+
+def test_cli_max_total_wait_prints_salvage_to_stdout_and_out_before_error(tmp_path, capsys, monkeypatch) -> None:
+    cli = _patch_session(monkeypatch)
+    RecordingSession.raise_from = "ask_max_total_wait"
+    RecordingSession.timeout_partial = "PARTIAL-ANSWER-SENTINEL"
+    out = tmp_path / "partial.md"
+
+    code = cli.main(["ask", "conv_cli", "prompt", "--selector-channel", "mock", "--out", str(out)])
+
+    captured = capsys.readouterr()
+    assert code == 51
+    assert captured.out == "PARTIAL-ANSWER-SENTINEL\n"
+    assert out.read_bytes() == captured.out.encode("utf-8")
+    assert captured.err.splitlines()[0] == "ERROR MAX_TOTAL_WAIT_EXCEEDED: max total wait elapsed safely"
 
 
 def test_cli_prompt_not_submitted_error_exit_code_and_redaction(capsys, monkeypatch) -> None:
