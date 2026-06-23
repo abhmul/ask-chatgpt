@@ -49,12 +49,15 @@ def wait_for_idle_and_reload_if_needed(
     tab: TabLease, selectors: SelectorMap, *, timeout_s: float
 ) -> None:
     deadline = _monotonic(tab) + timeout_s
+    observed_inflight_generation = False
     while True:
         snapshot = tab.channel.query_turns(tab, selectors)
         if not snapshot.stop_visible:
-            tab.channel.reload(tab)
-            tab.channel.wait_for_load_state(tab, timeout_s=timeout_s)
+            if observed_inflight_generation:
+                tab.channel.reload(tab)
+                tab.channel.wait_for_load_state(tab, timeout_s=timeout_s)
             return
+        observed_inflight_generation = True
         if _monotonic(tab) >= deadline:
             raise PromptNotSubmittedError(
                 "existing generation did not become idle before send",

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 
+from ask_chatgpt.capture import REQUIRED_CAPTURE_HEADERS
 from ask_chatgpt.channels.base import RequestSnapshot, TurnDom, TurnDomSnapshot
 from ask_chatgpt.channels.mock import (
     HEADER_CANARIES,
@@ -82,6 +83,27 @@ def _raw_conversation(
     }
 
 
+def _raw_conversation_in_progress(
+    conversation_id: str,
+    *,
+    user_id: str,
+    assistant_id: str,
+    prompt: str,
+    answer: str,
+) -> dict[str, object]:
+    raw = _raw_conversation(conversation_id, user_id=user_id, assistant_id=assistant_id, prompt=prompt, answer=answer)
+    raw["async_status"] = "in_progress"
+    mapping = raw["mapping"]
+    assert isinstance(mapping, dict)
+    assistant_node = mapping["assistant"]
+    assert isinstance(assistant_node, dict)
+    message = assistant_node["message"]
+    assert isinstance(message, dict)
+    message["metadata"] = {"is_complete": False}
+    message["status"] = "in_progress"
+    return raw
+
+
 def _request_snapshots(conversation_id: str, count: int = 6) -> tuple[RequestSnapshot, ...]:
     return tuple(
         RequestSnapshot(
@@ -130,6 +152,110 @@ def _draft_scenario(
         backend_timeline=(TimedBackendResponse(0.0, MockBackendResponse(200, _raw_conversation(conversation_id))),),
         request_snapshots=_request_snapshots(conversation_id),
         requests_require_reload=requests_require_reload,
+    )
+
+
+def _loop_two_turn_scenario(
+    conversation_id: str,
+    message: str,
+    answer1: str,
+    answer2: str,
+    *,
+    request_count: int = 8,
+) -> MockScenario:
+    baseline = TurnDomSnapshot(users=(), assistants=(), stop_visible=False, composer_visible=True, model_labels=())
+    submitted1 = TurnDomSnapshot(
+        users=(TurnDom("user-loop-1", "user", message),),
+        assistants=(),
+        stop_visible=True,
+        composer_visible=True,
+        model_labels=(),
+    )
+    complete1 = TurnDomSnapshot(
+        users=submitted1.users,
+        assistants=(TurnDom("assistant-loop-1", "assistant", answer1),),
+        stop_visible=False,
+        composer_visible=True,
+        model_labels=(),
+    )
+    submitted2 = TurnDomSnapshot(
+        users=(*submitted1.users, TurnDom("user-loop-2", "user", message)),
+        assistants=complete1.assistants,
+        stop_visible=True,
+        composer_visible=True,
+        model_labels=(),
+    )
+    complete2 = TurnDomSnapshot(
+        users=submitted2.users,
+        assistants=(*complete1.assistants, TurnDom("assistant-loop-2", "assistant", answer2)),
+        stop_visible=False,
+        composer_visible=True,
+        model_labels=(),
+    )
+    return MockScenario(
+        name="loop_two_real_sends",
+        turn_timeline=(
+            TimedTurnSnapshot(0.0, baseline),
+            TimedTurnSnapshot(0.5, submitted1),
+            TimedTurnSnapshot(1.0, complete1),
+            TimedTurnSnapshot(2.0, submitted2),
+            TimedTurnSnapshot(2.5, complete2),
+        ),
+        backend_timeline=(
+            TimedBackendResponse(
+                0.0,
+                MockBackendResponse(
+                    200,
+                    _raw_conversation_in_progress(
+                        conversation_id,
+                        user_id="user-loop-1",
+                        assistant_id="assistant-loop-1",
+                        prompt=message,
+                        answer=answer1,
+                    ),
+                ),
+            ),
+            TimedBackendResponse(
+                1.0,
+                MockBackendResponse(
+                    200,
+                    _raw_conversation(
+                        conversation_id,
+                        user_id="user-loop-1",
+                        assistant_id="assistant-loop-1",
+                        prompt=message,
+                        answer=answer1,
+                    ),
+                ),
+            ),
+            TimedBackendResponse(
+                2.0,
+                MockBackendResponse(
+                    200,
+                    _raw_conversation_in_progress(
+                        conversation_id,
+                        user_id="user-loop-2",
+                        assistant_id="assistant-loop-2",
+                        prompt=message,
+                        answer=answer2,
+                    ),
+                ),
+            ),
+            TimedBackendResponse(
+                2.5,
+                MockBackendResponse(
+                    200,
+                    _raw_conversation(
+                        conversation_id,
+                        user_id="user-loop-2",
+                        assistant_id="assistant-loop-2",
+                        prompt=message,
+                        answer=answer2,
+                    ),
+                ),
+            ),
+        ),
+        request_snapshots=_request_snapshots(conversation_id, count=request_count),
     )
 
 
@@ -508,55 +634,33 @@ def test_loop_sigint_salvages_partial_turn_then_reraises(tmp_path, monkeypatch) 
         next(iterator)
 
 
+def test_loop_persisted_tab_opens_once_and_does_not_reload_when_already_idle(tmp_path) -> None:
+    conversation_id = "loop-no-reload-123"
+    message = "MOCK_PROMPT_LOOP_NO_RELOAD_CANARY"
+    answer1 = "MOCK_ASSISTANT_LOOP_NO_RELOAD_ONE"
+    answer2 = "MOCK_ASSISTANT_LOOP_NO_RELOAD_TWO"
+    scenario = _loop_two_turn_scenario(conversation_id, message, answer1, answer2)
+    clock = ScriptedClock()
+    channel = MockChannel(scenario, monotonic=clock.monotonic, sleeper=clock.sleep)
+    session = _session(tmp_path, channel)
+    session.send_budget.politeness_floor_s = 0.0
+    session.send_budget.current_rate_per_min = 60_000.0
+    session.send_budget.max_rate_per_min = 60_000.0
+
+    answers = list(session.loop(conversation_id, message=message, max_iterations=2))
+
+    assert [answer.message_id for answer in answers] == ["assistant-loop-1", "assistant-loop-2"]
+    assert session.tab_pool.snapshot()["managed_tabs"] == 1
+    assert channel.method_counts.get("open_tab", 0) == 1
+    assert channel.method_counts.get("reload", 0) == 0
+
+
 def test_loop_two_iterations_sends_real_turns_and_appends_transcript_without_cap(tmp_path) -> None:
     conversation_id = "loop-real-123"
     message = "MOCK_PROMPT_LOOP_CANARY"
     answer1 = "MOCK_ASSISTANT_LOOP_CANARY_ONE"
     answer2 = "MOCK_ASSISTANT_LOOP_CANARY_TWO"
-    baseline = TurnDomSnapshot(users=(), assistants=(), stop_visible=False, composer_visible=True, model_labels=())
-    submitted1 = TurnDomSnapshot(
-        users=(TurnDom("user-loop-1", "user", message),),
-        assistants=(),
-        stop_visible=True,
-        composer_visible=True,
-        model_labels=(),
-    )
-    complete1 = TurnDomSnapshot(
-        users=submitted1.users,
-        assistants=(TurnDom("assistant-loop-1", "assistant", answer1),),
-        stop_visible=False,
-        composer_visible=True,
-        model_labels=(),
-    )
-    submitted2 = TurnDomSnapshot(
-        users=(*submitted1.users, TurnDom("user-loop-2", "user", message)),
-        assistants=complete1.assistants,
-        stop_visible=True,
-        composer_visible=True,
-        model_labels=(),
-    )
-    complete2 = TurnDomSnapshot(
-        users=submitted2.users,
-        assistants=(*complete1.assistants, TurnDom("assistant-loop-2", "assistant", answer2)),
-        stop_visible=False,
-        composer_visible=True,
-        model_labels=(),
-    )
-    scenario = MockScenario(
-        name="loop_two_real_sends",
-        turn_timeline=(
-            TimedTurnSnapshot(0.0, baseline),
-            TimedTurnSnapshot(0.5, submitted1),
-            TimedTurnSnapshot(1.0, complete1),
-            TimedTurnSnapshot(2.0, submitted2),
-            TimedTurnSnapshot(2.5, complete2),
-        ),
-        backend_timeline=(
-            TimedBackendResponse(0.0, MockBackendResponse(200, _raw_conversation(conversation_id, user_id="user-loop-1", assistant_id="assistant-loop-1", prompt=message, answer=answer1))),
-            TimedBackendResponse(2.0, MockBackendResponse(200, _raw_conversation(conversation_id, user_id="user-loop-2", assistant_id="assistant-loop-2", prompt=message, answer=answer2))),
-        ),
-        request_snapshots=_request_snapshots(conversation_id, count=8),
-    )
+    scenario = _loop_two_turn_scenario(conversation_id, message, answer1, answer2)
     clock = ScriptedClock()
     channel = MockChannel(scenario, monotonic=clock.monotonic, sleeper=clock.sleep)
     session = _session(tmp_path, channel)
@@ -573,3 +677,57 @@ def test_loop_two_iterations_sends_real_turns_and_appends_transcript_without_cap
     assert [turn.message_id for turn in transcript.turns if turn.role == "assistant"] == ["assistant-loop-1", "assistant-loop-2"]
     assert session.send_budget.successful_submissions == 2
     assert session.tab_pool.snapshot()["managed_tabs"] == 1
+    assert channel.method_counts.get("open_tab", 0) == 1
+    assert channel.method_counts.get("reload", 0) == 0
+
+
+def test_loop_capture_harvests_required_headers_without_steady_state_reloads(tmp_path) -> None:
+    conversation_id = "loop-harvest-123"
+    message = "MOCK_PROMPT_LOOP_HARVEST_CANARY"
+    answer1 = "MOCK_ASSISTANT_LOOP_HARVEST_ONE"
+    answer2 = "MOCK_ASSISTANT_LOOP_HARVEST_TWO"
+    fetch_path = f"/backend-api/conversation/{conversation_id}"
+
+    class RecordingChannel(MockChannel):
+        def __init__(self, scenario: MockScenario, *, monotonic, sleeper) -> None:  # noqa: ANN001
+            super().__init__(scenario, monotonic=monotonic, sleeper=sleeper)
+            self.conversation_fetch_header_names: list[tuple[str, ...]] = []
+            self.conversation_fetch_target_paths: list[str | None] = []
+
+        def fetch_in_page(self, tab, url, *, method="GET", headers=None, body=None, stream_to=None, timeout_s=None):  # noqa: ANN001, ANN201
+            if url == fetch_path and stream_to is not None:
+                lower_headers = {str(key).lower(): str(value) for key, value in dict(headers or {}).items()}
+                self.conversation_fetch_header_names.append(tuple(sorted(lower_headers)))
+                self.conversation_fetch_target_paths.append(lower_headers.get("x-openai-target-path"))
+            return super().fetch_in_page(
+                tab,
+                url,
+                method=method,
+                headers=headers,
+                body=body,
+                stream_to=stream_to,
+                timeout_s=timeout_s,
+            )
+
+    # Falsifiability: these synthetic request snapshots are the only harvest source; if harvest is starved, no canonical stream fetch is recorded and the assertions below fail before reload accounting.
+    scenario = _loop_two_turn_scenario(conversation_id, message, answer1, answer2)
+    clock = ScriptedClock()
+    channel = RecordingChannel(scenario, monotonic=clock.monotonic, sleeper=clock.sleep)
+    session = _session(tmp_path, channel)
+    session.send_budget.politeness_floor_s = 0.0
+    session.send_budget.current_rate_per_min = 60_000.0
+    session.send_budget.max_rate_per_min = 60_000.0
+
+    answers = list(session.loop(conversation_id, message=message, max_iterations=2))
+
+    assert [answer.capture_source for answer in answers] == ["backend_api", "backend_api"]
+    assert [answer.message_id for answer in answers] == ["assistant-loop-1", "assistant-loop-2"]
+    assert len(channel.conversation_fetch_header_names) == 2
+    assert channel.conversation_fetch_target_paths == [fetch_path, fetch_path]
+    required_names = set(REQUIRED_CAPTURE_HEADERS)
+    assert len(required_names) == 8
+    for header_names in channel.conversation_fetch_header_names:
+        assert required_names.issubset(set(header_names))
+    assert session.tab_pool.snapshot()["managed_tabs"] == 1
+    assert channel.method_counts.get("open_tab", 0) == 1
+    assert channel.method_counts.get("reload", 0) == 0
