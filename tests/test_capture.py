@@ -819,6 +819,38 @@ def test_header_bundle_is_one_use_and_header_canaries_do_not_persist_on_failed_c
         assert all(canary not in text for text in scan_strings)
 
 
+def test_capture_429_raises_rate_limited_and_never_uses_ui_fallback(tmp_path) -> None:
+    from ask_chatgpt.errors import RateLimitedError
+
+    scenario = MockScenario(
+        name="capture_429_rate_limited",
+        backend_responses={
+            "/backend-api/conversation/conv_mock_headers": MockBackendResponse(
+                429,
+                {"detail": "too many requests"},
+                headers={"retry-after": "77"},
+            )
+        },
+        request_snapshots=backend_header_scenario().request_snapshots,
+        clipboard_permission="granted",
+        clipboard_text="clipboard fallback must not be used",
+    )
+    channel = MockChannel(scenario)
+    tab = channel.open_tab("https://chatgpt.com/c/conv_mock_headers")
+    store = Store(data_dir=tmp_path)
+    ref = ConversationRef("conv_mock_headers", "https://chatgpt.com/c/conv_mock_headers")
+
+    with pytest.raises(RateLimitedError) as excinfo:
+        capture_conversation(tab, ref, store)
+
+    assert excinfo.value.details["retry_after_s"] == 77
+    assert channel.method_counts.get("read_clipboard", 0) == 0
+    assert not any(
+        turn.capture_source in {"copy_button", "dom_text", "katex_annotation"}
+        for turn in store.load_transcript(ref, include_pending=True).turns
+    )
+
+
 def test_fallback_requires_clipboard_grant_and_explicit_copy_is_not_canonical(tmp_path) -> None:
     conv = ConversationRef("conv_mock_fallback", "https://chatgpt.com/c/conv_mock_fallback")
     default_channel = MockChannel()

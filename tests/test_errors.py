@@ -95,3 +95,19 @@ def test_base_error_accepts_explicit_machine_metadata_without_leaking_details() 
 
 def test_store_warning_is_shared_user_warning_type() -> None:
     assert issubclass(StoreWarning, UserWarning)
+
+
+def test_rate_limited_error_exit_52_retryable_backoff_and_retry_after_preserved() -> None:
+    from ask_chatgpt.errors import RateLimitedError
+
+    err = RateLimitedError(
+        "rate limited",
+        details={"retry_after_s": 42, "Authorization": "Bearer SECRET_CANARY"},
+    )
+
+    assert err.code == "RATE_LIMITED"
+    assert err.exit_code == 52
+    assert err.retryable is True
+    assert err.retry_action == "back_off"
+    assert err.details["retry_after_s"] == 42
+    assert err.details["Authorization"] == "<redacted>"

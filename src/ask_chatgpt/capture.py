@@ -21,8 +21,10 @@ from ask_chatgpt.errors import (
     BackendCaptureShapeError,
     CaptureFailedClosedError,
     HumanActionNeededError,
+    RateLimitedError,
     StoreError,
 )
+from ask_chatgpt.governor import DEFAULT_TOKEN_WEIGHTS, Governor, raise_for_rate_limit
 from ask_chatgpt.identity import ConversationRef, backend_conversation_url, conversation_url
 from ask_chatgpt.models import (
     AttachmentRef,
@@ -196,12 +198,21 @@ def acquire_backend_headers(
             )
 
 
-def stream_backend_conversation(tab: TabLease, conv: ConversationRef, headers: HeaderBundle | Mapping[str, str], *, raw_tmp: Path) -> BackendFetchMeta:
+def stream_backend_conversation(
+    tab: TabLease,
+    conv: ConversationRef,
+    headers: HeaderBundle | Mapping[str, str],
+    *,
+    raw_tmp: Path,
+    governor: Governor | None = None,
+) -> BackendFetchMeta:
     conversation_id = _require_conversation_id(conv)
     fetch_path = _backend_conversation_fetch_path(conversation_id)
     started = _channel_monotonic(tab)
     backend_headers = headers.for_single_fetch(fetch_path=fetch_path) if isinstance(headers, HeaderBundle) else retarget_headers(headers, fetch_path)
     fetch_headers = {"accept": "application/json", **backend_headers}
+    if governor is not None:
+        governor.acquire(DEFAULT_TOKEN_WEIGHTS["backend_fetch"], action="backend_fetch", path_kind="capture")
     result = tab.channel.fetch_in_page(
         tab,
         fetch_path,
@@ -210,6 +221,7 @@ def stream_backend_conversation(tab: TabLease, conv: ConversationRef, headers: H
         stream_to=raw_tmp,
         timeout_s=None,
     )
+    raise_for_rate_limit(result)
     elapsed = _channel_monotonic(tab) - started
     content_type = _content_type(result)
     bytes_written = _fetch_bytes_written(result, raw_tmp)
@@ -334,6 +346,7 @@ def capture_conversation(
     with_attachments: bool = False,
     send_context: SendContext | None = None,
     header_mode: HeaderHarvestMode = "conversation",
+    governor: Governor | None = None,
 ) -> CaptureResult:
     conversation_id = _require_conversation_id(conv)
     tmp_dir = store.ensure_conversation(conv).root
@@ -341,20 +354,23 @@ def capture_conversation(
     try:
         headers = acquire_backend_headers(tab, conv, mode=header_mode)
         backend_headers = headers.for_single_fetch(fetch_path=_backend_conversation_fetch_path(conversation_id))
-        meta = stream_backend_conversation(tab, conv, backend_headers, raw_tmp=raw_tmp)
+        meta = stream_backend_conversation(tab, conv, backend_headers, raw_tmp=raw_tmp, governor=governor)
         _validate_fetch_meta(meta)
         top = validate_backend_shape(raw_tmp, conversation_id)
         records = tuple(iter_current_branch_records(raw_tmp, conv, send_context=send_context))
         raw_path = store.write_raw_mapping_atomic(conversation_id, raw_tmp)
         store.upsert_many(records)
         if with_attachments:
-            updated_records = download_attachments(tab, conv, backend_headers, records, store)
+            updated_records = download_attachments(tab, conv, backend_headers, records, store, governor=governor)
             if updated_records != records:
                 store.upsert_many(updated_records)
                 records = updated_records
         transcript_path = store.ensure_conversation(conv).transcript_jsonl
         transcript = Transcript(conv, records, raw_path, transcript_path)
         return CaptureResult(transcript=transcript, async_status=top.async_status, raw_top_level_keys=top.top_level_keys, source="backend_api", fidelity="canonical")
+    except RateLimitedError:
+        _unlink_if_exists(raw_tmp)
+        raise
     except (BackendAuthUnavailableError, BackendCaptureShapeError, StoreError) as exc:
         _unlink_if_exists(raw_tmp)
         return fallback_capture_ui(tab, conv, store, reason=exc.code if hasattr(exc, "code") else type(exc).__name__)
@@ -383,6 +399,7 @@ def download_attachments(
     store: Store,
     *,
     pace_s: float = 0.25,
+    governor: Governor | None = None,
 ) -> tuple[TurnRecord, ...]:
     """Resolve pending attachment refs to local cached bytes using the channel fetch seam."""
 
@@ -403,7 +420,7 @@ def download_attachments(
             else:
                 outcome = outcomes_by_file_id.get(file_id)
                 if outcome is None:
-                    outcome = _download_one_attachment(tab, conv, headers, store, conversation_id, ref, file_id)
+                    outcome = _download_one_attachment(tab, conv, headers, store, conversation_id, ref, file_id, governor=governor)
                     outcomes_by_file_id[file_id] = outcome
                     if pace_s > 0 and outcome.download_state == "downloaded":
                         _channel_sleep(tab, pace_s)
@@ -427,9 +444,11 @@ def _download_one_attachment(
     conversation_id: str,
     ref: AttachmentRef,
     file_id: str,
+    *,
+    governor: Governor | None = None,
 ) -> _AttachmentDownloadOutcome:
     try:
-        descriptor = _fetch_attachment_descriptor(tab, headers, file_id)
+        descriptor = _fetch_attachment_descriptor(tab, headers, file_id, governor=governor)
         if descriptor is None:
             return _AttachmentDownloadOutcome("error")
         download_url = descriptor.get("download_url")
@@ -443,6 +462,8 @@ def _download_one_attachment(
             if expected_size is None or existing_size == expected_size:
                 return _AttachmentDownloadOutcome("downloaded", local_path)
             target.unlink()
+        if governor is not None:
+            governor.acquire(DEFAULT_TOKEN_WEIGHTS["backend_fetch"], action="backend_fetch", path_kind="attachment_download")
         result = tab.channel.fetch_in_page(tab, download_url, method="GET", stream_to=target, timeout_s=None)
         if result.status < 200 or result.status >= 300:
             _unlink_if_exists(target)
@@ -456,8 +477,16 @@ def _download_one_attachment(
         return _AttachmentDownloadOutcome("error")
 
 
-def _fetch_attachment_descriptor(tab: TabLease, headers: Mapping[str, str], file_id: str) -> Mapping[str, Any] | None:
+def _fetch_attachment_descriptor(
+    tab: TabLease,
+    headers: Mapping[str, str],
+    file_id: str,
+    *,
+    governor: Governor | None = None,
+) -> Mapping[str, Any] | None:
     descriptor_url = f"/backend-api/files/{quote(file_id, safe='')}/download"
+    if governor is not None:
+        governor.acquire(DEFAULT_TOKEN_WEIGHTS["backend_fetch"], action="backend_fetch", path_kind="attachment_descriptor")
     result = tab.channel.fetch_in_page(
         tab,
         descriptor_url,

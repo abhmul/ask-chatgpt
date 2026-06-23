@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
+import random
 import time
 from pathlib import Path
 from typing import Any, Literal
@@ -20,9 +21,11 @@ from ask_chatgpt.errors import (
     HumanActionNeededError,
     InternalError,
     MaxTotalWaitExceededError,
+    RateLimitedError,
     StoreError,
     TabPoolExhaustedError,
 )
+from ask_chatgpt.governor import DEFAULT_TOKEN_WEIGHTS, Governor
 from ask_chatgpt.identity import ConversationRef, conversation_url, parse_conversation_address, parse_project_address
 from ask_chatgpt.menus import assert_reflected_model, assert_reflected_tools
 from ask_chatgpt.models import (
@@ -95,6 +98,7 @@ class TabPool:
         if len(self._entries) >= self.max_tabs:
             self._evict_one_unleased()
         channel = self._session._channel()
+        self._session.governor.acquire(DEFAULT_TOKEN_WEIGHTS["page_load"], action="page_load", path_kind=mode)
         tab = channel.open_tab(url)
         self._tick += 1
         self._entries.append(_ManagedTab(tab=tab, url=url, key=key, leased=True, last_used=self._tick))
@@ -148,6 +152,8 @@ class AdaptiveSendBudget:
         additive_increase_per_min: float = 1.0,
         backoff_factor: float = 0.5,
         min_rate_per_min: float = 0.5,
+        jitter_max_s: float = 1.0,
+        jitter_rng: Callable[[], float] | None = None,
         monotonic: Callable[[], float] | None = None,
         sleeper: Callable[[float], None] | None = None,
     ) -> None:
@@ -156,6 +162,8 @@ class AdaptiveSendBudget:
         self.additive_increase_per_min = max(0.0, float(additive_increase_per_min))
         self.backoff_factor = max(0.0, float(backoff_factor))
         self.min_rate_per_min = max(0.000001, float(min_rate_per_min))
+        self.jitter_max_s = max(0.0, float(jitter_max_s))
+        self._jitter_rng = jitter_rng or random.random
         self.current_rate_per_min = min(
             self.max_rate_per_min,
             max(self.min_rate_per_min, float(initial_rate_per_min)),
@@ -213,6 +221,7 @@ class AdaptiveSendBudget:
             "hard_message_cap": None,
             "current_rate_per_min": self.current_rate_per_min,
             "politeness_floor_s": self.politeness_floor_s,
+            "jitter_max_s": self.jitter_max_s,
             "hard_paused": self._hard_paused,
             "last_signal": self._last_signal,
         }
@@ -220,10 +229,14 @@ class AdaptiveSendBudget:
     def _required_spacing_s(self) -> float:
         return max(self.politeness_floor_s, 60.0 / self.current_rate_per_min)
 
+    def _effective_spacing_s(self) -> float:
+        jitter_sample = max(0.0, min(1.0, float(self._jitter_rng())))
+        return self._required_spacing_s() + jitter_sample * self.jitter_max_s
+
     def _sleep_until_spacing_allows_submit(self) -> None:
         if self._last_submission_monotonic is None:
             return
-        target = self._last_submission_monotonic + self._required_spacing_s()
+        target = self._last_submission_monotonic + self._effective_spacing_s()
         delay = target - float(self._monotonic())
         if delay > 0:
             self._sleeper(delay)
@@ -262,6 +275,42 @@ class PromptBudgetBusyError(AskChatGPTError):
         )
 
 
+class _GovernedReloadChannel:
+    def __init__(self, tab: TabLease, governor: Governor, path_kind: str) -> None:
+        self._tab = tab
+        self._channel = tab.channel
+        self._governor = governor
+        self._path_kind = path_kind
+
+    def __getattr__(self, name: str) -> object:
+        return getattr(self._channel, name)
+
+    def monotonic(self) -> float:
+        monotonic = getattr(self._channel, "monotonic", None)
+        return float(monotonic()) if callable(monotonic) else time.monotonic()
+
+    def sleep(self, seconds: float) -> None:
+        sleeper = getattr(self._channel, "sleep", None)
+        if callable(sleeper):
+            sleeper(seconds)
+        else:
+            time.sleep(seconds)
+
+    def query_turns(self, _tab: TabLease, selectors: Mapping[str, str]):
+        return self._channel.query_turns(self._tab, selectors)  # type: ignore[arg-type]
+
+    def reload(self, _tab: TabLease) -> None:
+        self._governor.acquire(DEFAULT_TOKEN_WEIGHTS["reload"], action="reload", path_kind=self._path_kind)
+        self._channel.reload(self._tab)
+
+    def wait_for_load_state(self, _tab: TabLease, *, timeout_s: float) -> None:
+        self._channel.wait_for_load_state(self._tab, timeout_s=timeout_s)
+
+
+def _governed_reload_tab(tab: TabLease, governor: Governor, *, path_kind: str) -> TabLease:
+    return TabLease(tab_id=tab.tab_id, url=tab.url, channel=_GovernedReloadChannel(tab, governor, path_kind))
+
+
 class Session:
     def __init__(
         self,
@@ -298,6 +347,7 @@ class Session:
         self.draft_url_learn_timeout_s = draft_url_learn_timeout_s
         self.strict_selectors = strict_selectors
         monotonic, sleeper = _channel_timing(self._browser_channel)
+        self.governor = Governor(dir=self.store.resolve_data_dir() / "governor", clock=monotonic, sleeper=sleeper)
         self.tab_pool = TabPool(self, max_tabs=max_tabs, monotonic=monotonic)
         self.send_budget = AdaptiveSendBudget(monotonic=monotonic, sleeper=sleeper)
         self._attached = False
@@ -401,7 +451,11 @@ class Session:
         model_ref = ModelRef(None, model) if model is not None else None
         active_tools = tuple(tools)
         draft = ref.conversation_id is None or ref.is_draft
-        wait_for_idle_and_reload_if_needed(tab, self.selector_map, timeout_s=self.composer_wait_timeout_s)
+        wait_for_idle_and_reload_if_needed(
+            _governed_reload_tab(tab, self.governor, path_kind="pre_send_idle"),
+            self.selector_map,
+            timeout_s=self.composer_wait_timeout_s,
+        )
         if model is not None:
             assert_reflected_model(tab, self.selector_map, model)
         if active_tools:
@@ -413,8 +467,11 @@ class Session:
         with self.send_budget.submission():
             wait_for_composer(tab, self.selector_map, timeout_s=self.composer_wait_timeout_s)
             attachment_specs = _attachment_specs(attach)
+            if attachment_specs:
+                self.governor.acquire(DEFAULT_TOKEN_WEIGHTS["upload"], action="upload", path_kind="attachment")
             upload_attachments(tab, self.selector_map, attachment_specs)
             fill_composer(tab, self.selector_map, prompt)
+            self.governor.acquire(DEFAULT_TOKEN_WEIGHTS["send"], action="send", path_kind="composer_submit")
             submit_composer(
                 tab,
                 self.selector_map,
@@ -450,8 +507,10 @@ class Session:
                 max_total_wait_s=max_total_wait if max_total_wait is not None else self.max_total_wait_s,
                 progress_poll_interval_s=self.progress_poll_interval_s,
                 backend_check_interval_s=self.backend_check_interval_s,
+                governor=self.governor,
             )
             if draft:
+                self.governor.acquire(DEFAULT_TOKEN_WEIGHTS["reload"], action="reload", path_kind="draft_capture")
                 tab.channel.reload(tab)
                 tab.channel.wait_for_load_state(tab, timeout_s=self.composer_wait_timeout_s)
             capture = capture_conversation(
@@ -464,8 +523,14 @@ class Session:
                     model=model_ref,
                     active_tools=active_tools,
                 ),
+                governor=self.governor,
             )
             answer = _select_new_assistant(capture.transcript.turns, completion_state.assistant_message_id, baseline)
+        except RateLimitedError as exc:
+            self.send_budget.record_soft_signal("rate_limited")
+            retry_after = exc.details.get("retry_after_s")
+            self.governor.note_rate_limited(float(retry_after) if type(retry_after) in {int, float} else None)
+            raise
         except KeyboardInterrupt as exc:
             partial = self._record_partial_if_available(tab, ref, baseline, stub, submitted, exc)
             if partial is not None:
@@ -524,7 +589,7 @@ class Session:
         self.store.put_conversation_ref(ref)
         tab = self.tab_pool.acquire(ref, render=False)
         try:
-            captured = capture_conversation(tab, ref, self.store, with_attachments=with_attachments, header_mode="ambient_backend")
+            captured = capture_conversation(tab, ref, self.store, with_attachments=with_attachments, header_mode="ambient_backend", governor=self.governor)
             del out
             transcript = self.store.load_transcript(ref)
             return transcript if transcript.turns else captured.transcript

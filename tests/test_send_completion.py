@@ -910,3 +910,70 @@ def test_send_and_completion_sources_remain_offline_channel_only() -> None:
         assert "playwright" not in text.lower()
         assert "CdpChannel" not in text
         assert ".context.pages" not in text
+
+
+def test_completion_429_raises_rate_limited_with_retry_after_and_is_not_swallowed() -> None:
+    from ask_chatgpt.errors import RateLimitedError
+
+    scenario = MockScenario(
+        name="completion_429_rate_limited",
+        backend_responses={
+            "/backend-api/conversation/conv_mock_completion": MockBackendResponse(
+                429,
+                {"detail": "too many requests"},
+                headers={"retry-after": "123"},
+            )
+        },
+        request_snapshots=_request_snapshots(count=1),
+        turn_timeline=(TimedTurnSnapshot(0.0, _baseline_snapshot(stop_visible=True)),),
+    )
+    clock = ScriptedClock()
+    mock = MockChannel(scenario, monotonic=clock.monotonic, sleeper=clock.sleep)
+    tab = _open_mock_tab(mock)
+    baseline = TurnBaseline("baseline-user-1", 1, "baseline-assistant-1", 1)
+
+    with pytest.raises(RateLimitedError) as excinfo:
+        wait_for_completion(
+            tab,
+            CONV,
+            SELECTORS,
+            baseline,
+            activity_timeout_s=10.0,
+            max_total_wait_s=None,
+            progress_poll_interval_s=1.0,
+            backend_check_interval_s=1.0,
+        )
+
+    assert excinfo.value.details["retry_after_s"] == 123
+    assert mock.method_counts.get("dom_polls", 0) == 0
+
+
+def test_session_invokes_governor_for_page_load_send_and_backend_fetches(tmp_path) -> None:
+    clock = ScriptedClock()
+    mock = MockChannel(_session_success_scenario(), monotonic=clock.monotonic, sleeper=clock.sleep)
+    session = Session(
+        data_dir=tmp_path,
+        channel=mock,
+        selector_map=SELECTORS,
+        send_verify_timeout_s=4.0,
+        composer_wait_timeout_s=2.0,
+        progress_poll_interval_s=1.0,
+        backend_check_interval_s=1.0,
+        activity_timeout_s=10.0,
+    )
+    acquired: list[tuple[float, str, str]] = []
+    original_acquire = session.governor.acquire
+
+    def spy_acquire(cost: float, *, action: str, path_kind: str) -> None:
+        acquired.append((float(cost), action, path_kind))
+        original_acquire(cost, action=action, path_kind=path_kind)
+
+    session.governor.acquire = spy_acquire  # type: ignore[method-assign]
+
+    answer = session.ask(CONV, "literal prompt")
+
+    assert answer.content_markdown == "final answer"
+    actions = [item[1] for item in acquired]
+    assert "page_load" in actions
+    assert "send" in actions
+    assert "backend_fetch" in actions
