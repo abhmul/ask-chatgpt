@@ -21,6 +21,28 @@ const STOP_FILE = DIR + 'STOP';
 const ALERT_FILE = DIR + 'ALERT';
 const STATUS_FILE = DIR + 'status.json';
 const LOG_FILE = DIR + 'controller.log';
+const NEXT_BIG_FILE = DIR + 'next-big.txt';
+
+// Every BIG_INTERVAL_MS, the next send (at the next idle slot) is the milestone
+// "refine/compress/proof-tree" message instead of "keep pushing!!". The due time is
+// persisted so a controller restart mid-window does NOT re-fire the milestone.
+const BIG_INTERVAL_MS = Number(process.env.BIG_INTERVAL_MS || 2 * 60 * 60 * 1000);
+const BIG_MARKER = 'compact proof tree'; // distinctive substring used to verify the send landed
+const BIG_MESSAGE = `When you reach a natural stopping point after major milestones are achieved, carefully and rigorously go over the claims you have made and build a compact proof tree with statuses for all our work. Include the different branches we went down, which branches we ruled out, and which we are still working through.
+
+Then compress and refine our understanding of the problem and our approach to make our approach more elegant, conceptually sound, and easier to identify the right approach. This means
+- simplify
+- clean
+- replace with alternate, better methods
+- make more elegant
+- compress unnecessarily long arguments to shorter, more concise arguments (but still formally rigorous and correct)
+- turn unnecessarily specific work into a more general, simpler results or theory
+
+By simplifying and compressing our proof we reveal new ideas, remove unnecessary noise in our formulations, and start to expose the real picture of what is going on.
+
+Then, using the compressed and refined understanding consider connections to methods from geometry (e.g. differential, discrete, and convex), topology (e.g. morse, algebraic), analysis (e.g. differential equations, measure theory, complex analysis, transport), statistics, combinatorics (e.g. probabilistic method, statistical physics, graph theory, ramsey theory), number theory, algebra, and algebraic geometry. If you find a better route than the one we are taking, push down that direction.
+
+Finally, rebuild the proof tree with your compressed and simplified understanding of the problem. Make sure to check your proof tree and claims. Then, pick 3-5 of the most promising directions to go and use a pseudorandom generator to select one of them to push down. File the others in the proof tree, in case we find they are useful later.`;
 
 const POLL_MS = 2000;
 const STABLE_MS = 8000;        // !stop + no activity for this long => idle/done
@@ -28,16 +50,25 @@ const SEND_VERIFY_MS = 30000;  // new user turn must appear within this window
 const COMPOSER_WAIT_MS = 20000; // wait this long for the composer to (re)mount
 const HYDRATE_MS = 60000;      // post-reload hydration budget
 const STALL_MS = 240000;       // after send: no stop + no change this long => stall (recoverable)
-const CDP_TIMEOUT_MS = 30000;
+const CDP_TIMEOUT_MS = 45000;  // ride through heavy-but-alive renders; a truly hung renderer is recovered via force-navigate
 const MAX_CONSECUTIVE_FAILURES = 12;
+const RELOAD_EVERY = Number(process.env.RELOAD_EVERY || 8); // reload page every N turns; otherwise send immediately (short gap). Fewer reloads => less renderer-hang exposure on a heavy page.
 
-import { writeFileSync, appendFileSync, existsSync } from 'node:fs';
+import { writeFileSync, appendFileSync, existsSync, readFileSync } from 'node:fs';
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const now = () => Date.now();
 const iso = () => new Date().toISOString();
+const normText = s => (s || '').replace(/\s+/g, ' ').trim();
 
-let iter = 0, sentCount = 0, consecutiveFailures = 0;
+let iter = 0, sentCount = 0, consecutiveFailures = 0, bigCount = 0;
+let nextBigAt = null; // epoch ms when the next milestone message is due
+
+function readNextBigAt() {
+  try { if (existsSync(NEXT_BIG_FILE)) return Number(readFileSync(NEXT_BIG_FILE, 'utf8').trim()) || 0; } catch {}
+  return null;
+}
+function writeNextBigAt(ts) { try { writeFileSync(NEXT_BIG_FILE, String(ts)); } catch {} }
 
 function log(msg, extra) {
   const line = `${iso()} ${msg}${extra ? ' ' + JSON.stringify(extra) : ''}`;
@@ -138,6 +169,20 @@ async function readState(page) {
   catch { await sleep(500); return await page.evalValue(stateExpr); }
 }
 
+// A model-label mismatch is only "real" if it PERSISTS. During reload/hydration the
+// composer briefly surfaces other controls (e.g. "Extra High" reasoning effort) before
+// the model name settles, which previously caused false halts. Returns true ONLY on a
+// sustained mismatch (~12s of non-matching, non-empty labels with no Pro Extended).
+async function confirmViolation(page) {
+  for (let i = 0; i < 6; i++) {
+    const s = await readState(page);
+    if (modelConfirmed(s)) return false;          // model name appeared -> not a violation
+    if (s.modelLabels.length === 0) return false; // unknown/transient -> not a violation
+    await sleep(2000);
+  }
+  return true;
+}
+
 async function findPage() {
   const targets = await json('/json/list');
   const matches = targets.filter(t => t.type === 'page' && t.url && (() => { try { return new URL(t.url).pathname === conversationPath; } catch { return false; } })());
@@ -147,9 +192,35 @@ async function findPage() {
     try { await page.open(); const s = await readState(page); inspected.push({ page, s, score: (modelConfirmed(s) ? 1e6 : 0) + (s.composer ? 1e5 : 0) + s.users }); }
     catch { page.close(); }
   }
-  inspected.sort((a, b) => b.score - a.score);
-  for (const it of inspected.slice(1)) it.page.close();
-  return inspected[0] || null;
+  if (inspected.length > 0) {
+    inspected.sort((a, b) => b.score - a.score);
+    for (const it of inspected.slice(1)) it.page.close();
+    return inspected[0];
+  }
+  // A matching tab exists but its renderer is unresponsive (readState timed out) -> the
+  // heavy page hung. Protocol-level commands (Page.navigate) still work even when the
+  // renderer JS is blocked, so force a fresh navigation to get a clean renderer.
+  if (matches.length > 0) {
+    const page = new CdpPage(matches[0]);
+    try {
+      await page.open();
+      log('tab unresponsive (hung renderer); forcing fresh navigation to recover', { url: conversationUrl });
+      writeStatus({ phase: 'recovering-renderer' });
+      await page.cdp('Page.navigate', { url: conversationUrl });
+      const dl = now() + HYDRATE_MS;
+      await sleep(3000);
+      while (now() < dl) {
+        checkStop();
+        try {
+          const s = await readState(page);
+          if (s.composer || s.users > 0 || s.assistants > 0) { log('renderer recovered via navigation', { users: s.users, assistants: s.assistants, model: s.modelLabels }); return { page, s, score: 0 }; }
+        } catch {}
+        await sleep(2000);
+      }
+      page.close();
+    } catch { try { page.close(); } catch {} }
+  }
+  return null;
 }
 
 // Reload the page and wait for a clean, hydrated, idle state. Only call when idle.
@@ -163,12 +234,17 @@ async function reloadAndHydrate(page) {
   while (now() < deadline) {
     checkStop();
     try { s = await readState(page); } catch { await sleep(1000); continue; }
-    if (modelViolation(s)) alertHalt('different model selected (not ' + requireModel + ') after reload', { modelLabels: s.modelLabels });
+    // Do NOT halt on a transient label mismatch here — keep polling for the model name
+    // to settle. A real model switch is caught by the persistence check below.
     if (s.composer && modelConfirmed(s) && (s.users > 0 || s.assistants > 0) && !s.stopVisible) {
       log('hydrated', { iter, model: s.modelLabels, users: s.users, assistants: s.assistants });
       return s;
     }
     await sleep(1000);
+  }
+  // Budget expired without ever confirming the model. Only halt if the mismatch is sustained.
+  if (s && modelViolation(s) && await confirmViolation(page)) {
+    alertHalt('different model selected (not ' + requireModel + ') after reload', { modelLabels: s.modelLabels });
   }
   log('WARNING: hydration incomplete; proceeding with last read', { iter, last: s && { composer: s.composer, modelLabels: s.modelLabels, stopVisible: s.stopVisible } });
   return s || await readState(page);
@@ -186,7 +262,7 @@ async function waitForIdle(page, requireSawStop) {
   while (true) {
     checkStop();
     const s = await readState(page);
-    if (modelViolation(s)) alertHalt('different model selected (not ' + requireModel + ')', { modelLabels: s.modelLabels, iter });
+    if (modelViolation(s) && await confirmViolation(page)) alertHalt('different model selected (not ' + requireModel + ')', { modelLabels: s.modelLabels, iter });
     if (s.stopVisible) sawStop = true;
     if (s.latestAssistantLen !== entry.latestAssistantLen || s.latestAssistantId !== entry.latestAssistantId || s.assistants !== entry.assistants) changed = true;
     const active = s.stopVisible || s.latestAssistantLen !== prev.latestAssistantLen || s.latestAssistantId !== prev.latestAssistantId || s.assistants !== prev.assistants;
@@ -209,8 +285,12 @@ async function waitForIdle(page, requireSawStop) {
   }
 }
 
-// Fill + submit + verify a NEW user turn appeared. Returns {ok, after} | {ok:false,...}.
-async function sendOnce(page, before) {
+// Fill + submit + verify a NEW user turn appeared carrying `marker`.
+// `marker` is a distinctive substring of `text` used for verification — robust for
+// long multi-line messages where exact normalized-equality is fragile.
+// Returns {ok, after} | {ok:false,...}.
+async function sendOnce(page, before, text, marker) {
+  const normMarker = normText(marker);
   // Wait for the composer to (re)mount — it un-mounts transiently during transitions.
   const cdl = now() + COMPOSER_WAIT_MS;
   let has = false;
@@ -223,11 +303,12 @@ async function sendOnce(page, before) {
     const norm = s => (s || '').replace(/\\s+/g,' ').trim();
     c.scrollIntoView({ block:'center' }); c.focus();
     document.execCommand('selectAll'); document.execCommand('delete');
-    document.execCommand('insertText', false, ${JSON.stringify(prompt)});
-    c.dispatchEvent(new InputEvent('input', { bubbles:true, inputType:'insertText', data:${JSON.stringify(prompt)} }));
+    document.execCommand('insertText', false, ${JSON.stringify(text)});
+    c.dispatchEvent(new InputEvent('input', { bubbles:true, inputType:'insertText', data:${JSON.stringify(text)} }));
     return { ok:true, text: norm(c.innerText || c.textContent || c.value || '') };
   })()`);
-  if (!filled.ok || filled.text !== prompt) return { ok: false, stage: 'fill', detail: filled };
+  // Lenient fill check: composer holds the marker (post-send turn check is authoritative).
+  if (!filled.ok || !filled.text.includes(normMarker)) return { ok: false, stage: 'fill', detail: filled && { len: (filled.text || '').length } };
   await sleep(500);
   const clicked = await page.evalValue(`(() => {
     const vis = el => !!el && getComputedStyle(el).display!=='none' && getComputedStyle(el).visibility!=='hidden' && el.getBoundingClientRect().width>0 && el.getBoundingClientRect().height>0;
@@ -242,39 +323,74 @@ async function sendOnce(page, before) {
   let after;
   while (now() < deadline) {
     after = await readState(page);
-    if (after.latestUser.includes(prompt) && (after.latestUserId !== before.latestUserId || after.users > before.users)) {
+    if (after.latestUser.includes(normMarker) && (after.latestUserId !== before.latestUserId || after.users > before.users)) {
       return { ok: true, after };
     }
     await sleep(500);
   }
-  return { ok: false, stage: 'verify', detail: after };
+  return { ok: false, stage: 'verify', detail: after && { latestUserId: after.latestUserId, users: after.users } };
 }
 
-// One attached session: reload-when-idle -> send -> wait, until STOP. Throws on
-// recoverable errors so the supervisor can re-attach.
+// Prepare to send WITHOUT a full reload when possible (short inter-turn gap).
+// Reloads only when forced (periodic, every RELOAD_EVERY turns) or when the page
+// looks stale (composer absent). Halts on a sustained model mismatch.
+async function ensureReady(page, forceReload) {
+  if (forceReload) return await reloadAndHydrate(page);
+  let s = await readState(page);
+  if (modelViolation(s) && await confirmViolation(page)) {
+    alertHalt('different model selected (not ' + requireModel + ')', { modelLabels: s.modelLabels, iter });
+  }
+  if (s.composer) return s; // ready without a reload
+  // composer briefly absent — short wait, then reload as a staleness fallback
+  const dl = now() + 5000;
+  while (now() < dl) { await sleep(500); s = await readState(page); if (s.composer) return s; }
+  log('composer absent without reload; reloading (staleness fallback)', { iter });
+  return await reloadAndHydrate(page);
+}
+
+// One attached session: (reload every N turns / on staleness) -> send -> wait, until
+// STOP. Throws on recoverable errors so the supervisor can re-attach.
 async function runSession(page) {
-  // Let any in-flight response finish before the first reload.
+  let turnsSinceReload = RELOAD_EVERY; // force a reload on the first cycle (clean start)
+  // Let any in-flight response finish before doing anything.
   await waitForIdle(page, false);
   while (true) {
     checkStop();
-    let state = await reloadAndHydrate(page);
+    const forceReload = turnsSinceReload >= RELOAD_EVERY;
+    let state = await ensureReady(page, forceReload);
+    if (forceReload) turnsSinceReload = 0;
     iter++;
-    if (!modelConfirmed(state)) log('WARNING: model label empty after reload; proceeding on prior confirmation', { iter });
+    if (!modelConfirmed(state)) log('WARNING: model label not confirmed; proceeding on prior confirmation', { iter });
 
-    writeStatus({ phase: 'sending' });
-    log('sending keep pushing', { iter, assistants: state.assistants });
-    let sent = await sendOnce(page, state);
+    // Decide message: milestone "refine" message if the 2h window is due, else keep pushing.
+    const due = now() >= (nextBigAt ?? 0);
+    const messageType = due ? 'milestone' : 'keep-pushing';
+    const text = due ? BIG_MESSAGE : 'keep pushing!!';
+    const marker = due ? BIG_MARKER : 'keep pushing';
+
+    writeStatus({ phase: 'sending', messageType, reloadedThisTurn: forceReload, nextBigAtIso: nextBigAt ? new Date(nextBigAt).toISOString() : null });
+    log('sending', { iter, messageType, reloaded: forceReload, turnsSinceReload, assistants: state.assistants });
+    let sent = await sendOnce(page, state, text, marker);
     if (!sent.ok) {
-      log('send failed; retrying once', { iter, stage: sent.stage });
-      await sleep(2000);
-      sent = await sendOnce(page, await readState(page));
+      // staleness fallback: reload and retry once
+      log('send failed; reloading and retrying', { iter, stage: sent.stage, messageType });
+      state = await reloadAndHydrate(page);
+      turnsSinceReload = 0;
+      sent = await sendOnce(page, state, text, marker);
     }
     if (!sent.ok) throw new Error('send failed twice: ' + sent.stage); // recoverable -> re-attach
 
     sentCount++;
     consecutiveFailures = 0;
-    log('send verified; waiting for response', { iter, sentCount, newUserId: sent.after.latestUserId });
-    writeStatus({ phase: 'sent' });
+    turnsSinceReload++;
+    if (due) {
+      bigCount++;
+      nextBigAt = now() + BIG_INTERVAL_MS;
+      writeNextBigAt(nextBigAt);
+      log('milestone message sent; next milestone due', { bigCount, nextBigAtIso: new Date(nextBigAt).toISOString() });
+    }
+    log('send verified; waiting for response', { iter, sentCount, messageType, newUserId: sent.after.latestUserId });
+    writeStatus({ phase: 'sent', messageType, bigCount, nextBigAtIso: nextBigAt ? new Date(nextBigAt).toISOString() : null });
 
     const done = await waitForIdle(page, true);
     log('response complete', { iter, sentCount, assistants: done.assistants, latestAssistantLen: done.latestAssistantLen });
@@ -283,7 +399,11 @@ async function runSession(page) {
 
 async function main() {
   if (existsSync(STOP_FILE)) alertHalt('STOP file present at startup; remove it to run');
-  log('controller starting', { conversationPath, requireModel });
+  // Load the persisted milestone due-time. If none, default to 0 => the FIRST send is
+  // the milestone message ("starting now"); subsequent ones advance by BIG_INTERVAL_MS.
+  nextBigAt = readNextBigAt();
+  if (nextBigAt === null) { nextBigAt = 0; writeNextBigAt(0); }
+  log('controller starting', { conversationPath, requireModel, bigIntervalMs: BIG_INTERVAL_MS, nextBigAtIso: nextBigAt ? new Date(nextBigAt).toISOString() : 'due-now' });
   while (true) {
     checkStop();
     let found = null;
@@ -296,7 +416,7 @@ async function main() {
       await sleep(5000); continue;
     }
     const page = found.page;
-    if (modelViolation(found.s)) alertHalt('different model selected (not ' + requireModel + ') on existing tab', { modelLabels: found.s.modelLabels });
+    if (modelViolation(found.s) && await confirmViolation(page)) alertHalt('different model selected (not ' + requireModel + ') on existing tab', { modelLabels: found.s.modelLabels });
     log('attached to tab', { model: found.s.modelLabels, users: found.s.users, assistants: found.s.assistants, stopVisible: found.s.stopVisible });
     try {
       await runSession(page); // only returns by process.exit on STOP
